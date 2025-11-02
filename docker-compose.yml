@@ -13,6 +13,7 @@ services:
       - ./devices.json:/app/devices.json
       - ./encryption.key:/app/encryption.key
       - ./auth.json:/app/auth.json
+      - ./device_metadata.json:/app/device_metadata.json
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=True

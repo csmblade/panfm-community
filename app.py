@@ -43,6 +43,10 @@ limiter = Limiter(
 from auth import init_auth_file
 init_auth_file()
 
+# Initialize device metadata file
+from device_metadata import init_metadata_file
+init_metadata_file()
+
 # Check and fix encryption key permissions
 from encryption import check_key_permissions
 check_key_permissions()

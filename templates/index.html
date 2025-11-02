@@ -2035,10 +2035,13 @@
                 <textarea id="deviceMetadataComment" placeholder="Enter device comment or notes" rows="4" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; resize: vertical; transition: border-color 0.3s; font-family: var(--font-secondary);" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#ddd'"></textarea>
             </div>
 
-            <div style="margin-bottom: 25px;">
+            <div style="margin-bottom: 25px; position: relative;">
                 <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Tags</label>
-                <input type="text" id="deviceMetadataTags" placeholder="Enter tags separated by commas (e.g., mobile, employee, priority)" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#ddd'">
-                <div style="font-size: 0.8em; color: #666; margin-top: 5px;">Separate multiple tags with commas. Tags are searchable.</div>
+                <div style="position: relative;">
+                    <input type="text" id="deviceMetadataTags" placeholder="Enter tags separated by commas (e.g., mobile, employee, priority)" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#ddd'">
+                    <div id="tagAutocompleteDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #FA582D; border-top: none; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 10001; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"></div>
+                </div>
+                <div style="font-size: 0.8em; color: #666; margin-top: 5px;">Separate multiple tags with commas. Start typing to see existing tags you can reuse.</div>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e0e0e0;">

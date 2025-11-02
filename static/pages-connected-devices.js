@@ -17,6 +17,7 @@ let connectedDevicesSortBy = 'age'; // Default sort by age
 let connectedDevicesSortDesc = false; // Default ascending (lowest to highest)
 let deviceMetadataCache = {}; // Cache metadata keyed by MAC address (normalized lowercase)
 let expandedRows = new Set(); // Track which rows are expanded for comments
+let allTagsCache = []; // Cache all unique tags for autocomplete
 
 async function loadDeviceMetadata() {
     console.log('Loading device metadata...');
@@ -41,17 +42,38 @@ async function loadDeviceMetadata() {
     }
 }
 
+async function loadAllTags() {
+    console.log('Loading all tags for autocomplete...');
+    try {
+        const response = await fetch('/api/device-metadata/tags');
+        const data = await response.json();
+
+        if (data.status === 'success' && Array.isArray(data.tags)) {
+            allTagsCache = data.tags;
+            console.log(`Loaded ${allTagsCache.length} unique tags for autocomplete`);
+        } else {
+            console.warn('Failed to load tags:', data.message);
+            allTagsCache = [];
+        }
+    } catch (error) {
+        console.error('Error loading tags:', error);
+        allTagsCache = [];
+    }
+}
+
 async function loadConnectedDevices() {
     console.log('Loading connected devices...');
     try {
-        // Load metadata first (in parallel with devices)
-        const [devicesResponse, metadataResponse] = await Promise.all([
+        // Load metadata and tags in parallel with devices
+        const [devicesResponse, metadataResponse, tagsResponse] = await Promise.all([
             fetch('/api/connected-devices'),
-            fetch('/api/device-metadata')
+            fetch('/api/device-metadata'),
+            fetch('/api/device-metadata/tags')
         ]);
 
         const data = await devicesResponse.json();
         const metadataData = await metadataResponse.json();
+        const tagsData = await tagsResponse.json();
 
         // Cache metadata
         if (metadataData.status === 'success' && metadataData.metadata) {
@@ -59,6 +81,12 @@ async function loadConnectedDevices() {
             for (const [mac, metadata] of Object.entries(metadataData.metadata)) {
                 deviceMetadataCache[mac.toLowerCase()] = metadata;
             }
+        }
+
+        // Cache tags for autocomplete
+        if (tagsData.status === 'success' && Array.isArray(tagsData.tags)) {
+            allTagsCache = tagsData.tags;
+            console.log(`Loaded ${allTagsCache.length} unique tags for autocomplete`);
         }
 
         const tableDiv = document.getElementById('connectedDevicesTable');
@@ -562,6 +590,118 @@ function openDeviceEditModal(mac) {
 
     // Store current MAC for save handler
     modal.dataset.currentMac = mac;
+
+    // Set up tag autocomplete
+    setupTagAutocomplete();
+}
+
+// Set up tag autocomplete for tags input field
+function setupTagAutocomplete() {
+    const tagsInput = document.getElementById('deviceMetadataTags');
+    const dropdown = document.getElementById('tagAutocompleteDropdown');
+    
+    if (!tagsInput || !dropdown) {
+        return;
+    }
+
+    // Clear existing event listeners by removing and re-adding
+    const newInput = tagsInput.cloneNode(true);
+    tagsInput.parentNode.replaceChild(newInput, tagsInput);
+    const newDropdown = dropdown.cloneNode(true);
+    dropdown.parentNode.replaceChild(newDropdown, dropdown);
+
+    const input = document.getElementById('deviceMetadataTags');
+    const suggestions = document.getElementById('tagAutocompleteDropdown');
+
+    let hideTimeout = null;
+
+    input.addEventListener('input', function() {
+        const value = this.value;
+        const cursorPos = this.selectionStart;
+        
+        // Get the current word being typed (everything after the last comma)
+        const lastCommaIndex = value.lastIndexOf(',', cursorPos - 1);
+        const currentWord = value.substring(lastCommaIndex + 1, cursorPos).trim();
+
+        // Clear hide timeout
+        if (hideTimeout) {
+            clearTimeout(hideTimeout);
+        }
+
+        // Filter tags based on current word
+        if (currentWord.length > 0) {
+            const matches = allTagsCache.filter(tag => 
+                tag.toLowerCase().includes(currentWord.toLowerCase()) &&
+                !value.toLowerCase().includes(tag.toLowerCase() + ',') &&
+                !value.toLowerCase().endsWith(tag.toLowerCase())
+            ).slice(0, 10); // Limit to 10 suggestions
+
+            if (matches.length > 0) {
+                suggestions.innerHTML = '';
+                matches.forEach(tag => {
+                    const item = document.createElement('div');
+                    item.className = 'tag-suggestion';
+                    item.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #e0e0e0; transition: background 0.2s;';
+                    item.textContent = tag;
+                    item.onmouseover = () => item.style.background = '#f0f0f0';
+                    item.onmouseout = () => item.style.background = 'white';
+                    item.onclick = () => {
+                        selectTag(tag, input);
+                    };
+                    suggestions.appendChild(item);
+                });
+                suggestions.style.display = 'block';
+            } else {
+                suggestions.style.display = 'none';
+            }
+        } else {
+            suggestions.style.display = 'none';
+        }
+    });
+
+    input.addEventListener('blur', function() {
+        // Delay hiding to allow clicks on suggestions
+        hideTimeout = setTimeout(() => {
+            suggestions.style.display = 'none';
+        }, 200);
+    });
+
+    input.addEventListener('focus', function() {
+        if (hideTimeout) {
+            clearTimeout(hideTimeout);
+        }
+    });
+
+    // Prevent dropdown from closing when clicking on it
+    suggestions.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+    });
+}
+
+// Select a tag from autocomplete and add it to input
+function selectTag(tag, input) {
+    const value = input.value;
+    const cursorPos = input.selectionStart;
+    
+    // Find the current word being typed
+    const lastCommaIndex = value.lastIndexOf(',', cursorPos - 1);
+    const beforeWord = value.substring(0, lastCommaIndex + 1);
+    const afterWord = value.substring(cursorPos);
+    
+    // Insert the selected tag
+    const newValue = beforeWord + (beforeWord.trim() ? ', ' : '') + tag + (afterWord.trim() ? ', ' : '') + afterWord;
+    input.value = newValue;
+    
+    // Position cursor after the inserted tag
+    const newCursorPos = beforeWord.length + (beforeWord.trim() ? 2 : 0) + tag.length;
+    input.setSelectionRange(newCursorPos, newCursorPos);
+    input.focus();
+    
+    // Hide dropdown
+    document.getElementById('tagAutocompleteDropdown').style.display = 'none';
+    
+    // Trigger input event to update any dependent logic
+    input.dispatchEvent(new Event('input'));
 }
 
 // Save device metadata via API
@@ -598,6 +738,9 @@ async function saveDeviceMetadata(mac, name, comment, tags) {
             } else {
                 delete deviceMetadataCache[normalizedMac];
             }
+            
+            // Reload tags for autocomplete
+            await loadAllTags();
             
             // Reload devices to refresh display
             await loadConnectedDevices();
