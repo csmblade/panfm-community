@@ -261,11 +261,12 @@ function renderConnectedDevicesTable() {
     let filteredDevices = allConnectedDevices.filter(device => {
         // Search filter (includes tags automatically)
         if (searchTerm) {
-            // Build searchable text including tags
-            const tagsText = (device.tags && Array.isArray(device.tags)) ? device.tags.join(' ') : '';
-            const customNameText = device.custom_name || '';
-            const commentText = device.comment || '';
-            const searchableText = `${device.hostname} ${device.original_hostname || device.hostname} ${customNameText} ${device.ip} ${device.mac} ${device.interface} ${tagsText} ${commentText}`.toLowerCase();
+        // Build searchable text including tags, location, etc.
+        const tagsText = (device.tags && Array.isArray(device.tags)) ? device.tags.join(' ') : '';
+        const customNameText = device.custom_name || '';
+        const locationText = device.location || '';
+        const commentText = device.comment || '';
+        const searchableText = `${device.hostname} ${device.original_hostname || device.hostname} ${customNameText} ${locationText} ${device.ip} ${device.mac} ${device.interface} ${tagsText} ${commentText}`.toLowerCase();
             if (!searchableText.includes(searchTerm)) {
                 return false;
             }
@@ -567,6 +568,7 @@ function openDeviceEditModal(mac) {
     const metadata = deviceMetadataCache[normalizedMac] || {};
     const currentName = device.custom_name || metadata.name || '';
     const currentComment = device.comment || metadata.comment || '';
+    const currentLocation = device.location || metadata.location || '';
     const currentTags = device.tags || metadata.tags || [];
 
     // Populate modal fields
@@ -579,6 +581,7 @@ function openDeviceEditModal(mac) {
     document.getElementById('deviceMetadataMac').textContent = device.mac;
     document.getElementById('deviceMetadataIp').textContent = device.ip;
     document.getElementById('deviceMetadataName').value = currentName;
+    document.getElementById('deviceMetadataLocation').value = currentLocation;
     document.getElementById('deviceMetadataComment').value = currentComment;
     
     // Populate tags input
@@ -705,7 +708,7 @@ function selectTag(tag, input) {
 }
 
 // Save device metadata via API
-async function saveDeviceMetadata(mac, name, comment, tags) {
+async function saveDeviceMetadata(mac, name, location, comment, tags) {
     try {
         // Get CSRF token
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -723,6 +726,7 @@ async function saveDeviceMetadata(mac, name, comment, tags) {
             body: JSON.stringify({
                 mac: mac,
                 name: name || null,
+                location: location || null,
                 comment: comment || null,
                 tags: tags || []
             })
@@ -733,7 +737,7 @@ async function saveDeviceMetadata(mac, name, comment, tags) {
         if (data.status === 'success') {
             // Update cache
             const normalizedMac = mac.toLowerCase();
-            if (name || comment || (tags && tags.length > 0)) {
+            if (name || location || comment || (tags && tags.length > 0)) {
                 deviceMetadataCache[normalizedMac] = data.metadata;
             } else {
                 delete deviceMetadataCache[normalizedMac];

@@ -710,6 +710,7 @@ def get_connected_devices(firewall_config):
                     'original_hostname': original_hostname,  # Always preserve original hostname
                     'custom_name': None,  # Will be set from metadata if available
                     'comment': None,  # Will be set from metadata if available
+                    'location': None,  # Will be set from metadata if available
                     'tags': []  # Will be set from metadata if available
                 }
 
@@ -748,6 +749,10 @@ def get_connected_devices(firewall_config):
                     # Set comment if available
                     if 'comment' in meta and meta['comment']:
                         device_entry['comment'] = meta['comment']
+                    
+                    # Set location if available
+                    if 'location' in meta and meta['location']:
+                        device_entry['location'] = meta['location']
                     
                     # Set tags if available
                     if 'tags' in meta and meta['tags']:

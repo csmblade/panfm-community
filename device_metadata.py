@@ -206,7 +206,7 @@ def get_device_metadata(mac_address):
     return result
 
 
-def update_device_metadata(mac_address, name=None, comment=None, tags=None):
+def update_device_metadata(mac_address, name=None, comment=None, tags=None, location=None):
     """
     Update metadata for a specific MAC address.
     Only provided fields are updated; others remain unchanged.
@@ -216,6 +216,7 @@ def update_device_metadata(mac_address, name=None, comment=None, tags=None):
         name (str, optional): Custom device name
         comment (str, optional): Device comment
         tags (list, optional): List of tag strings
+        location (str, optional): Device location/room/building
     
     Returns:
         bool: True on success, False on error
@@ -236,6 +237,10 @@ def update_device_metadata(mac_address, name=None, comment=None, tags=None):
     if comment is not None:
         metadata[normalized_mac]['comment'] = comment
         debug(f"Updated comment")
+    
+    if location is not None:
+        metadata[normalized_mac]['location'] = location
+        debug(f"Updated location to: {location}")
     
     if tags is not None:
         # Ensure tags is a list and filter out empty strings

@@ -436,6 +436,7 @@ def register_routes(app, csrf, limiter):
             mac = data.get('mac')
             name = data.get('name')
             comment = data.get('comment')
+            location = data.get('location')
             tags = data.get('tags')
             
             # Validate tags is a list if provided
@@ -445,7 +446,7 @@ def register_routes(app, csrf, limiter):
                     'message': 'Tags must be a list'
                 }), 400
             
-            success = update_device_metadata(mac, name=name, comment=comment, tags=tags)
+            success = update_device_metadata(mac, name=name, comment=comment, location=location, tags=tags)
             
             if success:
                 # Force reload cache to ensure latest data

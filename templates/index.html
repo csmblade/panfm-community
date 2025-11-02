@@ -2031,6 +2031,12 @@
             </div>
 
             <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Location</label>
+                <input type="text" id="deviceMetadataLocation" placeholder="Enter device location (e.g., Building A, Room 205, Home Office)" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#ddd'">
+                <div style="font-size: 0.8em; color: #666; margin-top: 5px;">Building, room, office, or physical location</div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
                 <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Comment</label>
                 <textarea id="deviceMetadataComment" placeholder="Enter device comment or notes" rows="4" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; resize: vertical; transition: border-color 0.3s; font-family: var(--font-secondary);" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#ddd'"></textarea>
             </div>
@@ -2071,13 +2077,14 @@
             }
 
             const name = document.getElementById('deviceMetadataName').value.trim();
+            const location = document.getElementById('deviceMetadataLocation').value.trim();
             const comment = document.getElementById('deviceMetadataComment').value.trim();
             const tagsInput = document.getElementById('deviceMetadataTags').value.trim();
             
             // Parse tags from comma-separated string
             const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
 
-            const success = await saveDeviceMetadata(mac, name, comment, tags);
+            const success = await saveDeviceMetadata(mac, name, location, comment, tags);
             if (success) {
                 closeDeviceMetadataModal();
             }
