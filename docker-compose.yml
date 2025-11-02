@@ -8,7 +8,8 @@ services:
       - "3000:3000"
     volumes:
       # Persist data files (create these as files first, not directories)
-      # Run setup.sh or touch these files before starting: settings.json devices.json encryption.key auth.json
+      # Run setup.sh before starting to create all required files
+      # Files: settings.json devices.json encryption.key auth.json device_metadata.json
       - ./settings.json:/app/settings.json
       - ./devices.json:/app/devices.json
       - ./encryption.key:/app/encryption.key

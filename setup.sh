@@ -97,6 +97,57 @@ else
     echo "✓ auth.json already exists"
 fi
 
+# Create device_metadata.json if it doesn't exist
+if [ ! -f "device_metadata.json" ]; then
+    echo "Creating device_metadata.json..."
+    
+    # Create encrypted empty metadata file using Python
+    python3 -c "
+import json
+import os
+import sys
+
+# Try to import encryption module
+try:
+    from encryption import encrypt_dict
+    
+    # Create empty metadata structure
+    empty_data = {}
+    
+    # Encrypt it
+    encrypted_data = encrypt_dict(empty_data)
+    
+    # Save to file
+    with open('device_metadata.json', 'w') as f:
+        json.dump(encrypted_data, f, indent=2)
+    
+    # Set permissions to 600
+    os.chmod('device_metadata.json', 0o600)
+    
+    print('Created encrypted device_metadata.json')
+except ImportError:
+    # If encryption module not available, create empty encrypted structure manually
+    # This mimics what encrypt_dict would produce with an empty dict
+    empty_encrypted = {}
+    with open('device_metadata.json', 'w') as f:
+        json.dump(empty_encrypted, f, indent=2)
+    os.chmod('device_metadata.json', 0o600)
+    print('Created device_metadata.json (will be encrypted on first app load)')
+except Exception as e:
+    # Fallback: create empty file, app will initialize it
+    with open('device_metadata.json', 'w') as f:
+        f.write('')
+    print(f'Created empty device_metadata.json (app will initialize: {e})')
+" 2>/dev/null || touch device_metadata.json
+    
+    # Ensure file permissions are correct
+    chmod 600 device_metadata.json 2>/dev/null || true
+    
+    echo "✓ device_metadata.json created"
+else
+    echo "✓ device_metadata.json already exists"
+fi
+
 # Create data directory if it doesn't exist
 if [ ! -d "data" ]; then
     echo "Creating data directory..."
