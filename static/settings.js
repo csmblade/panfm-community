@@ -236,6 +236,21 @@ function initSettingsTabs() {
             const targetContent = document.getElementById(targetTab + '-tab');
             if (targetContent) {
                 targetContent.style.display = 'block';
+                
+                // Load database info when databases tab is opened
+                if (targetTab === 'databases') {
+                    // Load vendor DB info if not already loaded
+                    const vendorDbStatus = document.getElementById('vendorDbStatus');
+                    if (vendorDbStatus && (!vendorDbStatus.textContent || vendorDbStatus.textContent === 'Loading...')) {
+                        loadVendorDbInfo();
+                    }
+                    
+                    // Load service port DB info if not already loaded
+                    const servicePortDbStatus = document.getElementById('servicePortDbStatus');
+                    if (servicePortDbStatus && (!servicePortDbStatus.textContent || servicePortDbStatus.textContent === 'Loading...')) {
+                        loadServicePortDbInfo();
+                    }
+                }
             }
         });
     });
