@@ -373,10 +373,8 @@ function initVendorDbControls() {
             refreshBtn.setAttribute('data-listener', 'true');
         }
 
-        // Load initial info (only if elements exist)
-        if (document.getElementById('vendorDbStatus')) {
-            loadVendorDbInfo();
-        }
+        // Load initial info (functions handle null checks internally)
+        loadVendorDbInfo();
     } catch (error) {
         console.error('Error initializing vendor DB controls:', error);
     }
@@ -512,10 +510,8 @@ function initServicePortDbControls() {
             refreshBtn.setAttribute('data-listener', 'true');
         }
 
-        // Load initial info (only if elements exist)
-        if (document.getElementById('servicePortDbStatus')) {
-            loadServicePortDbInfo();
-        }
+        // Load initial info (functions handle null checks internally)
+        loadServicePortDbInfo();
     } catch (error) {
         console.error('Error initializing service port DB controls:', error);
     }
