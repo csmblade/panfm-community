@@ -773,8 +773,9 @@ async function saveDeviceMetadata(mac, name, location, comment, tags) {
                 delete deviceMetadataCache[normalizedMac];
             }
             
-            // Reload tags for autocomplete
+            // Reload tags and locations for autocomplete
             await loadAllTags();
+            await loadAllLocations();
             
             // Reload devices to refresh display
             await loadConnectedDevices();

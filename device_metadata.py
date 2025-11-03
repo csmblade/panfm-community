@@ -296,6 +296,28 @@ def get_all_tags():
     debug(f"Found {len(unique_tags)} unique tags")
     return unique_tags
 
+def get_all_locations():
+    """
+    Get a list of all unique locations across all devices.
+    Uses cached metadata if available.
+    
+    Returns:
+        list: Sorted list of unique location strings
+    """
+    debug("Getting all unique locations")
+    metadata = load_metadata(use_cache=True)  # Use cache for performance
+    all_locations = set()
+    
+    for mac, device_meta in metadata.items():
+        if 'location' in device_meta and device_meta['location']:
+            location = device_meta['location'].strip()
+            if location:
+                all_locations.add(location)
+    
+    unique_locations = sorted(list(all_locations))
+    debug(f"Found {len(unique_locations)} unique locations")
+    return unique_locations
+
 def reload_metadata_cache():
     """
     Force reload metadata from disk, updating the global cache.
