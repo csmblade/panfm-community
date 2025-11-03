@@ -1,6 +1,6 @@
 # PANfm - Palo Alto Networks Firewall Monitor
 
-![Version](https://img.shields.io/badge/Version-1.5.1-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.5.3-brightgreen?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-Web_Framework-black?style=for-the-badge&logo=flask&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
@@ -36,6 +36,10 @@ docker-compose logs -f
 - `settings.json` - Default application settings
 - `devices.json` - Empty device list
 - `encryption.key` - Encryption key for sensitive data
+- `auth.json` - User authentication data (default: admin/admin)
+- `device_metadata.json` - Device metadata storage (encrypted)
+- `mac_vendor_db.json` - MAC vendor database (upload via Settings)
+- `service_port_db.json` - Service port database (upload via Settings)
 - `data/` - Data directory
 
 The dashboard will be available at **http://localhost:3000**
@@ -88,8 +92,17 @@ The following data persists across container restarts:
 - `settings.json` - Application settings (encrypted)
 - `devices.json` - Firewall device configurations (encrypted)
 - `auth.json` - User authentication data (encrypted)
+- `device_metadata.json` - Device custom names, tags, locations (encrypted)
+- `mac_vendor_db.json` - MAC vendor database (6.7MB, optional)
+- `service_port_db.json` - Service port database (851KB, optional)
 
 **IMPORTANT:** Backup `encryption.key` securely. Losing it means losing access to all encrypted data.
+
+### Optional Databases
+
+Download and upload via **Settings > Databases**:
+- **MAC Vendor Database**: [maclookup.app](https://maclookup.app/downloads/json-database) - Shows manufacturer names for MAC addresses
+- **Service Port Database**: Upload your own JSON mapping of port numbers to service names
 
 ## Features
 

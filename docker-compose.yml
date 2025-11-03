@@ -9,12 +9,14 @@ services:
     volumes:
       # Persist data files (create these as files first, not directories)
       # Run setup.sh before starting to create all required files
-      # Files: settings.json devices.json encryption.key auth.json device_metadata.json
+      # Files: settings.json devices.json encryption.key auth.json device_metadata.json mac_vendor_db.json service_port_db.json
       - ./settings.json:/app/settings.json
       - ./devices.json:/app/devices.json
       - ./encryption.key:/app/encryption.key
       - ./auth.json:/app/auth.json
       - ./device_metadata.json:/app/device_metadata.json
+      - ./mac_vendor_db.json:/app/mac_vendor_db.json
+      - ./service_port_db.json:/app/service_port_db.json
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=True

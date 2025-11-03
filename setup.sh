@@ -148,6 +148,24 @@ else
     echo "✓ device_metadata.json already exists"
 fi
 
+# Create mac_vendor_db.json if it doesn't exist (empty array)
+if [ ! -f "mac_vendor_db.json" ]; then
+    echo "Creating mac_vendor_db.json (empty)..."
+    echo "[]" > mac_vendor_db.json
+    echo "✓ mac_vendor_db.json created (upload database via Settings > Databases)"
+else
+    echo "✓ mac_vendor_db.json already exists"
+fi
+
+# Create service_port_db.json if it doesn't exist (empty object)
+if [ ! -f "service_port_db.json" ]; then
+    echo "Creating service_port_db.json (empty)..."
+    echo "{}" > service_port_db.json
+    echo "✓ service_port_db.json created (upload database via Settings > Databases)"
+else
+    echo "✓ service_port_db.json already exists"
+fi
+
 # Create data directory if it doesn't exist
 if [ ! -d "data" ]; then
     echo "Creating data directory..."
@@ -159,3 +177,5 @@ fi
 
 echo ""
 echo "Setup complete! You can now run: docker-compose up -d"
+echo ""
+echo "Note: Upload MAC vendor and service port databases via Settings > Databases tab"
