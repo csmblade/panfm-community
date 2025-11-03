@@ -34,7 +34,7 @@ echo ""
 
 # Stop and remove containers with volumes
 echo "1. Stopping and removing Docker containers (with volumes)..."
-docker-compose down -v
+docker compose down -v
 echo "   ✓ Containers stopped and volumes removed"
 echo ""
 
@@ -46,7 +46,7 @@ echo ""
 
 # Rebuild and start containers
 echo "2. Building and starting Docker containers..."
-docker-compose up -d --build
+docker compose up -d --build
 echo "   ✓ Containers started"
 echo ""
 
@@ -63,14 +63,14 @@ else
     echo "   ✗ Container is not running"
     echo ""
     echo "Container logs:"
-    docker-compose logs --tail=20
+    docker compose logs --tail=20
     exit 1
 fi
 echo ""
 
 # Show logs
 echo "5. Container logs (last 10 lines):"
-docker-compose logs --tail=10
+docker compose logs --tail=10
 echo ""
 
 echo "======================================"
@@ -80,5 +80,5 @@ echo ""
 echo "Application should be available at: http://localhost:3000"
 echo ""
 echo "To view live logs, run:"
-echo "  docker-compose logs -f"
+echo "  docker compose logs -f"
 echo ""

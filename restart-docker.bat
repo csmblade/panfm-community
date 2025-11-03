@@ -23,7 +23,7 @@ echo.
 
 REM Stop and remove containers with volumes
 echo 1. Stopping and removing Docker containers (with volumes)...
-docker-compose down -v
+docker compose down -v
 if errorlevel 1 (
     echo    Error stopping containers
     pause
@@ -34,7 +34,7 @@ echo.
 
 REM Rebuild and start containers
 echo 2. Building and starting Docker containers...
-docker-compose up -d --build
+docker compose up -d --build
 if errorlevel 1 (
     echo    Error starting containers
     pause
@@ -55,7 +55,7 @@ if errorlevel 1 (
     echo    Error: Container is not running
     echo.
     echo Container logs:
-    docker-compose logs --tail=20
+    docker compose logs --tail=20
     pause
     exit /b 1
 )
@@ -64,7 +64,7 @@ echo.
 
 REM Show logs
 echo 5. Container logs (last 10 lines):
-docker-compose logs --tail=10
+docker compose logs --tail=10
 echo.
 
 echo ======================================
@@ -74,7 +74,7 @@ echo.
 echo Application should be available at: http://localhost:3000
 echo.
 echo To view live logs, run:
-echo   docker-compose logs -f
+echo   docker compose logs -f
 echo.
 
 pause

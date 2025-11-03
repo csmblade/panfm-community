@@ -1,6 +1,6 @@
 # PANfm - Palo Alto Networks Firewall Monitor
 
-![Version](https://img.shields.io/badge/Version-1.5.4-brightgreen?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.6.0-brightgreen?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-Web_Framework-black?style=for-the-badge&logo=flask&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
@@ -35,13 +35,13 @@ chmod +x setup.sh
 ./setup.sh
 
 # Start the application
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
-**CRITICAL:** Always run `./setup.sh` BEFORE `docker-compose up`. If you skip this step, Docker will create directories instead of files for the volume mounts, causing the application to fail.
+**CRITICAL:** Always run `./setup.sh` BEFORE `docker compose up`. If you skip this step, Docker will create directories instead of files for the volume mounts, causing the application to fail.
 
 **Note:** The `setup.sh` script creates:
 - `settings.json` - Default application settings
@@ -69,11 +69,11 @@ When you update the code (git pull), restart the Docker container:
 
 ```bash
 # Quick restart (preserves data)
-docker-compose restart
+docker compose restart
 
 # Full rebuild (if dependencies changed)
-docker-compose down
-docker-compose up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 ### Troubleshooting Login Issues After Update
@@ -140,7 +140,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 For issues or questions, check the application logs:
 
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 Enable debug logging in the Settings page for detailed troubleshooting.

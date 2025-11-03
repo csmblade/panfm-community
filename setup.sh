@@ -176,6 +176,6 @@ else
 fi
 
 echo ""
-echo "Setup complete! You can now run: docker-compose up -d"
+echo "Setup complete! You can now run: docker compose up -d"
 echo ""
 echo "Note: Upload MAC vendor and service port databases via Settings > Databases tab"

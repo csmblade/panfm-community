@@ -17,14 +17,20 @@ if ! command -v docker &> /dev/null; then
 fi
 echo "   ✓ Docker found: $(docker --version)"
 
-# Check if docker-compose is installed
+# Check if docker compose is installed
 echo ""
-echo "2. Checking docker-compose installation..."
-if ! command -v docker-compose &> /dev/null; then
-    echo "   ✗ docker-compose not found. Please install docker-compose first."
+echo "2. Checking $COMPOSE_CMD installation..."
+# Try modern 'docker compose' first, fallback to legacy '$COMPOSE_CMD'
+if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+    echo "   ✓ $COMPOSE_CMD found: $(docker compose version)"
+elif command -v $COMPOSE_CMD &> /dev/null; then
+    COMPOSE_CMD="$COMPOSE_CMD"
+    echo "   ✓ $COMPOSE_CMD found: $($COMPOSE_CMD --version)"
+else
+    echo "   ✗ $COMPOSE_CMD not found. Please install Docker Compose."
     exit 1
 fi
-echo "   ✓ docker-compose found: $(docker-compose --version)"
 
 # Check if Dockerfile exists
 echo ""
@@ -35,14 +41,14 @@ if [ ! -f "Dockerfile" ]; then
 fi
 echo "   ✓ Dockerfile exists"
 
-# Check if docker-compose.yml exists
+# Check if $COMPOSE_CMD.yml exists
 echo ""
-echo "4. Checking docker-compose.yml..."
-if [ ! -f "docker-compose.yml" ]; then
-    echo "   ✗ docker-compose.yml not found"
+echo "4. Checking $COMPOSE_CMD.yml..."
+if [ ! -f "$COMPOSE_CMD.yml" ]; then
+    echo "   ✗ $COMPOSE_CMD.yml not found"
     exit 1
 fi
-echo "   ✓ docker-compose.yml exists"
+echo "   ✓ $COMPOSE_CMD.yml exists"
 
 # Check if requirements.txt includes cryptography
 echo ""
@@ -56,7 +62,7 @@ echo "   ✓ cryptography dependency found"
 # Build the Docker image
 echo ""
 echo "6. Building Docker image..."
-if docker-compose build 2>&1 | tail -5; then
+if $COMPOSE_CMD build 2>&1 | tail -5; then
     echo "   ✓ Docker image built successfully"
 else
     echo "   ✗ Docker build failed"
@@ -77,7 +83,7 @@ fi
 echo ""
 echo "8. Testing container startup..."
 echo "   Starting container in background..."
-docker-compose up -d
+$COMPOSE_CMD up -d
 
 # Wait for container to start
 echo "   Waiting 10 seconds for application to initialize..."
@@ -90,8 +96,8 @@ if docker ps | grep -q "panfm"; then
     echo "   ✓ Container is running"
 else
     echo "   ✗ Container is not running"
-    docker-compose logs --tail=20
-    docker-compose down
+    $COMPOSE_CMD logs --tail=20
+    $COMPOSE_CMD down
     exit 1
 fi
 
@@ -103,26 +109,26 @@ if curl -s http://localhost:3000 > /dev/null; then
 else
     echo "   ✗ Application is not responding"
     echo "   Container logs:"
-    docker-compose logs --tail=20
-    docker-compose down
+    $COMPOSE_CMD logs --tail=20
+    $COMPOSE_CMD down
     exit 1
 fi
 
 # Check if encryption module is available in container
 echo ""
 echo "11. Testing encryption module in container..."
-if docker-compose exec -T panfm python -c "from encryption import encrypt_string; print('OK')" 2>&1 | grep -q "OK"; then
+if $COMPOSE_CMD exec -T panfm python -c "from encryption import encrypt_string; print('OK')" 2>&1 | grep -q "OK"; then
     echo "   ✓ Encryption module available in container"
 else
     echo "   ✗ Encryption module not available"
-    docker-compose down
+    $COMPOSE_CMD down
     exit 1
 fi
 
 # Stop the container
 echo ""
 echo "12. Stopping container..."
-docker-compose down
+$COMPOSE_CMD down
 echo "   ✓ Container stopped"
 
 echo ""
@@ -131,11 +137,11 @@ echo "✓ All Docker deployment tests passed!"
 echo "======================================"
 echo ""
 echo "To run the application with Docker:"
-echo "  docker-compose up -d"
+echo "  $COMPOSE_CMD up -d"
 echo ""
 echo "To view logs:"
-echo "  docker-compose logs -f"
+echo "  $COMPOSE_CMD logs -f"
 echo ""
 echo "To stop:"
-echo "  docker-compose down"
+echo "  $COMPOSE_CMD down"
 echo ""

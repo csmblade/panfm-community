@@ -45,8 +45,8 @@ Thank you for your interest in contributing to PANfm! This guide will help you g
 
    **Option A: Docker Deployment**
    ```bash
-   docker-compose up -d
-   docker-compose logs -f
+   docker compose up -d
+   docker compose logs -f
    ```
 
    **Option B: CLI Deployment**

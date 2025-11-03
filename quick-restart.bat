@@ -11,7 +11,7 @@ echo.
 cd /d "%~dp0"
 
 echo Restarting containers...
-docker-compose restart
+docker compose restart
 if errorlevel 1 (
     echo Error restarting containers
     pause

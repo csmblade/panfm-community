@@ -34,7 +34,7 @@ print('✓ Password: admin')
 if [ $? -eq 0 ]; then
     echo ""
     echo "Success! Restarting container..."
-    docker-compose restart panfm
+    docker compose restart panfm
     echo ""
     echo "✓ You can now login with admin/admin"
 else
