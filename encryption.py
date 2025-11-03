@@ -258,14 +258,14 @@ def decrypt_dict(encrypted_dict):
 
 def is_encrypted(value):
     """
-    Check if a string value appears to be encrypted.
-    This is a heuristic check based on the format of Fernet-encrypted data.
+    Check if a string value appears to be encrypted with Fernet.
+    This checks for the actual Fernet token format.
 
     Args:
         value (str): String to check
 
     Returns:
-        bool: True if the value appears encrypted, False otherwise
+        bool: True if the value appears to be Fernet-encrypted, False otherwise
     """
     try:
         from logger import debug
@@ -281,9 +281,16 @@ def is_encrypted(value):
 
     try:
         # Encrypted values should be base64-encoded
-        base64.b64decode(value.encode('utf-8'))
-        # Fernet tokens start with 'gAAAAA' after base64 encoding and are typically > 100 chars
-        return len(value) > 80  # Encrypted values are typically longer than bcrypt (60 chars)
+        decoded = base64.b64decode(value.encode('utf-8'))
+        # Fernet tokens MUST start with 'gAAAAA' (version byte 0x80) after base64 decoding
+        # This is the Fernet token format signature
+        is_fernet = decoded.startswith(b'gAAAAA')
+        if is_fernet:
+            try:
+                debug(f"Value appears to be Fernet-encrypted (starts with gAAAAA, length {len(value)})")
+            except:
+                pass
+        return is_fernet
     except Exception:
         return False
 
