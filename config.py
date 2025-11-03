@@ -126,7 +126,7 @@ def load_vendor_database(use_cache=True):
         return {}
 
     try:
-        with open(VENDOR_DB_FILE, 'r') as f:
+        with open(VENDOR_DB_FILE, 'r', encoding='utf-8') as f:
             vendor_list = json.load(f)
 
         # Convert list to dictionary for faster lookups
@@ -223,7 +223,7 @@ def get_vendor_db_info():
 
         # Count entries
         try:
-            with open(VENDOR_DB_FILE, 'r') as f:
+            with open(VENDOR_DB_FILE, 'r', encoding='utf-8') as f:
                 vendor_list = json.load(f)
                 entry_count = len(vendor_list)
         except:
@@ -275,7 +275,7 @@ def load_service_port_database(use_cache=True):
         return {}
 
     try:
-        with open(SERVICE_PORT_DB_FILE, 'r') as f:
+        with open(SERVICE_PORT_DB_FILE, 'r', encoding='utf-8') as f:
             service_data = json.load(f)
 
         debug(f"Loaded service port database with {len(service_data)} port entries")
@@ -364,7 +364,7 @@ def get_service_port_db_info():
 
         # Count entries
         try:
-            with open(SERVICE_PORT_DB_FILE, 'r') as f:
+            with open(SERVICE_PORT_DB_FILE, 'r', encoding='utf-8') as f:
                 service_data = json.load(f)
                 entry_count = len(service_data)
         except:
