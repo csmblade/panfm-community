@@ -14,13 +14,18 @@ from logger import debug, info, warning, error, exception
 
 def create_full_backup():
     """
-    Create comprehensive backup of Settings, Devices, and Metadata.
+    Create comprehensive backup of Settings, Devices, Metadata, and Encryption Key.
+
+    SECURITY WARNING: The backup includes the encryption key, which allows decryption
+    of all sensitive data. Backup files must be stored securely (encrypted drive,
+    password manager, etc.) and never shared via email or unencrypted cloud storage.
 
     Returns:
         dict: Backup dictionary with structure:
               {
-                  'version': '1.6.0',
+                  'version': '1.6.1',
                   'timestamp': 'ISO-8601 timestamp',
+                  'encryption_key': 'base64-encoded key',  # SENSITIVE
                   'settings': {...},
                   'devices': {...},
                   'metadata': {...}
@@ -51,10 +56,18 @@ def create_full_backup():
         metadata = load_metadata(use_cache=False)
         debug(f"Loaded metadata")
 
+        # Load encryption key (CRITICAL for restore to work)
+        import base64
+        from encryption import load_key
+        encryption_key = load_key()
+        encryption_key_b64 = base64.b64encode(encryption_key).decode('utf-8')
+        debug("Included encryption key in backup for restore compatibility")
+
         # Create backup structure
         backup = {
-            'version': '1.6.0',
+            'version': '1.6.1',
             'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'encryption_key': encryption_key_b64,  # CRITICAL: Required for restore
             'settings': settings,
             'devices': devices_data,
             'metadata': metadata
@@ -106,6 +119,37 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
             return result
 
         debug(f"Restoring from backup version {backup_data.get('version')} created at {backup_data.get('timestamp')}")
+
+        # Restore encryption key FIRST (if present in backup)
+        # This MUST happen before restoring any encrypted data
+        if 'encryption_key' in backup_data:
+            try:
+                import base64
+                from encryption import KEY_FILE
+
+                # Decode base64 encryption key
+                key_bytes = base64.b64decode(backup_data['encryption_key'])
+
+                # Write encryption key to file
+                with open(KEY_FILE, 'wb') as f:
+                    f.write(key_bytes)
+
+                # Set secure file permissions (600 = owner read/write only)
+                import os
+                os.chmod(KEY_FILE, 0o600)
+
+                result['restored'].append('encryption_key')
+                info("Restored encryption key from backup")
+                debug("Encryption key restored and file permissions set to 600")
+            except Exception as e:
+                result['errors'].append(f"Failed to restore encryption key: {str(e)}")
+                exception(f"Encryption key restore failed: {str(e)}")
+                # This is critical - if key restore fails, encrypted data cannot be decrypted
+                warning("Encryption key restore failed - encrypted data may not be recoverable")
+        else:
+            # Backwards compatibility: Old backups without encryption_key field
+            warning("Backup does not contain encryption_key field (old format)")
+            warning("Restore may fail if current encryption.key differs from backup's original key")
 
         # Restore settings
         if restore_settings and 'settings' in backup_data:
@@ -179,6 +223,9 @@ def export_backup_to_file(backup_data, filename=None):
     """
     Export backup data to JSON file.
 
+    SECURITY WARNING: Backup file contains encryption key and sensitive data.
+    The filename includes "SECURE" to indicate this file must be protected.
+
     Args:
         backup_data (dict): Backup dictionary from create_full_backup()
         filename (str, optional): Custom filename. If None, auto-generates with timestamp.
@@ -190,7 +237,8 @@ def export_backup_to_file(backup_data, filename=None):
     try:
         if filename is None:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"panfm_backup_{timestamp}.json"
+            # Include "SECURE" in filename to warn users this file is sensitive
+            filename = f"panfm_backup_SECURE_{timestamp}.json"
 
         # Write to file
         with open(filename, 'w', encoding='utf-8') as f:

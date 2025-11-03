@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 6
-VERSION_PATCH = 0
+VERSION_PATCH = 1
 
 # Build metadata (optional)
 VERSION_BUILD = "20251103"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251103"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Backup & Restore"
+VERSION_CODENAME = "Secure Backup Recovery"
 
 
 def get_version():
@@ -75,6 +75,31 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.6.1',
+        'codename': 'Secure Backup Recovery',
+        'date': '2025-11-03',
+        'type': 'patch',
+        'changes': [
+            'CRITICAL FIX: Encryption key now included in backups for disaster recovery',
+            'SECURITY: Backup filename changed to "panfm_backup_SECURE_[timestamp].json"',
+            'SECURITY: Added prominent warning in UI after backup creation',
+            'Fixed CRITICAL data loss scenario: backups can now be restored after reinstall',
+            'Problem: Backups encrypted with key A could not be decrypted with key B (after reinstall)',
+            'Solution: Backup now includes base64-encoded encryption key',
+            'Restore process now writes encryption.key BEFORE restoring encrypted data',
+            'Backwards compatible: Old backups without encryption_key will show warning',
+            'Added security warnings in backup creation UI (recommended storage practices)',
+            'UI displays prominent warning about backup sensitivity after download',
+            'Updated backup structure: Added "encryption_key" field (base64-encoded)',
+            'Enhanced backup docstrings with security warnings',
+            'File permissions: encryption.key automatically set to 600 (owner read/write only)',
+            'Restore order: encryption_key → settings → devices → metadata',
+            'Added debug logging for key restore operations',
+            'Modified files: backup_restore.py, pages-backup-restore.js, version.py',
+            'This fix ensures disaster recovery works correctly across reinstalls/migrations'
+        ]
+    },
     {
         'version': '1.6.0',
         'codename': 'Backup & Restore',

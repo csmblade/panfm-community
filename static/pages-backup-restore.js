@@ -86,12 +86,27 @@ async function createAndDownloadBackup() {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            // Show success message
+            // Show success message with security warning
             messageDiv.style.display = 'block';
-            messageDiv.style.background = '#d4edda';
-            messageDiv.style.border = '1px solid #c3e6cb';
-            messageDiv.style.color = '#155724';
-            messageDiv.textContent = `✅ Backup created successfully! Downloaded as ${filename}`;
+            messageDiv.style.background = '#fff3cd';
+            messageDiv.style.border = '1px solid #ffc107';
+            messageDiv.style.color = '#856404';
+            messageDiv.innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    <strong>✅ Backup created successfully!</strong> Downloaded as <code>${filename}</code>
+                </div>
+                <div style="background: #fff; padding: 10px; border-left: 4px solid #dc3545; margin-top: 10px;">
+                    <strong>🔒 SECURITY WARNING:</strong><br>
+                    This backup contains your <strong>encryption key</strong> and can decrypt all sensitive data
+                    (API keys, passwords, metadata). Store it securely:
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+                        <li>Encrypted USB drive or secure cloud storage</li>
+                        <li>Password manager's secure notes</li>
+                        <li>Offline encrypted backup location</li>
+                    </ul>
+                    <strong>❌ DO NOT:</strong> Email this file or store it in plaintext.
+                </div>
+            `;
 
             console.log('Backup created and downloaded:', filename);
         } else {
