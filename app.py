@@ -53,10 +53,10 @@ load_metadata(use_cache=False)  # Load fresh at startup
 from config import load_vendor_database, load_service_port_database
 from logger import debug
 debug("Initializing MAC vendor database...")
-vendor_db = load_vendor_database()
+vendor_db = load_vendor_database(use_cache=False)  # Fresh load at startup, then cached
 debug(f"MAC vendor database loaded with {len(vendor_db)} entries")
 debug("Initializing service port database...")
-service_db = load_service_port_database()
+service_db = load_service_port_database(use_cache=False)  # Fresh load at startup, then cached
 debug(f"Service port database loaded with {len(service_db)} entries")
 
 # Check and fix encryption key permissions

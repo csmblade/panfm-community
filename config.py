@@ -21,6 +21,12 @@ AUTH_FILE = os.path.join(os.path.dirname(__file__), 'auth.json')
 METADATA_FILE = os.path.join(os.path.dirname(__file__), 'device_metadata.json')
 SECURITY_LOG_FILE = os.path.join(os.path.dirname(__file__), 'security.log')
 
+# Global caches for vendor and service port databases
+_vendor_db_cache = None
+_vendor_db_loaded = False
+_service_port_db_cache = None
+_service_port_db_loaded = False
+
 # Default settings
 DEFAULT_SETTINGS = {
     'refresh_interval': 15,
@@ -92,16 +98,31 @@ def save_settings(settings):
 # Only API keys (stored in devices.json) need encryption
 
 
-def load_vendor_database():
+def load_vendor_database(use_cache=True):
     """
     Load MAC vendor database from file.
-    Returns dictionary mapping MAC prefixes to vendor names.
+
+    Args:
+        use_cache: If True, return cached data if available (default: True)
+
+    Returns:
+        dict: MAC prefix to vendor name mapping
     """
+    global _vendor_db_cache, _vendor_db_loaded
+
     debug, error, _ = _get_logger()
-    debug("Loading MAC vendor database")
+
+    # Return cached data if available and requested
+    if use_cache and _vendor_db_loaded:
+        debug("Returning cached vendor database")
+        return _vendor_db_cache
+
+    debug("Loading MAC vendor database from file")
 
     if not os.path.exists(VENDOR_DB_FILE):
         debug("Vendor database file does not exist")
+        _vendor_db_cache = {}
+        _vendor_db_loaded = True
         return {}
 
     try:
@@ -117,10 +138,17 @@ def load_vendor_database():
                 vendor_dict[mac_prefix] = vendor_name
 
         debug(f"Loaded {len(vendor_dict)} MAC vendor entries")
+
+        # Cache the loaded database
+        _vendor_db_cache = vendor_dict
+        _vendor_db_loaded = True
+
         return vendor_dict
 
     except Exception as e:
         error(f"Failed to load vendor database: {e}")
+        _vendor_db_cache = {}
+        _vendor_db_loaded = True
         return {}
 
 
@@ -150,8 +178,36 @@ def get_vendor_db_info():
     """
     Get information about the vendor database file.
     """
+    global _vendor_db_loaded, _vendor_db_cache
+
     debug, _, _ = _get_logger()
     debug("get_vendor_db_info called")
+
+    # Check if database is loaded in memory first
+    if _vendor_db_loaded:
+        debug("Vendor database loaded in memory, returning cached info")
+        entry_count = len(_vendor_db_cache) if _vendor_db_cache else 0
+
+        # Get file stats if file exists
+        if os.path.exists(VENDOR_DB_FILE):
+            file_size = os.path.getsize(VENDOR_DB_FILE)
+            file_mtime = os.path.getmtime(VENDOR_DB_FILE)
+            from datetime import datetime
+            modified_date = datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            # In memory but file deleted (unusual case)
+            file_size = 0
+            modified_date = 'Loaded in memory'
+
+        return {
+            'exists': True,
+            'size': file_size,
+            'size_mb': round(file_size / (1024 * 1024), 2) if file_size > 0 else 0,
+            'modified': modified_date,
+            'entries': entry_count
+        }
+
+    # Fall back to checking file existence
     if os.path.exists(VENDOR_DB_FILE):
         file_size = os.path.getsize(VENDOR_DB_FILE)
         file_mtime = os.path.getmtime(VENDOR_DB_FILE)
@@ -183,17 +239,32 @@ def get_vendor_db_info():
         }
 
 
-def load_service_port_database():
+def load_service_port_database(use_cache=True):
     """
     Load service port database from file.
-    Returns dictionary mapping port numbers to service information.
-    Format: {port: {'tcp': {'name': 'http', 'description': '...'}, 'udp': {...}}}
+
+    Args:
+        use_cache: If True, return cached data if available (default: True)
+
+    Returns:
+        dict: Port numbers to service information mapping
+        Format: {port: {'tcp': {'name': 'http', 'description': '...'}, 'udp': {...}}}
     """
+    global _service_port_db_cache, _service_port_db_loaded
+
     debug, error, _ = _get_logger()
-    debug("Loading service port database")
+
+    # Return cached data if available and requested
+    if use_cache and _service_port_db_loaded:
+        debug("Returning cached service port database")
+        return _service_port_db_cache
+
+    debug("Loading service port database from file")
 
     if not os.path.exists(SERVICE_PORT_DB_FILE):
         debug("Service port database file does not exist")
+        _service_port_db_cache = {}
+        _service_port_db_loaded = True
         return {}
 
     try:
@@ -201,10 +272,17 @@ def load_service_port_database():
             service_data = json.load(f)
 
         debug(f"Loaded service port database with {len(service_data)} port entries")
+
+        # Cache the loaded database
+        _service_port_db_cache = service_data
+        _service_port_db_loaded = True
+
         return service_data
 
     except Exception as e:
         error(f"Failed to load service port database: {e}")
+        _service_port_db_cache = {}
+        _service_port_db_loaded = True
         return {}
 
 
@@ -234,8 +312,36 @@ def get_service_port_db_info():
     """
     Get information about the service port database file.
     """
+    global _service_port_db_loaded, _service_port_db_cache
+
     debug, _, _ = _get_logger()
     debug("get_service_port_db_info called")
+
+    # Check if database is loaded in memory first
+    if _service_port_db_loaded:
+        debug("Service port database loaded in memory, returning cached info")
+        entry_count = len(_service_port_db_cache) if _service_port_db_cache else 0
+
+        # Get file stats if file exists
+        if os.path.exists(SERVICE_PORT_DB_FILE):
+            file_size = os.path.getsize(SERVICE_PORT_DB_FILE)
+            file_mtime = os.path.getmtime(SERVICE_PORT_DB_FILE)
+            from datetime import datetime
+            modified_date = datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            # In memory but file deleted (unusual case)
+            file_size = 0
+            modified_date = 'Loaded in memory'
+
+        return {
+            'exists': True,
+            'size': file_size,
+            'size_mb': round(file_size / (1024 * 1024), 2) if file_size > 0 else 0,
+            'modified': modified_date,
+            'entries': entry_count
+        }
+
+    # Fall back to checking file existence
     if os.path.exists(SERVICE_PORT_DB_FILE):
         file_size = os.path.getsize(SERVICE_PORT_DB_FILE)
         file_mtime = os.path.getmtime(SERVICE_PORT_DB_FILE)
