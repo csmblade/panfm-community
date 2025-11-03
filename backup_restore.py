@@ -181,6 +181,15 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
                         with open(device_manager.devices_file, 'w') as f:
                             json.dump(full_data, f, indent=2)
 
+                    # After restoring devices, ensure settings has a valid selected_device_id
+                    # If settings were not restored or selected_device_id is empty, select first device
+                    current_settings = load_settings()
+                    if not current_settings.get('selected_device_id') and devices_list:
+                        # Set first device as selected
+                        current_settings['selected_device_id'] = devices_list[0].get('id')
+                        save_settings(current_settings)
+                        info(f"Auto-selected first device after restore: {devices_list[0].get('name')}")
+
                     result['restored'].append('devices')
                     info("Successfully restored devices")
                 else:
