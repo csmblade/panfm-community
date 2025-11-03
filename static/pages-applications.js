@@ -57,9 +57,9 @@ async function loadApplications() {
         showApplicationsError('Connection error: ' + error.message);
     }
 
-    // Load service port database and device metadata
-    await loadServicePortDatabase();
-    await loadDeviceMetadataAndConnectedDevices();
+    // Load service port database and device metadata (don't block page load if these fail)
+    loadServicePortDatabase();
+    loadDeviceMetadataAndConnectedDevices();
 }
 
 async function loadDeviceMetadataAndConnectedDevices() {
