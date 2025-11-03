@@ -518,6 +518,26 @@ def register_routes(app, csrf, limiter):
                 'tags': []
             }), 500
 
+    @app.route('/api/device-metadata/locations', methods=['GET'])
+    @limiter.limit("600 per hour")
+    @login_required
+    def get_all_device_locations():
+        """Get all unique locations across all devices"""
+        debug("=== Get all device locations API endpoint called ===")
+        try:
+            locations = get_all_locations()
+            return jsonify({
+                'status': 'success',
+                'locations': locations
+            })
+        except Exception as e:
+            error(f"Error getting device locations: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'locations': []
+            }), 500
+
     @app.route('/api/applications')
     @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds
     @login_required
