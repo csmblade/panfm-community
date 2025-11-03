@@ -1583,6 +1583,9 @@
                         <div class="settings-tab" data-tab="security" style="flex: 1; padding: 15px 20px; text-align: center; cursor: pointer; font-weight: 600; color: #666; border-bottom: 3px solid transparent; transition: all 0.3s;">
                             Security
                         </div>
+                        <div class="settings-tab" data-tab="backup" style="flex: 1; padding: 15px 20px; text-align: center; cursor: pointer; font-weight: 600; color: #666; border-bottom: 3px solid transparent; transition: all 0.3s;">
+                            Backup & Restore
+                        </div>
                         <div class="settings-tab" data-tab="databases" style="flex: 1; padding: 15px 20px; text-align: center; cursor: pointer; font-weight: 600; color: #666; border-bottom: 3px solid transparent; transition: all 0.3s;">
                             Databases
                         </div>
@@ -1716,6 +1719,138 @@
                                     <li>Credentials are encrypted at rest in auth.json</li>
                                     <li>Session timeout: 24 hours</li>
                                     <li>Rate limiting: 3 password changes per hour</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Backup & Restore Tab -->
+                        <div id="backup-tab" class="settings-tab-content" style="display: none;">
+                            <h2 style="color: #333; margin-bottom: 20px; font-size: 1.3em;">Backup & Restore</h2>
+
+                            <!-- Backup Section -->
+                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
+                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-size: 1.3em;">💾</span>
+                                    Create Backup
+                                </h3>
+
+                                <p style="color: #666; margin: 0 0 20px 0; font-size: 0.95em;">
+                                    Create a comprehensive backup of your Settings, Devices, and Device Metadata. The backup file will be downloaded to your computer.
+                                </p>
+
+                                <button id="createBackupBtn"
+                                        style="width: 100%; padding: 15px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); color: white; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;"
+                                        onmouseover="this.style.transform='scale(1.02)'"
+                                        onmouseout="this.style.transform='scale(1)'">
+                                    📥 Create & Download Backup
+                                </button>
+
+                                <div id="backupMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
+                            </div>
+
+                            <!-- Restore Section -->
+                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
+                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-size: 1.3em;">📤</span>
+                                    Restore from Backup
+                                </h3>
+
+                                <p style="color: #666; margin: 0 0 20px 0; font-size: 0.95em;">
+                                    Restore your configuration from a previously created backup file. You can choose which components to restore.
+                                </p>
+
+                                <!-- File Upload -->
+                                <div style="margin-bottom: 20px;">
+                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px;">Select Backup File</label>
+                                    <input type="file"
+                                           id="backupFileInput"
+                                           accept=".json"
+                                           style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1em; transition: border-color 0.3s;"
+                                           onfocus="this.style.borderColor='#FA582D'"
+                                           onblur="this.style.borderColor='#ddd'">
+                                </div>
+
+                                <!-- Backup Info (shown after file selected) -->
+                                <div id="backupInfo" style="display: none; background: #e7f3ff; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                                    <strong style="color: #0c5460;">📋 Backup Information</strong>
+                                    <ul style="color: #0c5460; margin: 10px 0 0 20px; font-size: 0.9em;" id="backupInfoList"></ul>
+                                </div>
+
+                                <!-- Selective Restore Checkboxes -->
+                                <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
+                                    <strong style="color: #333; display: block; margin-bottom: 10px;">Components to Restore:</strong>
+
+                                    <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="restoreSettings" checked style="margin-right: 8px;">
+                                        <span style="color: #333; font-weight: 500;">Settings</span>
+                                        <span style="color: #666; font-size: 0.85em; margin-left: 5px;">(refresh intervals, monitored interface)</span>
+                                    </label>
+
+                                    <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="restoreDevices" checked style="margin-right: 8px;">
+                                        <span style="color: #333; font-weight: 500;">Devices</span>
+                                        <span style="color: #666; font-size: 0.85em; margin-left: 5px;">(firewall configurations and credentials)</span>
+                                    </label>
+
+                                    <label style="display: block; cursor: pointer;">
+                                        <input type="checkbox" id="restoreMetadata" checked style="margin-right: 8px;">
+                                        <span style="color: #333; font-weight: 500;">Device Metadata</span>
+                                        <span style="color: #666; font-size: 0.85em; margin-left: 5px;">(custom names, tags, locations)</span>
+                                    </label>
+                                </div>
+
+                                <button id="restoreBackupBtn"
+                                        style="width: 100%; padding: 15px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; opacity: 0.5;"
+                                        onmouseover="if(!this.disabled) this.style.transform='scale(1.02)'"
+                                        onmouseout="this.style.transform='scale(1)'"
+                                        disabled>
+                                    🔄 Restore from Backup
+                                </button>
+
+                                <div id="restoreMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
+                            </div>
+
+                            <!-- Migration Section -->
+                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
+                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-size: 1.3em;">🔄</span>
+                                    Metadata Migration
+                                </h3>
+
+                                <p style="color: #666; margin: 0 0 15px 0; font-size: 0.95em;">
+                                    Migrate device metadata from global format (v1.5.x) to per-device format (v1.6.0+).
+                                </p>
+
+                                <div id="migrationStatus" style="margin-bottom: 15px;">
+                                    <strong style="color: #333;">Status: </strong><span id="migrationStatusText" style="color: #666;">Checking...</span>
+                                </div>
+
+                                <button id="checkMigrationBtn"
+                                        style="width: 48%; padding: 12px; margin-right: 4%; background: #6c757d; color: white; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.2s;"
+                                        onmouseover="this.style.transform='scale(1.02)'"
+                                        onmouseout="this.style.transform='scale(1)'">
+                                    🔍 Check Status
+                                </button>
+
+                                <button id="migrateBtnSettings"
+                                        style="width: 48%; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.2s; opacity: 0.5;"
+                                        onmouseover="if(!this.disabled) this.style.transform='scale(1.02)'"
+                                        onmouseout="this.style.transform='scale(1)'"
+                                        disabled>
+                                    ⚡ Migrate Now
+                                </button>
+
+                                <div id="migrationMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
+                            </div>
+
+                            <!-- Warning Notice -->
+                            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+                                <strong style="color: #856404;">⚠️ Important Notes</strong>
+                                <ul style="color: #856404; margin: 10px 0 0 20px; font-size: 0.9em;">
+                                    <li>Backup files contain encrypted data and are safe to download</li>
+                                    <li>Restoring will <strong>overwrite</strong> your current configuration for selected components</li>
+                                    <li>Create a backup before restoring from an older backup</li>
+                                    <li>Migration is a one-time operation (cannot be undone)</li>
                                 </ul>
                             </div>
                         </div>
@@ -2137,6 +2272,7 @@
     <script src="/static/pages-applications.js"></script>
     <script src="/static/pages-panos-upgrade.js"></script>
     <script src="/static/pages-content-updates.js"></script>
+    <script src="/static/pages-backup-restore.js"></script>
     <script src="/static/settings.js"></script>
     <script src="/static/devices.js"></script>
     <script src="/static/app.js"></script>

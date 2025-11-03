@@ -16,7 +16,16 @@ from device_metadata import (
     delete_device_metadata,
     get_all_tags,
     get_all_locations,
-    import_metadata
+    import_metadata,
+    check_migration_needed,
+    migrate_global_to_per_device
+)
+from backup_restore import (
+    create_full_backup,
+    restore_from_backup,
+    export_backup_to_file,
+    import_backup_from_file,
+    get_backup_info
 )
 from firewall_api import (
     get_throughput_data,
@@ -1529,3 +1538,207 @@ def register_routes(app, csrf, limiter):
         except Exception as e:
             error(f"Error in content install: {str(e)}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+    # ============================================================================
+    # Backup & Restore Routes (v1.6.0)
+    # ============================================================================
+
+    @app.route('/api/backup/create', methods=['POST'])
+    @limiter.limit("20 per hour")
+    @login_required
+    def create_backup():
+        """Create comprehensive site backup (Settings + Devices + Metadata)"""
+        debug("=== Create Backup API endpoint called ===")
+        try:
+            backup_data = create_full_backup()
+
+            if backup_data is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to create backup'
+                }), 500
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Backup created successfully',
+                'backup': backup_data
+            })
+
+        except Exception as e:
+            error(f"Error creating backup: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+
+    @app.route('/api/backup/export', methods=['POST'])
+    @limiter.limit("20 per hour")
+    @login_required
+    def export_backup():
+        """Export backup to downloadable JSON file"""
+        debug("=== Export Backup API endpoint called ===")
+        try:
+            # Create backup first
+            backup_data = create_full_backup()
+
+            if backup_data is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to create backup'
+                }), 500
+
+            # Generate timestamped filename
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"panfm_backup_{timestamp}.json"
+
+            # Return as downloadable file
+            return jsonify({
+                'status': 'success',
+                'message': 'Backup created successfully',
+                'filename': filename,
+                'data': backup_data
+            })
+
+        except Exception as e:
+            error(f"Error exporting backup: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+
+    @app.route('/api/backup/restore', methods=['POST'])
+    @limiter.limit("10 per hour")
+    @login_required
+    def restore_backup():
+        """Restore site configuration from backup"""
+        debug("=== Restore Backup API endpoint called ===")
+        try:
+            data = request.get_json()
+
+            if not data or 'backup' not in data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No backup data provided'
+                }), 400
+
+            backup_data = data['backup']
+
+            # Optional: selective restore
+            restore_settings = data.get('restore_settings', True)
+            restore_devices = data.get('restore_devices', True)
+            restore_metadata = data.get('restore_metadata', True)
+
+            result = restore_from_backup(
+                backup_data,
+                restore_settings=restore_settings,
+                restore_devices=restore_devices,
+                restore_metadata=restore_metadata
+            )
+
+            if result['success']:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Restore completed successfully',
+                    'restored': result['restored']
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Restore completed with errors',
+                    'restored': result['restored'],
+                    'errors': result['errors']
+                }), 500
+
+        except Exception as e:
+            error(f"Error restoring backup: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+
+    @app.route('/api/backup/info', methods=['POST'])
+    @limiter.limit("100 per hour")
+    @login_required
+    def backup_info():
+        """Get information about a backup file"""
+        debug("=== Backup Info API endpoint called ===")
+        try:
+            data = request.get_json()
+
+            if not data or 'backup' not in data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No backup data provided'
+                }), 400
+
+            backup_data = data['backup']
+            info = get_backup_info(backup_data)
+
+            return jsonify({
+                'status': 'success',
+                'info': info
+            })
+
+        except Exception as e:
+            error(f"Error getting backup info: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+
+    @app.route('/api/metadata/migration/check', methods=['GET'])
+    @limiter.limit("100 per hour")
+    @login_required
+    def check_metadata_migration():
+        """Check if metadata needs migration from global to per-device format"""
+        debug("=== Check Metadata Migration API endpoint called ===")
+        try:
+            needs_migration = check_migration_needed()
+
+            return jsonify({
+                'status': 'success',
+                'needs_migration': needs_migration
+            })
+
+        except Exception as e:
+            error(f"Error checking migration status: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+
+    @app.route('/api/metadata/migration/migrate', methods=['POST'])
+    @limiter.limit("10 per hour")
+    @login_required
+    def migrate_metadata():
+        """Migrate metadata from global to per-device format"""
+        debug("=== Migrate Metadata API endpoint called ===")
+        try:
+            data = request.get_json() or {}
+            target_device_id = data.get('device_id')
+
+            success = migrate_global_to_per_device(target_device_id)
+
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Metadata migrated successfully'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Migration failed'
+                }), 500
+
+        except Exception as e:
+            error(f"Error migrating metadata: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500

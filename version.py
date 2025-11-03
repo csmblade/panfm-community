@@ -9,8 +9,8 @@ PATCH: Bug fixes, small improvements, documentation updates
 
 # Current version
 VERSION_MAJOR = 1
-VERSION_MINOR = 5
-VERSION_PATCH = 4
+VERSION_MINOR = 6
+VERSION_PATCH = 0
 
 # Build metadata (optional)
 VERSION_BUILD = "20251103"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251103"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Security & Compliance"
+VERSION_CODENAME = "Backup & Restore"
 
 
 def get_version():
@@ -75,6 +75,40 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.6.0',
+        'codename': 'Backup & Restore',
+        'date': '2025-11-03',
+        'type': 'minor',
+        'changes': [
+            'NEW MAJOR FEATURE: Comprehensive Backup & Restore system',
+            'NEW: Site-wide backup (Settings + Devices + Metadata) with JSON export',
+            'NEW: Selective restore - choose which components to restore',
+            'NEW: Backup info display (version, timestamp, device count, metadata count)',
+            'NEW: Metadata migration from global to per-device format',
+            'NEW: Migration status check and one-click migration',
+            'NEW: "Backup & Restore" tab in Settings page',
+            'ARCHITECTURE: Metadata now supports per-device format {device_id: {mac: metadata}}',
+            'Backward compatible with legacy global format {mac: metadata}',
+            'Auto-detection of metadata format with UUID regex pattern',
+            'New backend module: backup_restore.py (286 lines) - backup/restore operations',
+            'Enhanced device_metadata.py (366 → 596 lines) - dual format support',
+            '7 new API endpoints: backup create/export/restore/info, migration check/migrate',
+            'Metadata migration assigns to selected_device_id from settings',
+            'Frontend module: pages-backup-restore.js (392 lines) - full UI functionality',
+            'File upload with backup validation and info display',
+            'Download backups with timestamped filenames',
+            'Selective restore checkboxes (Settings/Devices/Metadata)',
+            'Migration UI with status check and execute buttons',
+            'Comprehensive warning notices about restore operations',
+            'Rate limiting: 20/hr backup creation, 10/hr restore, 100/hr info checks',
+            'All endpoints protected with CSRF tokens and @login_required',
+            'Debug logging throughout all new functions',
+            'Backup files contain encrypted data (safe to download)',
+            'File size compliance: backup_restore.py (286), pages-backup-restore.js (392)',
+            'routes.py: 1531 → 1744 lines (+213 for new endpoints)'
+        ]
+    },
     {
         'version': '1.5.4',
         'codename': 'Security & Compliance',
