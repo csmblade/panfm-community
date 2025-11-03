@@ -21,6 +21,17 @@ cd "$(dirname "$0")"
 echo "Working directory: $(pwd)"
 echo ""
 
+# Run setup to ensure all required files exist
+echo "0. Running setup to ensure all required files exist..."
+if [ -f "setup.sh" ]; then
+    chmod +x setup.sh
+    ./setup.sh
+    echo "   ✓ Setup complete"
+else
+    echo "   ⚠ Warning: setup.sh not found, skipping setup"
+fi
+echo ""
+
 # Stop and remove containers with volumes
 echo "1. Stopping and removing Docker containers (with volumes)..."
 docker-compose down -v

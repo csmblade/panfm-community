@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
+# Make entrypoint script executable
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Create directory for persistent data
 RUN mkdir -p /app/data
 
@@ -28,6 +31,9 @@ EXPOSE 3000
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 ENV FLASK_DEBUG=False
+
+# Use entrypoint script for validation before starting app
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Run the application
 CMD ["python", "app.py"]

@@ -21,7 +21,8 @@ A real-time monitoring dashboard for Palo Alto Networks firewalls with automated
 git clone <your-repo-url>
 cd panfm
 
-# First-time setup: Create required files
+# IMPORTANT: First-time setup - Create required files BEFORE starting Docker
+# This prevents Docker from creating directories instead of files
 chmod +x setup.sh
 ./setup.sh
 
@@ -31,6 +32,8 @@ docker-compose up -d
 # View logs
 docker-compose logs -f
 ```
+
+**CRITICAL:** Always run `./setup.sh` BEFORE `docker-compose up`. If you skip this step, Docker will create directories instead of files for the volume mounts, causing the application to fail.
 
 **Note:** The `setup.sh` script creates:
 - `settings.json` - Default application settings
