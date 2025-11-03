@@ -14,11 +14,19 @@ A real-time monitoring dashboard for Palo Alto Networks firewalls with automated
 ### Prerequisites
 - Docker and Docker Compose
 
+### Choose Your Branch
+
+PANfm uses a two-branch workflow:
+- **`main` branch** - Stable production releases (recommended for deployment)
+- **`test` branch** - Active development (for contributors and testing)
+
+For production use, clone `main`. For development, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ### Deploy with Docker
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
+# Clone the repository (main branch - stable)
+git clone https://github.com/csmblade/panfm.git
 cd panfm
 
 # IMPORTANT: First-time setup - Create required files BEFORE starting Docker
@@ -118,6 +126,15 @@ Download and upload via **Settings > Databases**:
 - Security policy management
 - All sensitive data encrypted at rest
 
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development workflow
+- Branching strategy (`test` branch for development)
+- Coding standards
+- Testing requirements
+- How to submit changes
+
 ## Support
 
 For issues or questions, check the application logs:
@@ -127,6 +144,15 @@ docker-compose logs -f
 ```
 
 Enable debug logging in the Settings page for detailed troubleshooting.
+
+## Branches
+
+- **`main`** - Stable production releases, tagged versions
+- **`test`** - Active development, latest features
+
+## License
+
+MIT License - See LICENSE file for details
 
 ---
 
