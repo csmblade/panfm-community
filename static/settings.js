@@ -266,16 +266,28 @@ async function loadVendorDbInfo() {
         if (data.status === 'success') {
             const info = data.info;
 
-            document.getElementById('vendorDbStatus').textContent = info.exists ? '✓ Loaded' : '✗ Not loaded';
-            document.getElementById('vendorDbStatus').style.color = info.exists ? '#28a745' : '#dc3545';
-            document.getElementById('vendorDbEntries').textContent = info.entries.toLocaleString();
-            document.getElementById('vendorDbSize').textContent = `${info.size_mb} MB`;
-            document.getElementById('vendorDbModified').textContent = info.modified;
+            // Get DOM elements and check if they exist before updating
+            const statusEl = document.getElementById('vendorDbStatus');
+            const entriesEl = document.getElementById('vendorDbEntries');
+            const sizeEl = document.getElementById('vendorDbSize');
+            const modifiedEl = document.getElementById('vendorDbModified');
+
+            if (statusEl) {
+                statusEl.textContent = info.exists ? '✓ Loaded' : '✗ Not loaded';
+                statusEl.style.color = info.exists ? '#28a745' : '#dc3545';
+            }
+            if (entriesEl) entriesEl.textContent = info.entries.toLocaleString();
+            if (sizeEl) sizeEl.textContent = `${info.size_mb} MB`;
+            if (modifiedEl) modifiedEl.textContent = info.modified;
         }
     } catch (error) {
         console.error('Error loading vendor DB info:', error);
-        document.getElementById('vendorDbStatus').textContent = 'Error';
-        document.getElementById('vendorDbStatus').style.color = '#dc3545';
+        // Check if element exists before updating
+        const statusEl = document.getElementById('vendorDbStatus');
+        if (statusEl) {
+            statusEl.textContent = 'Error';
+            statusEl.style.color = '#dc3545';
+        }
     }
 }
 
