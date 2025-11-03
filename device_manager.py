@@ -176,7 +176,8 @@ class DeviceManager:
                 'cmd': '<show><system><info></info></system></show>',
                 'key': api_key
             }
-            response = requests.get(base_url, params=params, verify=False, timeout=5)
+            from utils import api_request_get
+            response = api_request_get(base_url, params=params, verify=False, timeout=5)
             if response.status_code == 200:
                 root = ET.fromstring(response.text)
                 # Check if we got a valid response

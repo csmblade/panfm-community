@@ -587,7 +587,6 @@ def register_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/device-metadata/import', methods=['POST'])
-    @csrf.exempt
     @login_required
     @limiter.limit("50 per hour")  # Limit imports to prevent abuse
     def import_device_metadata():
@@ -831,7 +830,6 @@ def register_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/devices', methods=['POST'])
-    @csrf.exempt
     @login_required
     @limiter.limit("100 per hour")
     def create_device():
@@ -924,7 +922,6 @@ def register_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/devices/<device_id>', methods=['PUT'])
-    @csrf.exempt
     @login_required
     @limiter.limit("100 per hour")
     def update_device(device_id):
@@ -956,7 +953,6 @@ def register_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/devices/<device_id>', methods=['DELETE'])
-    @csrf.exempt
     @login_required
     @limiter.limit("100 per hour")
     def delete_device(device_id):
@@ -1037,7 +1033,6 @@ def register_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/devices/test-connection', methods=['POST'])
-    @csrf.exempt
     @login_required
     def test_new_device_connection():
         """Test connection to a device (before saving)"""
@@ -1306,7 +1301,6 @@ def register_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/reverse-dns', methods=['POST'])
-    @csrf.exempt
     @login_required
     def reverse_dns_api():
         """
