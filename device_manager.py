@@ -115,7 +115,8 @@ class DeviceManager:
 
     def add_device(self, name, ip, api_key, group="Default", description="", monitored_interface="ethernet1/12", wan_interface=""):
         """Add a new device"""
-        devices = self.load_devices()
+        # Load devices WITH decryption so save_devices can re-encrypt all consistently
+        devices = self.load_devices(decrypt_api_keys=True)
 
         new_device = {
             "id": str(uuid.uuid4()),
@@ -137,7 +138,8 @@ class DeviceManager:
 
     def update_device(self, device_id, updates):
         """Update an existing device"""
-        devices = self.load_devices()
+        # Load devices WITH decryption so save_devices can re-encrypt all consistently
+        devices = self.load_devices(decrypt_api_keys=True)
         for i, device in enumerate(devices):
             if device.get('id') == device_id:
                 devices[i].update(updates)
@@ -148,7 +150,8 @@ class DeviceManager:
     def delete_device(self, device_id):
         """Delete a device"""
         debug("delete_device called for device_id: %s", device_id)
-        devices = self.load_devices()
+        # Load devices WITH decryption so save_devices can re-encrypt all consistently
+        devices = self.load_devices(decrypt_api_keys=True)
         initial_count = len(devices)
         devices = [d for d in devices if d.get('id') != device_id]
         debug("Deleted device. Device count: %d -> %d", initial_count, len(devices))
