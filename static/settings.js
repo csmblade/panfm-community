@@ -36,8 +36,20 @@ async function loadSettings() {
 
         // Initialize service port DB controls
         initServicePortDbControls();
+        
+        // Initialize metadata export/import controls
+        initMetadataControls();
     } catch (error) {
         console.error('Error loading settings:', error);
+    }
+}
+
+// Initialize device metadata export/import controls
+function initMetadataControls() {
+    const exportBtn = document.getElementById('exportMetadataBtn');
+    if (exportBtn && !exportBtn.hasAttribute('data-listener')) {
+        exportBtn.addEventListener('click', exportDeviceMetadata);
+        exportBtn.setAttribute('data-listener', 'true');
     }
 }
 

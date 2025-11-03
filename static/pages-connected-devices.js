@@ -198,13 +198,6 @@ function setupConnectedDevicesEventListeners() {
         exportXMLBtn.setAttribute('data-listener', 'true');
     }
 
-    // Metadata export button
-    const exportMetadataBtn = document.getElementById('exportMetadataBtn');
-    if (exportMetadataBtn && !exportMetadataBtn.hasAttribute('data-listener')) {
-        exportMetadataBtn.addEventListener('click', exportDeviceMetadata);
-        exportMetadataBtn.setAttribute('data-listener', 'true');
-    }
-
     // Populate VLAN and Zone filters with unique values
     populateVLANFilter();
     populateZoneFilter();
