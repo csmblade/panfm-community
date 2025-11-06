@@ -122,7 +122,7 @@ Download and upload via **Settings > Databases**:
 ## Features
 
 - Multi-device firewall monitoring
-- Database-first architecture with 1-minute updates (90-day retention)
+- Database-first architecture with 1-minute updates
 - Historical throughput and system metrics with advanced charting
 - Automated PAN-OS upgrades
 - Content update management
