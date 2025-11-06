@@ -16,46 +16,23 @@ REM   - Starts fresh container
 REM   - Shows logs
 REM   - Opens browser automatically
 
+@echo off
 echo ========================================================
-echo PANfm Local Testing Workflow (Pre-Commit)
+echo PANfm Local Testing - Building and Starting Container
 echo ========================================================
-echo.
-echo This will:
-echo   1. Stop existing containers
-echo   2. Rebuild with your latest code changes
-echo   3. Start fresh container on port 3000
-echo   4. Show logs
-echo   5. Open browser to http://localhost:3000
-echo.
-echo Starting in 3 seconds... (Press Ctrl+C to cancel)
-timeout /t 3 /nobreak >nul
-echo.
-
-REM Check if Docker Desktop is running
-echo [1/6] Checking Docker Desktop...
-docker version >nul 2>&1
-if errorlevel 1 (
-    echo    ERROR: Docker Desktop is not running!
-    echo.
-    echo    Please start Docker Desktop and try again.
-    echo    (Look for Docker Desktop icon in system tray)
-    echo.
-    exit /b 1
-)
-echo    Success: Docker Desktop is running
 echo.
 
 REM Navigate to script directory
 cd /d "%~dp0"
 
 REM Stop and remove existing containers
-echo [2/6] Stopping existing containers...
+echo [1/5] Stopping existing containers...
 docker compose down >nul 2>&1
 echo    Success: Containers stopped
 echo.
 
 REM Rebuild Docker image with latest code
-echo [3/6] Building Docker image with your changes...
+echo [2/5] Building Docker image with your changes...
 echo    (This may take 1-2 minutes on first run)
 echo.
 docker compose build --progress=plain
@@ -72,7 +49,7 @@ echo    Success: Image built
 echo.
 
 REM Start container
-echo [4/6] Starting container...
+echo [3/5] Starting container...
 echo.
 docker compose up -d
 if errorlevel 1 (
@@ -91,7 +68,7 @@ echo    Success: Container started
 echo.
 
 REM Wait for application to initialize
-echo [5/6] Waiting for application to initialize...
+echo [4/5] Waiting for application to initialize...
 timeout /t 5 /nobreak >nul
 
 REM Check if container is actually running
@@ -110,7 +87,7 @@ echo    Success: Container is running
 echo.
 
 REM Show recent logs
-echo [6/6] Recent logs from container:
+echo [5/5] Recent logs from container:
 echo --------------------------------------------------------
 docker compose logs --tail=15
 echo --------------------------------------------------------
