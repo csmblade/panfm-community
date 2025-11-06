@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 7
-VERSION_PATCH = 0
+VERSION_PATCH = 1
 
 # Build metadata (optional)
 VERSION_BUILD = "20251106"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251106"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Historical Analytics"
+VERSION_CODENAME = "Database-First Architecture"
 
 
 def get_version():
@@ -75,6 +75,30 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.7.1',
+        'codename': 'Database-First Architecture',
+        'date': '2025-11-06',
+        'type': 'patch',
+        'changes': [
+            'ARCHITECTURE CHANGE: /api/throughput endpoint now reads from SQLite database instead of querying firewall',
+            'PERFORMANCE: Eliminates redundant real-time firewall API calls for throughput data',
+            'EFFICIENCY: Background APScheduler collector uses configurable refresh_interval from settings',
+            'USER CONTROL: APScheduler interval respects refresh_interval setting (default 15s)',
+            'MULTI-BROWSER: All browsers/tabs now see consistent data from database cache',
+            'NEW: get_latest_sample() method in throughput_storage.py',
+            'DYNAMIC: Query window uses 2x refresh_interval as max age to allow for timing variance',
+            'Graceful fallback: Returns zeros if no recent data (collector starting up)',
+            'BENEFIT: Reduced firewall API load, improved scalability',
+            'BENEFIT: User can control collection frequency via Settings page',
+            'BENEFIT: Foundation for Phase 2 migration of all dashboard data to database-first',
+            'Modified files: app.py (APScheduler uses refresh_interval)',
+            'Modified files: routes.py (refactored /api/throughput endpoint, dynamic max_age)',
+            'Modified files: throughput_storage.py (added get_latest_sample method)',
+            'KEPT: previous_stats global variable (still used by collector for rate calculation)',
+            'No frontend changes required - endpoint returns same JSON format'
+        ]
+    },
     {
         'version': '1.7.0',
         'codename': 'Historical Analytics',

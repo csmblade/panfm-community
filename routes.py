@@ -195,15 +195,73 @@ def register_routes(app, csrf, limiter):
         return send_from_directory(images_dir, filename)
 
     @app.route('/api/throughput')
-    @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds (12/min = 720/hr)
+    @limiter.limit("600 per hour")  # Support auto-refresh (configurable interval)
     @login_required
     def throughput():
-        """API endpoint for real-time throughput data"""
-        debug("=== Throughput API endpoint called ===")
+        """API endpoint for throughput data (reads from database, not firewall)"""
+        from throughput_collector import get_collector
+
+        debug("=== Throughput API endpoint called (database-first) ===")
         settings = load_settings()
-        debug(f"Selected device ID from settings: {settings.get('selected_device_id', 'NONE')}")
-        data = get_throughput_data()
-        return jsonify(data)
+        device_id = settings.get('selected_device_id', '')
+        refresh_interval = settings.get('refresh_interval', 15)
+        debug(f"Selected device ID from settings: {device_id if device_id else 'NONE'}")
+        debug(f"Refresh interval: {refresh_interval}s")
+
+        try:
+            # Get collector and storage
+            collector = get_collector()
+            if collector is None:
+                warning("Throughput collector not initialized")
+                return jsonify({
+                    'error': 'Throughput collection not enabled',
+                    'inbound_mbps': 0,
+                    'outbound_mbps': 0,
+                    'total_mbps': 0,
+                    'inbound_pps': 0,
+                    'outbound_pps': 0,
+                    'total_pps': 0,
+                    'sessions': {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0},
+                    'cpu': {'data_plane_cpu': 0, 'mgmt_plane_cpu': 0, 'memory_used_pct': 0}
+                }), 503
+
+            storage = collector.storage
+
+            # Query latest sample from database (use 2x refresh_interval as max age to allow for timing variance)
+            max_age_seconds = refresh_interval * 2
+            latest_sample = storage.get_latest_sample(device_id, max_age_seconds=max_age_seconds)
+
+            if latest_sample is None:
+                debug("No recent throughput data in database, returning zeros")
+                # Return zero values if no recent data (collector may be starting up)
+                return jsonify({
+                    'inbound_mbps': 0,
+                    'outbound_mbps': 0,
+                    'total_mbps': 0,
+                    'inbound_pps': 0,
+                    'outbound_pps': 0,
+                    'total_pps': 0,
+                    'sessions': {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0},
+                    'cpu': {'data_plane_cpu': 0, 'mgmt_plane_cpu': 0, 'memory_used_pct': 0},
+                    'note': 'Waiting for collector data'
+                })
+
+            debug(f"Returning latest sample from database: {latest_sample['timestamp']}")
+            return jsonify(latest_sample)
+
+        except Exception as e:
+            exception(f"Failed to retrieve throughput from database: {str(e)}")
+            return jsonify({
+                'error': 'Failed to retrieve throughput data',
+                'inbound_mbps': 0,
+                'outbound_mbps': 0,
+                'total_mbps': 0,
+                'inbound_pps': 0,
+                'outbound_pps': 0,
+                'total_pps': 0,
+                'sessions': {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0},
+                'cpu': {'data_plane_cpu': 0, 'mgmt_plane_cpu': 0, 'memory_used_pct': 0}
+            }), 500
 
     @app.route('/api/throughput/history')
     @limiter.limit("600 per hour")  # Support frequent queries for historical data

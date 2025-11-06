@@ -72,6 +72,7 @@ from logger import info
 settings = load_settings()
 retention_days = settings.get('throughput_retention_days', 90)
 collection_enabled = settings.get('throughput_collection_enabled', True)
+refresh_interval = settings.get('refresh_interval', 15)  # Default 15 seconds
 
 if collection_enabled:
     info("Initializing throughput collector with %d-day retention", retention_days)
@@ -82,16 +83,16 @@ if collection_enabled:
     app.config['SCHEDULER_API_ENABLED'] = False  # Disable scheduler API endpoints
     scheduler.init_app(app)
 
-    # Add collection job (runs every 15 seconds)
+    # Add collection job (uses refresh_interval from settings)
     scheduler.add_job(
         id='collect_throughput',
         func=collector.collect_all_devices,
         trigger='interval',
-        seconds=15
+        seconds=refresh_interval
     )
 
     scheduler.start()
-    info("Throughput collector started successfully (15-second interval)")
+    info("Throughput collector started successfully (%d-second interval)", refresh_interval)
 else:
     info("Throughput collection disabled in settings")
 

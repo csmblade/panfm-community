@@ -295,6 +295,77 @@ class ThroughputStorage:
             exception("Failed to cleanup old samples: %s", str(e))
             return 0
 
+    def get_latest_sample(self, device_id: str, max_age_seconds: int = 30) -> Optional[Dict]:
+        """
+        Get the most recent throughput sample for a device.
+
+        Args:
+            device_id: Device identifier
+            max_age_seconds: Maximum age of sample in seconds (default: 30)
+
+        Returns:
+            Dictionary with latest sample data, or None if no recent data
+        """
+        debug("Retrieving latest sample for device %s (max age: %ds)", device_id, max_age_seconds)
+
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # Calculate cutoff time
+            cutoff_time = datetime.utcnow() - timedelta(seconds=max_age_seconds)
+
+            # Query most recent sample within time window
+            cursor.execute('''
+                SELECT
+                    timestamp,
+                    inbound_mbps, outbound_mbps, total_mbps,
+                    inbound_pps, outbound_pps, total_pps,
+                    sessions_active, sessions_tcp, sessions_udp, sessions_icmp,
+                    cpu_data_plane, cpu_mgmt_plane, memory_used_pct
+                FROM throughput_samples
+                WHERE device_id = ? AND timestamp >= ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+            ''', (device_id, cutoff_time.isoformat()))
+
+            row = cursor.fetchone()
+            conn.close()
+
+            if row is None:
+                debug("No recent sample found for device %s", device_id)
+                return None
+
+            # Convert to dictionary with same format as firewall_api.get_throughput_data()
+            sample = {
+                'timestamp': row['timestamp'],
+                'inbound_mbps': row['inbound_mbps'],
+                'outbound_mbps': row['outbound_mbps'],
+                'total_mbps': row['total_mbps'],
+                'inbound_pps': row['inbound_pps'],
+                'outbound_pps': row['outbound_pps'],
+                'total_pps': row['total_pps'],
+                'sessions': {
+                    'active': row['sessions_active'],
+                    'tcp': row['sessions_tcp'],
+                    'udp': row['sessions_udp'],
+                    'icmp': row['sessions_icmp']
+                },
+                'cpu': {
+                    'data_plane_cpu': row['cpu_data_plane'],
+                    'mgmt_plane_cpu': row['cpu_mgmt_plane'],
+                    'memory_used_pct': row['memory_used_pct']
+                }
+            }
+
+            debug("Retrieved latest sample for device %s from %s", device_id, sample['timestamp'])
+            return sample
+
+        except Exception as e:
+            exception("Failed to get latest sample for device %s: %s", device_id, str(e))
+            return None
+
     def get_storage_stats(self) -> Dict:
         """
         Get statistics about stored data.
