@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 7
-VERSION_PATCH = 3
+VERSION_PATCH = 4
 
 # Build metadata (optional)
 VERSION_BUILD = "20251106"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251106"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Collector Initialization Fix"
+VERSION_CODENAME = "Auto-Select Device Fix"
 
 
 def get_version():
@@ -75,6 +75,25 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.7.4',
+        'codename': 'Auto-Select Device Fix',
+        'date': '2025-11-06',
+        'type': 'patch',
+        'changes': [
+            'CRITICAL FIX: /api/throughput returns no data when selected_device_id is empty',
+            'BUG: When settings.selected_device_id is empty, endpoint queries database with device_id=""',
+            'BUG: Query WHERE device_id = "" matches no rows, returns None, displays zeros',
+            'FIX: Auto-select first enabled device if selected_device_id is empty',
+            'FIX: Loads devices and picks first enabled device automatically',
+            'IMPACT: Dashboard now shows data even if no device explicitly selected',
+            'IMPACT: Works on fresh install or when settings are reset',
+            'IMPACT: Fixes "no data being returned at all" issue',
+            'Modified files: routes.py (/api/throughput endpoint with auto-select)',
+            'Modified files: version.py (bumped to v1.7.4)',
+            'Works with v1.7.3 collector fix to provide complete solution'
+        ]
+    },
     {
         'version': '1.7.3',
         'codename': 'Collector Initialization Fix',

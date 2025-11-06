@@ -205,7 +205,19 @@ def register_routes(app, csrf, limiter):
         settings = load_settings()
         device_id = settings.get('selected_device_id', '')
         refresh_interval = settings.get('refresh_interval', 15)
-        debug(f"Selected device ID from settings: {device_id if device_id else 'NONE'}")
+
+        # If no device selected, auto-select the first enabled device
+        if not device_id:
+            from device_manager import device_manager
+            devices = device_manager.load_devices()
+            enabled_devices = [d for d in devices if d.get('enabled', True)]
+            if enabled_devices:
+                device_id = enabled_devices[0].get('id')
+                debug(f"No device selected, auto-selected first enabled device: {device_id}")
+            else:
+                debug("No enabled devices found")
+
+        debug(f"Using device ID: {device_id if device_id else 'NONE'}")
         debug(f"Refresh interval: {refresh_interval}s")
 
         try:
