@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 7
-VERSION_PATCH = 2
+VERSION_PATCH = 3
 
 # Build metadata (optional)
 VERSION_BUILD = "20251106"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251106"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Multi-Device Collection Fix"
+VERSION_CODENAME = "Collector Initialization Fix"
 
 
 def get_version():
@@ -75,6 +75,26 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.7.3',
+        'codename': 'Collector Initialization Fix',
+        'date': '2025-11-06',
+        'type': 'patch',
+        'changes': [
+            'CRITICAL FIX: Collector was not loading devices at all - NO DATA WAS BEING COLLECTED',
+            'BUG: device_manager.load_devices() returns a LIST, not a dict',
+            'BUG: Collector called devices_data.get("devices", []) on a list, always returned empty []',
+            'BUG: This caused "No devices configured, skipping collection" on every cycle',
+            'FIX: Changed to directly use devices = device_manager.load_devices()',
+            'FIX: Removed incorrect .get("devices", []) call',
+            'IMPACT: Collector now actually runs and stores data in database',
+            'IMPACT: Scheduler starts properly when container/app starts',
+            'IMPACT: Data collection works independently of selected device',
+            'Modified files: throughput_collector.py (fixed device loading)',
+            'Modified files: version.py (bumped to v1.7.3)',
+            'This fixes the issue where NO data was being gathered at all'
+        ]
+    },
     {
         'version': '1.7.2',
         'codename': 'Multi-Device Collection Fix',

@@ -42,11 +42,10 @@ class ThroughputCollector:
         debug("Starting throughput collection cycle #%d", self.collection_count + 1)
 
         try:
-            # Get all devices
-            devices_data = device_manager.load_devices()
-            devices = devices_data.get('devices', [])
+            # Get all devices (load_devices returns a list directly)
+            devices = device_manager.load_devices()
 
-            if not devices:
+            if not devices or len(devices) == 0:
                 debug("No devices configured, skipping collection")
                 return
 
