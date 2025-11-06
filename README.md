@@ -122,7 +122,8 @@ Download and upload via **Settings > Databases**:
 ## Features
 
 - Multi-device firewall monitoring
-- Real-time throughput and system metrics
+- Database-first architecture with 1-minute updates (90-day retention)
+- Historical throughput and system metrics with advanced charting
 - Automated PAN-OS upgrades
 - Content update management
 - Traffic and threat log analysis
