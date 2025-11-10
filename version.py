@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 8
-VERSION_PATCH = 1
+VERSION_PATCH = 2
 
 # Build metadata (optional)
 VERSION_BUILD = "20251110"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251110"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Modular Architecture"
+VERSION_CODENAME = "JavaScript Refactoring"
 
 
 def get_version():
@@ -75,6 +75,27 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.8.2',
+        'codename': 'JavaScript Refactoring',
+        'date': '2025-11-10',
+        'type': 'patch',
+        'changes': [
+            'PHASE 6 COMPLETE: JavaScript modular architecture refactoring',
+            'CODE QUALITY: Split pages-connected-devices.js (1,024 lines) into 3 focused modules',
+            'NEW MODULE: pages-connected-devices-core.js (624 lines) - Core data, state, and table rendering',
+            'NEW MODULE: pages-connected-devices-metadata.js (482 lines) - Metadata modal, autocomplete, and API',
+            'NEW MODULE: pages-connected-devices-export.js (138 lines) - CSV and XML export functionality',
+            'FILE SIZE: All JavaScript files now comply with 1,000-line guideline',
+            'ARCHITECTURE: Clean separation of concerns (core, metadata, export)',
+            'ARCHITECTURE: Proper module dependencies (core → metadata → export)',
+            'BACKWARD COMPATIBLE: All functionality maintained, HTML template updated',
+            'NAMESPACE: Exported state via window.ConnectedDevices object',
+            'NAMESPACE: Exposed functions for inline event handlers',
+            'REFACTORING: Complete modular architecture across entire codebase (Python + JavaScript)',
+            'ACHIEVEMENT: All 12 Python API modules + 6 route modules + 3 JavaScript modules = clean architecture',
+        ]
+    },
     {
         'version': '1.8.1',
         'codename': 'Modular Architecture',

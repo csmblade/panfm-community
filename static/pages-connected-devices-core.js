@@ -1,16 +1,27 @@
 /**
- * pages-connected-devices.js - Connected Devices Page Module
+ * PANfm - Connected Devices Core Module
  *
- * Handles Connected Devices page functionality including:
- * - Loading and displaying ARP table data
- * - Filtering by VLAN, status, and search
- * - Sorting by multiple columns (hostname, IP, MAC, VLAN, zone, interface, age)
- * - Default sort: age (lowest to highest)
- * - Exporting to CSV and XML formats
- * - MAC vendor lookup integration
+ * Purpose: Core data management, state, and table rendering
+ * Part of: Phase 6 JavaScript Refactoring (v1.8.2)
+ *
+ * Dependencies: None (this is the base module)
+ *
+ * Exports (via window.ConnectedDevices namespace):
+ * - State variables (allDevices, metadata, sort state, etc.)
+ * - loadConnectedDevices() - Main data loader
+ * - renderConnectedDevicesTable() - Table rendering
+ * - sortConnectedDevices(field) - Column sorting
+ * - toggleDeviceRowExpansion(mac) - Expand/collapse details
+ *
+ * Also exports to window for inline event handlers:
+ * - sortConnectedDevices(field)
+ * - toggleDeviceRowExpansion(mac)
  */
 
-// Connected Devices functionality
+// ============================================================================
+// GLOBAL STATE
+// ============================================================================
+
 let allConnectedDevices = [];
 let connectedDevicesMetadata = {};
 let connectedDevicesSortBy = 'age'; // Default sort by age
@@ -20,6 +31,14 @@ let expandedRows = new Set(); // Track which rows are expanded for comments
 let allTagsCache = []; // Cache all unique tags for autocomplete
 let allLocationsCache = []; // Cache all unique locations for autocomplete
 
+// ============================================================================
+// DATA LOADING FUNCTIONS
+// ============================================================================
+
+/**
+ * Load device metadata from API
+ * Called during initial data load
+ */
 async function loadDeviceMetadata() {
     console.log('Loading device metadata...');
     try {
@@ -43,6 +62,9 @@ async function loadDeviceMetadata() {
     }
 }
 
+/**
+ * Load all unique tags for autocomplete
+ */
 async function loadAllTags() {
     console.log('Loading all tags for autocomplete...');
     try {
@@ -62,6 +84,9 @@ async function loadAllTags() {
     }
 }
 
+/**
+ * Load all unique locations for autocomplete
+ */
 async function loadAllLocations() {
     console.log('Loading all locations for autocomplete...');
     try {
@@ -81,6 +106,10 @@ async function loadAllLocations() {
     }
 }
 
+/**
+ * Main data loading function
+ * Loads devices, metadata, tags, and locations in parallel
+ */
 async function loadConnectedDevices() {
     console.log('Loading connected devices...');
     try {
@@ -149,6 +178,13 @@ async function loadConnectedDevices() {
     }
 }
 
+// ============================================================================
+// EVENT LISTENERS
+// ============================================================================
+
+/**
+ * Set up all event listeners for filters, search, and buttons
+ */
 function setupConnectedDevicesEventListeners() {
     // Search input
     const searchInput = document.getElementById('connectedDevicesSearchInput');
@@ -185,16 +221,16 @@ function setupConnectedDevicesEventListeners() {
         refreshBtn.setAttribute('data-listener', 'true');
     }
 
-    // Export buttons
+    // Export buttons (functions imported from export module)
     const exportCSVBtn = document.getElementById('exportDevicesCSV');
     if (exportCSVBtn && !exportCSVBtn.hasAttribute('data-listener')) {
-        exportCSVBtn.addEventListener('click', () => exportDevices('csv'));
+        exportCSVBtn.addEventListener('click', () => window.exportDevices('csv'));
         exportCSVBtn.setAttribute('data-listener', 'true');
     }
 
     const exportXMLBtn = document.getElementById('exportDevicesXML');
     if (exportXMLBtn && !exportXMLBtn.hasAttribute('data-listener')) {
-        exportXMLBtn.addEventListener('click', () => exportDevices('xml'));
+        exportXMLBtn.addEventListener('click', () => window.exportDevices('xml'));
         exportXMLBtn.setAttribute('data-listener', 'true');
     }
 
@@ -203,6 +239,16 @@ function setupConnectedDevicesEventListeners() {
     populateZoneFilter();
 }
 
+// ============================================================================
+// SORTING & FILTERING
+// ============================================================================
+
+/**
+ * Sort connected devices by specified field
+ * Toggles direction if clicking same field
+ *
+ * @param {string} field - Field name to sort by
+ */
 function sortConnectedDevices(field) {
     // Toggle sort direction if clicking the same field
     if (connectedDevicesSortBy === field) {
@@ -219,6 +265,9 @@ function sortConnectedDevices(field) {
     renderConnectedDevicesTable();
 }
 
+/**
+ * Populate VLAN filter dropdown with unique VLANs from devices
+ */
 function populateVLANFilter() {
     const vlanFilter = document.getElementById('connectedDevicesVlanFilter');
     if (!vlanFilter) return;
@@ -252,6 +301,9 @@ function populateVLANFilter() {
     });
 }
 
+/**
+ * Populate Zone filter dropdown with unique zones from devices
+ */
 function populateZoneFilter() {
     const zoneFilter = document.getElementById('connectedDevicesZoneFilter');
     if (!zoneFilter) return;
@@ -278,6 +330,14 @@ function populateZoneFilter() {
     });
 }
 
+// ============================================================================
+// TABLE RENDERING
+// ============================================================================
+
+/**
+ * Main table rendering function
+ * Applies filters, sorting, and generates HTML table
+ */
 function renderConnectedDevicesTable() {
     const tableDiv = document.getElementById('connectedDevicesTable');
     const searchTerm = (document.getElementById('connectedDevicesSearchInput')?.value || '').toLowerCase().trim();
@@ -287,14 +347,13 @@ function renderConnectedDevicesTable() {
 
     // Filter devices
     let filteredDevices = allConnectedDevices.filter(device => {
-        // Search filter (includes tags automatically)
+        // Search filter (includes tags, custom names, location, comments)
         if (searchTerm) {
-        // Build searchable text including tags, location, etc.
-        const tagsText = (device.tags && Array.isArray(device.tags)) ? device.tags.join(' ') : '';
-        const customNameText = device.custom_name || '';
-        const locationText = device.location || '';
-        const commentText = device.comment || '';
-        const searchableText = `${device.hostname} ${device.original_hostname || device.hostname} ${customNameText} ${locationText} ${device.ip} ${device.mac} ${device.interface} ${tagsText} ${commentText}`.toLowerCase();
+            const tagsText = (device.tags && Array.isArray(device.tags)) ? device.tags.join(' ') : '';
+            const customNameText = device.custom_name || '';
+            const locationText = device.location || '';
+            const commentText = device.comment || '';
+            const searchableText = `${device.hostname} ${device.original_hostname || device.hostname} ${customNameText} ${locationText} ${device.ip} ${device.mac} ${device.interface} ${tagsText} ${commentText}`.toLowerCase();
             if (!searchableText.includes(searchTerm)) {
                 return false;
             }
@@ -446,11 +505,11 @@ function renderConnectedDevicesTable() {
             macCell += `<div style="font-size: 0.75em; color: ${detailColor}; margin-top: 2px;">${device.virtual_type}</div>`;
         }
 
-        // Make row clickable to open edit modal
+        // Make row clickable to open edit modal (function from metadata module)
         const rowId = `device-row-${normalizedMac.replace(/:/g, '-')}`;
         const deviceDataAttr = escapeHtml(JSON.stringify(device).replace(/"/g, '&quot;'));
         html += `
-            <tr id="${rowId}" onclick="openDeviceEditModal('${escapeHtml(device.mac)}')" data-device='${deviceDataAttr}' style="${rowStyle} border-bottom: 1px solid #dee2e6; cursor: pointer;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
+            <tr id="${rowId}" onclick="window.openDeviceEditModal('${escapeHtml(device.mac)}')" data-device='${deviceDataAttr}' style="${rowStyle} border-bottom: 1px solid #dee2e6; cursor: pointer;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
                 <td style="padding: 8px 12px;">${chevronCell}</td>
                 <td style="padding: 12px;">${hostnameCell}</td>
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.ip}</td>
@@ -462,7 +521,7 @@ function renderConnectedDevicesTable() {
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.interface}</td>
                 <td style="padding: 12px; color: #666;">${device.ttl}</td>
             </tr>`;
-        
+
         // Add expandable row detail for location/comments (if either exists)
         if (hasDetails) {
             const commentRowId = `device-comment-${normalizedMac.replace(/:/g, '-')}`;
@@ -504,103 +563,11 @@ function renderConnectedDevicesTable() {
     tableDiv.innerHTML = html;
 }
 
-function exportDevices(format) {
-    const vlanFilter = document.getElementById('connectedDevicesVlanFilter')?.value || '';
-    const statusFilter = document.getElementById('connectedDevicesStatusFilter')?.value || '';
-    const searchTerm = (document.getElementById('connectedDevicesSearchInput')?.value || '').toLowerCase().trim();
-
-    // Filter devices (same as table)
-    let filteredDevices = allConnectedDevices.filter(device => {
-        if (searchTerm) {
-            const searchableText = `${device.hostname} ${device.ip} ${device.mac} ${device.interface}`.toLowerCase();
-            if (!searchableText.includes(searchTerm)) return false;
-        }
-        if (vlanFilter && device.vlan !== vlanFilter) return false;
-        if (statusFilter && device.status !== statusFilter) return false;
-        return true;
-    });
-
-    if (format === 'csv') {
-        exportDevicesCSV(filteredDevices);
-    } else if (format === 'xml') {
-        exportDevicesXML(filteredDevices);
-    }
-}
-
-function exportDevicesCSV(devices) {
-    const headers = ['Hostname', 'IP Address', 'MAC Address', 'VLAN', 'Security Zone', 'Interface', 'TTL (minutes)', 'Status'];
-    let csv = headers.join(',') + '\n';
-
-    devices.forEach(device => {
-        const row = [
-            device.hostname,
-            device.ip,
-            device.mac,
-            device.vlan,
-            device.zone || '-',
-            device.interface,
-            device.ttl,
-            device.status
-        ];
-        csv += row.map(field => `"${field}"`).join(',') + '\n';
-    });
-
-    downloadFile(csv, 'connected-devices.csv', 'text/csv');
-}
-
-function exportDevicesXML(devices) {
-    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    xml += '<connected-devices>\n';
-
-    devices.forEach(device => {
-        xml += '  <device>\n';
-        xml += `    <hostname>${escapeXML(device.hostname)}</hostname>\n`;
-        xml += `    <ip>${escapeXML(device.ip)}</ip>\n`;
-        xml += `    <mac>${escapeXML(device.mac)}</mac>\n`;
-        xml += `    <vlan>${escapeXML(device.vlan)}</vlan>\n`;
-        xml += `    <zone>${escapeXML(device.zone || '-')}</zone>\n`;
-        xml += `    <interface>${escapeXML(device.interface)}</interface>\n`;
-        xml += `    <ttl>${escapeXML(device.ttl)}</ttl>\n`;
-        xml += `    <status>${escapeXML(device.status)}</status>\n`;
-        xml += '  </device>\n';
-    });
-
-    xml += '</connected-devices>';
-
-    downloadFile(xml, 'connected-devices.xml', 'application/xml');
-}
-
-function escapeXML(text) {
-    if (!text) return '';
-    return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-}
-
-function downloadFile(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-// Helper function to escape HTML
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Toggle row expansion for comments
+/**
+ * Toggle row expansion for comments/location details
+ *
+ * @param {string} mac - MAC address of device
+ */
 function toggleDeviceRowExpansion(mac) {
     const normalizedMac = mac.toLowerCase();
     if (expandedRows.has(normalizedMac)) {
@@ -611,414 +578,47 @@ function toggleDeviceRowExpansion(mac) {
     renderConnectedDevicesTable();
 }
 
-// Open edit modal for device
-function openDeviceEditModal(mac) {
-    // Find the device data from the row
-    const normalizedMac = mac.toLowerCase();
-    const device = allConnectedDevices.find(d => d.mac.toLowerCase() === normalizedMac);
-    
-    if (!device) {
-        console.error('Device not found:', mac);
-        return;
-    }
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
-    // Get existing metadata
-    const metadata = deviceMetadataCache[normalizedMac] || {};
-    const currentName = device.custom_name || metadata.name || '';
-    const currentComment = device.comment || metadata.comment || '';
-    const currentLocation = device.location || metadata.location || '';
-    const currentTags = device.tags || metadata.tags || [];
-
-    // Populate modal fields
-    const modal = document.getElementById('deviceMetadataModal');
-    if (!modal) {
-        console.error('Modal not found');
-        return;
-    }
-
-    document.getElementById('deviceMetadataMac').textContent = device.mac;
-    document.getElementById('deviceMetadataIp').textContent = device.ip;
-    document.getElementById('deviceMetadataName').value = currentName;
-    document.getElementById('deviceMetadataLocation').value = currentLocation;
-    document.getElementById('deviceMetadataComment').value = currentComment;
-    
-    // Populate tags input
-    const tagsInput = document.getElementById('deviceMetadataTags');
-    tagsInput.value = currentTags.join(', ');
-
-    // Show modal
-    modal.style.display = 'flex';
-
-    // Store current MAC for save handler
-    modal.dataset.currentMac = mac;
-
-    // Set up tag autocomplete
-    setupTagAutocomplete();
-    
-    // Set up location autocomplete
-    setupLocationAutocomplete();
+/**
+ * Escape HTML special characters
+ *
+ * @param {string} text - Text to escape
+ * @returns {string} - HTML-safe text
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
-// Set up tag autocomplete for tags input field
-function setupTagAutocomplete() {
-    const tagsInput = document.getElementById('deviceMetadataTags');
-    const dropdown = document.getElementById('tagAutocompleteDropdown');
-    
-    if (!tagsInput || !dropdown) {
-        return;
-    }
+// ============================================================================
+// EXPORTS TO GLOBAL NAMESPACE
+// ============================================================================
 
-    // Clear existing event listeners by removing and re-adding
-    const newInput = tagsInput.cloneNode(true);
-    tagsInput.parentNode.replaceChild(newInput, tagsInput);
-    const newDropdown = dropdown.cloneNode(true);
-    dropdown.parentNode.replaceChild(newDropdown, dropdown);
+// Export state and functions via window.ConnectedDevices namespace
+window.ConnectedDevices = {
+    // State
+    allDevices: allConnectedDevices,
+    metadata: connectedDevicesMetadata,
+    sortBy: connectedDevicesSortBy,
+    sortDesc: connectedDevicesSortDesc,
+    metadataCache: deviceMetadataCache,
+    expandedRows: expandedRows,
+    tagsCache: allTagsCache,
+    locationsCache: allLocationsCache,
 
-    const input = document.getElementById('deviceMetadataTags');
-    const suggestions = document.getElementById('tagAutocompleteDropdown');
+    // Functions
+    loadConnectedDevices: loadConnectedDevices,
+    renderTable: renderConnectedDevicesTable,
+    sortDevices: sortConnectedDevices,
+    toggleExpansion: toggleDeviceRowExpansion
+};
 
-    let hideTimeout = null;
-
-    input.addEventListener('input', function() {
-        const value = this.value;
-        const cursorPos = this.selectionStart;
-        
-        // Get the current word being typed (everything after the last comma)
-        const lastCommaIndex = value.lastIndexOf(',', cursorPos - 1);
-        const currentWord = value.substring(lastCommaIndex + 1, cursorPos).trim();
-
-        // Clear hide timeout
-        if (hideTimeout) {
-            clearTimeout(hideTimeout);
-        }
-
-        // Filter tags based on current word
-        if (currentWord.length > 0) {
-            const matches = allTagsCache.filter(tag => 
-                tag.toLowerCase().includes(currentWord.toLowerCase()) &&
-                !value.toLowerCase().includes(tag.toLowerCase() + ',') &&
-                !value.toLowerCase().endsWith(tag.toLowerCase())
-            ).slice(0, 10); // Limit to 10 suggestions
-
-            if (matches.length > 0) {
-                suggestions.innerHTML = '';
-                matches.forEach(tag => {
-                    const item = document.createElement('div');
-                    item.className = 'tag-suggestion';
-                    item.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #e0e0e0; transition: background 0.2s;';
-                    item.textContent = tag;
-                    item.onmouseover = () => item.style.background = '#f0f0f0';
-                    item.onmouseout = () => item.style.background = 'white';
-                    item.onclick = () => {
-                        selectTag(tag, input);
-                    };
-                    suggestions.appendChild(item);
-                });
-                suggestions.style.display = 'block';
-            } else {
-                suggestions.style.display = 'none';
-            }
-        } else {
-            suggestions.style.display = 'none';
-        }
-    });
-
-    input.addEventListener('blur', function() {
-        // Delay hiding to allow clicks on suggestions
-        hideTimeout = setTimeout(() => {
-            suggestions.style.display = 'none';
-        }, 200);
-    });
-
-    input.addEventListener('focus', function() {
-        if (hideTimeout) {
-            clearTimeout(hideTimeout);
-        }
-    });
-
-    // Prevent dropdown from closing when clicking on it
-    suggestions.addEventListener('mousedown', function(e) {
-        e.preventDefault();
-    });
-}
-
-// Setup location autocomplete
-function setupLocationAutocomplete() {
-    const input = document.getElementById('deviceMetadataLocation');
-    const dropdown = document.getElementById('locationAutocompleteDropdown');
-    
-    if (!input || !dropdown) {
-        console.warn('Location autocomplete elements not found');
-        return;
-    }
-
-    let hideTimeout = null;
-
-    input.addEventListener('input', function() {
-        const value = this.value.toLowerCase().trim();
-        
-        // Clear hide timeout
-        if (hideTimeout) {
-            clearTimeout(hideTimeout);
-        }
-
-        // Filter locations based on current input
-        if (value.length > 0) {
-            const matches = allLocationsCache.filter(location => 
-                location.toLowerCase().includes(value) &&
-                location.toLowerCase() !== value
-            ).slice(0, 10); // Limit to 10 suggestions
-
-            if (matches.length > 0) {
-                dropdown.innerHTML = '';
-                matches.forEach(location => {
-                    const item = document.createElement('div');
-                    item.className = 'location-suggestion';
-                    item.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #e0e0e0; transition: background 0.2s;';
-                    item.textContent = location;
-                    item.onmouseover = () => item.style.background = '#f0f0f0';
-                    item.onmouseout = () => item.style.background = 'white';
-                    item.onclick = () => {
-                        input.value = location;
-                        dropdown.style.display = 'none';
-                        input.focus();
-                    };
-                    dropdown.appendChild(item);
-                });
-                dropdown.style.display = 'block';
-            } else {
-                dropdown.style.display = 'none';
-            }
-        } else {
-            dropdown.style.display = 'none';
-        }
-    });
-
-    input.addEventListener('blur', function() {
-        // Delay hiding to allow clicks on suggestions
-        hideTimeout = setTimeout(() => {
-            dropdown.style.display = 'none';
-        }, 200);
-    });
-
-    input.addEventListener('focus', function() {
-        if (hideTimeout) {
-            clearTimeout(hideTimeout);
-        }
-        // Show suggestions if there's a value
-        const value = this.value.toLowerCase().trim();
-        if (value.length > 0) {
-            const matches = allLocationsCache.filter(location => 
-                location.toLowerCase().includes(value) &&
-                location.toLowerCase() !== value
-            ).slice(0, 10);
-            
-            if (matches.length > 0) {
-                dropdown.innerHTML = '';
-                matches.forEach(location => {
-                    const item = document.createElement('div');
-                    item.className = 'location-suggestion';
-                    item.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #e0e0e0; transition: background 0.2s;';
-                    item.textContent = location;
-                    item.onmouseover = () => item.style.background = '#f0f0f0';
-                    item.onmouseout = () => item.style.background = 'white';
-                    item.onclick = () => {
-                        input.value = location;
-                        dropdown.style.display = 'none';
-                        input.focus();
-                    };
-                    dropdown.appendChild(item);
-                });
-                dropdown.style.display = 'block';
-            }
-        }
-    });
-
-    // Prevent dropdown from closing when clicking on it
-    dropdown.addEventListener('mousedown', function(e) {
-        e.preventDefault();
-    });
-    
-    // Hide dropdown initially
-    dropdown.style.display = 'none';
-}
-
-// Select a tag from autocomplete and add it to input
-function selectTag(tag, input) {
-    const value = input.value;
-    const cursorPos = input.selectionStart;
-    
-    // Find the current word being typed
-    const lastCommaIndex = value.lastIndexOf(',', cursorPos - 1);
-    const beforeWord = value.substring(0, lastCommaIndex + 1);
-    const afterWord = value.substring(cursorPos);
-    
-    // Insert the selected tag
-    const newValue = beforeWord + (beforeWord.trim() ? ', ' : '') + tag + (afterWord.trim() ? ', ' : '') + afterWord;
-    input.value = newValue;
-    
-    // Position cursor after the inserted tag
-    const newCursorPos = beforeWord.length + (beforeWord.trim() ? 2 : 0) + tag.length;
-    input.setSelectionRange(newCursorPos, newCursorPos);
-    input.focus();
-    
-    // Hide dropdown
-    document.getElementById('tagAutocompleteDropdown').style.display = 'none';
-    
-    // Trigger input event to update any dependent logic
-    input.dispatchEvent(new Event('input'));
-}
-
-// Save device metadata via API
-async function saveDeviceMetadata(mac, name, location, comment, tags) {
-    try {
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        if (!csrfToken) {
-            alert('CSRF token not found. Please refresh the page.');
-            return false;
-        }
-
-        const response = await fetch('/api/device-metadata', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({
-                mac: mac,
-                name: name || null,
-                location: location || null,
-                comment: comment || null,
-                tags: tags || []
-            })
-        });
-
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            // Update cache
-            const normalizedMac = mac.toLowerCase();
-            if (name || location || comment || (tags && tags.length > 0)) {
-                deviceMetadataCache[normalizedMac] = data.metadata;
-            } else {
-                delete deviceMetadataCache[normalizedMac];
-            }
-            
-            // Reload tags and locations for autocomplete
-            await loadAllTags();
-            await loadAllLocations();
-            
-            // Reload devices to refresh display
-            await loadConnectedDevices();
-            return true;
-        } else {
-            alert('Failed to save metadata: ' + (data.message || 'Unknown error'));
-            return false;
-        }
-    } catch (error) {
-        console.error('Error saving device metadata:', error);
-        alert('Error saving metadata: ' + error.message);
-        return false;
-    }
-}
-
-// Export device metadata as JSON backup
-async function exportDeviceMetadata() {
-    try {
-        const response = await fetch('/api/device-metadata/export');
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            alert('Failed to export metadata: ' + (errorData.message || 'Unknown error'));
-            return;
-        }
-
-        // Get filename from Content-Disposition header or use default
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'device_metadata_backup.json';
-        if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-            if (filenameMatch && filenameMatch[1]) {
-                filename = filenameMatch[1].replace(/['"]/g, '');
-            }
-        }
-
-        // Download file
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        console.log('Metadata exported successfully');
-    } catch (error) {
-        console.error('Error exporting metadata:', error);
-        alert('Error exporting metadata: ' + error.message);
-    }
-}
-
-// Import device metadata from JSON backup file
-async function importDeviceMetadata() {
-    const fileInput = document.getElementById('importMetadataFile');
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        return;
-    }
-
-    const file = fileInput.files[0];
-
-    if (!file.name.endsWith('.json')) {
-        alert('File must be a JSON file');
-        fileInput.value = '';
-        return;
-    }
-
-    // Confirm import
-    const confirmMessage = `Are you sure you want to import metadata from "${file.name}"?\n\nThis will merge the imported metadata with existing metadata. Devices with the same MAC address will be updated.`;
-    if (!confirm(confirmMessage)) {
-        fileInput.value = '';
-        return;
-    }
-
-    try {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-        const response = await fetch('/api/device-metadata/import', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken
-            },
-            body: formData
-        });
-
-        const data = await response.json();
-
-        if (data.status === 'success') {
-            alert(`Metadata imported successfully!\n\n${data.message}\n\nReloading devices...`);
-            
-            // Clear file input
-            fileInput.value = '';
-            
-            // Reload devices and metadata
-            await loadConnectedDevices();
-        } else {
-            alert('Failed to import metadata: ' + (data.message || 'Unknown error'));
-            fileInput.value = '';
-        }
-    } catch (error) {
-        console.error('Error importing metadata:', error);
-        alert('Error importing metadata: ' + error.message);
-        fileInput.value = '';
-    }
-}
-
-// Make importDeviceMetadata available globally for inline event handler
-window.importDeviceMetadata = importDeviceMetadata;
+// Export specific functions for inline event handlers in HTML
+window.sortConnectedDevices = sortConnectedDevices;
+window.toggleDeviceRowExpansion = toggleDeviceRowExpansion;
+window.loadConnectedDevices = loadConnectedDevices;

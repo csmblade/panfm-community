@@ -2487,7 +2487,10 @@
     <!-- Load JavaScript modules in order -->
     <script src="/static/logs.js"></script>
     <script src="/static/pages.js"></script>
-    <script src="/static/pages-connected-devices.js"></script>
+    <!-- Connected Devices modules (Phase 6 refactoring - v1.8.2) - Load in order: core, metadata, export -->
+    <script src="/static/pages-connected-devices-core.js"></script>
+    <script src="/static/pages-connected-devices-metadata.js"></script>
+    <script src="/static/pages-connected-devices-export.js"></script>
     <script src="/static/pages-applications.js"></script>
     <script src="/static/pages-panos-upgrade.js"></script>
     <script src="/static/pages-content-updates.js"></script>
