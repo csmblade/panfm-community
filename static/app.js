@@ -39,11 +39,11 @@ let historicalData = {
     interfaceErrors: []
 };
 
-// Storage for modal data
-let currentCriticalLogs = [];
-let currentMediumLogs = [];
-let currentBlockedUrlLogs = [];
-let currentTopApps = [];
+// Storage for modal data (global so pages.js can access them)
+window.currentCriticalLogs = [];
+window.currentMediumLogs = [];
+window.currentBlockedUrlLogs = [];
+window.currentTopApps = [];
 
 // Mini chart instances
 let sessionChart = null;
@@ -54,7 +54,7 @@ let ppsChart = null;
 // Initialize Chart.js
 const ctx = document.getElementById('throughputChart').getContext('2d');
 // Make chart globally accessible
-const chart = window.chart = new Chart(ctx, {
+const chart = window.chart = window.throughputChart = new Chart(ctx, {
     type: 'line',
     data: {
         labels: chartData.labels,
@@ -397,7 +397,7 @@ function updateStats(data) {
         const topAppNameElement = document.getElementById('topAppName');
 
         // Store for modals
-        currentTopApps = data.top_applications.apps || [];
+        window.currentTopApps = data.top_applications.apps || [];
 
         // Update total count
         if (topAppsValueElement) {
@@ -455,9 +455,9 @@ function updateStats(data) {
         document.getElementById('blockedUrlValue').innerHTML = data.threats.blocked_urls.toLocaleString();
 
         // Store threat logs for modals
-        currentCriticalLogs = data.threats.critical_logs || [];
-        currentMediumLogs = data.threats.medium_logs || [];
-        currentBlockedUrlLogs = data.threats.blocked_url_logs || [];
+        window.currentCriticalLogs = data.threats.critical_logs || [];
+        window.currentMediumLogs = data.threats.medium_logs || [];
+        window.currentBlockedUrlLogs = data.threats.blocked_url_logs || [];
 
         // Update last seen stats in tiles
         const criticalLastSeen = document.getElementById('criticalLastSeen');
@@ -675,7 +675,13 @@ function showError(message) {
 // Fetch data from API
 async function fetchThroughputData() {
     try {
-        const response = await fetch('/api/throughput');
+        // Build URL with time range parameter if in historical mode
+        let url = '/api/throughput';
+        if (window.currentTimeRange && window.currentTimeRange !== 'realtime') {
+            url += `?range=${window.currentTimeRange}`;
+        }
+
+        const response = await fetch(url);
 
         // Handle authentication errors
         if (response.status === 401) {
@@ -860,32 +866,25 @@ async function init() {
         logoutBtn.addEventListener('click', handleLogout);
     }
 
-    // Set up time range buttons
-    const timeRangeButtons = document.querySelectorAll('.time-range-btn');
-    timeRangeButtons.forEach(btn => {
-        btn.addEventListener('click', () => handleTimeRangeChange(btn.dataset.range));
-    });
+    // Set up time range dropdown
+    const timeRangeSelect = document.getElementById('timeRangeSelect');
+    if (timeRangeSelect) {
+        // Set initial value based on saved time range
+        timeRangeSelect.value = window.currentTimeRange;
 
-    // Set up export and stats buttons
-    const exportBtn = document.getElementById('exportHistoryBtn');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', exportHistoricalData);
-    }
-
-    const toggleStatsBtn = document.getElementById('toggleStatsBtn');
-    if (toggleStatsBtn) {
-        toggleStatsBtn.addEventListener('click', toggleStatistics);
-    }
-
-    const closeStatsBtn = document.getElementById('closeStatsBtn');
-    if (closeStatsBtn) {
-        closeStatsBtn.addEventListener('click', () => {
-            document.getElementById('statsPanel').style.display = 'none';
+        // Handle dropdown change
+        timeRangeSelect.addEventListener('change', () => {
+            handleTimeRangeChange(timeRangeSelect.value);
         });
     }
 
-    // Preload recent historical data to populate chart
-    await preloadChartData();
+    // If not in realtime mode on load, load the saved historical view
+    if (window.currentTimeRange !== 'realtime') {
+        await loadHistoricalThroughput(window.currentTimeRange);
+    } else {
+        // Preload recent historical data to populate chart for realtime mode
+        await preloadChartData();
+    }
 
     // Initial fetch
     fetchThroughputData();
@@ -901,35 +900,44 @@ document.addEventListener('DOMContentLoaded', init);
 // Historical Throughput Functionality
 // ============================================================================
 
-let currentTimeRange = 'realtime';
+// Current time range - global so modals can check if in historical mode
+// Load from localStorage if available, otherwise default to 'realtime'
+window.currentTimeRange = localStorage.getItem('timeRange') || 'realtime';
 
 /**
- * Handle time range button click
+ * Handle time range dropdown change
  */
 async function handleTimeRangeChange(range) {
     console.log('Time range changed to:', range);
-    currentTimeRange = range;
+    window.currentTimeRange = range;
 
-    // Update button styles
-    document.querySelectorAll('.time-range-btn').forEach(btn => {
-        if (btn.dataset.range === range) {
-            btn.style.background = 'linear-gradient(135deg, #FA582D 0%, #FF7A55 100%)';
-        } else {
-            btn.style.background = '#4a5568';
-        }
-    });
+    // Save to localStorage for site-wide persistence
+    localStorage.setItem('timeRange', range);
+
+    // Update dropdown value if it exists (for consistency across pages)
+    const timeRangeSelect = document.getElementById('timeRangeSelect');
+    if (timeRangeSelect && timeRangeSelect.value !== range) {
+        timeRangeSelect.value = range;
+    }
 
     if (range === 'realtime') {
         // Resume real-time updates
         if (!updateIntervalId) {
             updateIntervalId = setInterval(fetchThroughputData, UPDATE_INTERVAL);
         }
+
+        // Preload recent historical data to avoid empty chart
+        // This will populate the chart with last 30 minutes of data
+        await preloadChartData();
+
+        // Fetch latest real-time data point
         fetchThroughputData();
 
-        // Hide export and stats buttons in real-time mode
-        document.getElementById('exportHistoryBtn').style.display = 'none';
-        document.getElementById('toggleStatsBtn').style.display = 'none';
-        document.getElementById('statsPanel').style.display = 'none';
+        // Hide historical stats elements in real-time mode
+        document.getElementById('totalMinMax').style.display = 'none';
+        document.getElementById('inboundMinMax').style.display = 'none';
+        document.getElementById('outboundMinMax').style.display = 'none';
+        document.getElementById('sampleCountDisplay').style.display = 'none';
     } else {
         // Stop real-time updates
         if (updateIntervalId) {
@@ -960,29 +968,43 @@ async function loadHistoricalThroughput(range) {
         if (data.status === 'success' && data.samples) {
             console.log(`Loaded ${data.samples.length} historical samples (${data.resolution} resolution)`);
 
-            // Clear existing chart data
-            throughputChart.data.labels = [];
-            throughputChart.data.datasets[0].data = [];
-            throughputChart.data.datasets[1].data = [];
-            throughputChart.data.datasets[2].data = [];
+            // Clear both chartData and chart datasets
+            window.chartData.labels = [];
+            window.chartData.inbound = [];
+            window.chartData.outbound = [];
+            window.chartData.total = [];
 
-            // Add historical data to chart
+            // Get user's timezone preference (default to UTC if not set)
+            const userTz = window.userTimezone || 'UTC';
+
+            // Add historical data to chartData object
             data.samples.forEach(sample => {
-                const timestamp = new Date(sample.timestamp).toLocaleTimeString();
-                throughputChart.data.labels.push(timestamp);
-                throughputChart.data.datasets[0].data.push(sample.inbound_mbps || 0);
-                throughputChart.data.datasets[1].data.push(sample.outbound_mbps || 0);
-                throughputChart.data.datasets[2].data.push(sample.total_mbps || 0);
+                const timestamp = new Date(sample.timestamp);
+                const timeLabel = timestamp.toLocaleTimeString('en-US', {
+                    timeZone: userTz,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                window.chartData.labels.push(timeLabel);
+                window.chartData.inbound.push(sample.inbound_mbps || 0);
+                window.chartData.outbound.push(sample.outbound_mbps || 0);
+                window.chartData.total.push(sample.total_mbps || 0);
             });
 
-            throughputChart.update();
+            // Update chart from chartData
+            window.chart.data.labels = window.chartData.labels.slice();
+            window.chart.data.datasets[0].data = window.chartData.inbound.slice();
+            window.chart.data.datasets[1].data = window.chartData.outbound.slice();
+            window.chart.data.datasets[2].data = window.chartData.total.slice();
+            window.chart.update();
 
-            // Show export and stats buttons when viewing historical data
-            document.getElementById('exportHistoryBtn').style.display = 'block';
-            document.getElementById('toggleStatsBtn').style.display = 'block';
-
-            // Auto-load statistics
+            // Auto-load statistics and display them inline
             loadHistoricalStats(range);
+
+            // Fetch threat/URL data for the selected time range
+            await fetchThroughputData();
         } else {
             console.error('Failed to load historical data:', data.message);
         }
@@ -992,7 +1014,7 @@ async function loadHistoricalThroughput(range) {
 }
 
 /**
- * Load historical statistics
+ * Load historical statistics and display inline
  */
 async function loadHistoricalStats(range) {
     try {
@@ -1003,51 +1025,33 @@ async function loadHistoricalStats(range) {
         const data = await response.json();
 
         if (data.status === 'success' && data.stats) {
-            // Update stats display
-            document.getElementById('statsInboundMin').textContent = data.stats.inbound_mbps.min;
-            document.getElementById('statsInboundMax').textContent = data.stats.inbound_mbps.max;
-            document.getElementById('statsInboundAvg').textContent = data.stats.inbound_mbps.avg;
+            // Update average values (already displayed)
+            document.getElementById('inboundAvg').textContent = data.stats.inbound_mbps.avg;
+            document.getElementById('outboundAvg').textContent = data.stats.outbound_mbps.avg;
+            document.getElementById('totalAvg').textContent = data.stats.total_mbps.avg;
 
-            document.getElementById('statsOutboundMin').textContent = data.stats.outbound_mbps.min;
-            document.getElementById('statsOutboundMax').textContent = data.stats.outbound_mbps.max;
-            document.getElementById('statsOutboundAvg').textContent = data.stats.outbound_mbps.avg;
+            // Show and update min/max inline
+            const inboundMinMax = document.getElementById('inboundMinMax');
+            inboundMinMax.textContent = `(min: ${data.stats.inbound_mbps.min}, max: ${data.stats.inbound_mbps.max})`;
+            inboundMinMax.style.display = 'inline';
 
-            document.getElementById('statsTotalMin').textContent = data.stats.total_mbps.min;
-            document.getElementById('statsTotalMax').textContent = data.stats.total_mbps.max;
-            document.getElementById('statsTotalAvg').textContent = data.stats.total_mbps.avg;
+            const outboundMinMax = document.getElementById('outboundMinMax');
+            outboundMinMax.textContent = `(min: ${data.stats.outbound_mbps.min}, max: ${data.stats.outbound_mbps.max})`;
+            outboundMinMax.style.display = 'inline';
 
-            document.getElementById('statsSampleCount').textContent = data.sample_count.toLocaleString();
+            const totalMinMax = document.getElementById('totalMinMax');
+            totalMinMax.textContent = `(min: ${data.stats.total_mbps.min}, max: ${data.stats.total_mbps.max})`;
+            totalMinMax.style.display = 'inline';
+
+            // Show sample count
+            const sampleCountDisplay = document.getElementById('sampleCountDisplay');
+            const sampleCount = document.getElementById('historicalSampleCount');
+            sampleCount.textContent = data.sample_count.toLocaleString();
+            sampleCountDisplay.style.display = 'block';
         }
     } catch (error) {
         console.error('Error loading statistics:', error);
     }
-}
-
-/**
- * Toggle statistics panel
- */
-function toggleStatistics() {
-    const panel = document.getElementById('statsPanel');
-    if (panel.style.display === 'none') {
-        panel.style.display = 'block';
-    } else {
-        panel.style.display = 'none';
-    }
-}
-
-/**
- * Export historical data to CSV
- */
-function exportHistoricalData() {
-    const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
-    if (!deviceId) {
-        console.warn('No device selected');
-        return;
-    }
-
-    // Open export URL in new window to trigger download
-    const exportUrl = `/api/throughput/history/export?device_id=${deviceId}&range=${currentTimeRange}`;
-    window.open(exportUrl, '_blank');
 }
 
 // ============================================================================

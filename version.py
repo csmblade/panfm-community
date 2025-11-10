@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 8
-VERSION_PATCH = 2
+VERSION_PATCH = 3
 
 # Build metadata (optional)
 VERSION_BUILD = "20251110"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251110"  # YYYYMMDD format
 VERSION_PRERELEASE = None
 
 # Codename for this version (optional)
-VERSION_CODENAME = "JavaScript Refactoring"
+VERSION_CODENAME = "UI/UX Enhancement"
 
 
 def get_version():
@@ -75,6 +75,39 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.8.3',
+        'codename': 'UI/UX Enhancement',
+        'date': '2025-11-10',
+        'type': 'patch',
+        'changes': [
+            'NEW FEATURE: Time range selector moved to sidebar as professional dropdown',
+            'REMOVED: 6 Hours button (now: Live, 1h, 24h, 7d, 30d)',
+            'UI/UX: Professional dropdown styling with PANfm theme (#2d2d2d, #FA582D)',
+            'UI/UX: localStorage persistence for site-wide time range selection',
+            'UI/UX: Smooth 0.3s transitions, accessible focus ring, emoji indicators',
+            'SPACE SAVING: Dropdown replaces 5 buttons, saves vertical sidebar space',
+            'DATABASE-FIRST: Applications page now displays ALL data from APScheduler',
+            'FIXED: Categories showing as "unknown" (was ignoring details_json)',
+            'FIXED: Source/destination counts showing as 0 (storage function bug)',
+            'FIXED: Security zones not displaying (now tracked from details_json)',
+            'FIXED: VLANs not displaying (now extracted from interface names)',
+            'ARCHITECTURE: Established APScheduler pattern - collects ALL data for ALL pages',
+            'ARCHITECTURE PRINCIPLE: Pages read from database only, no direct firewall API calls',
+            'COLLECTOR: Enhanced to parse details_json and extract category, zones, VLANs',
+            'COLLECTOR: Now tracking from_zone, to_zone for security zone visibility',
+            'COLLECTOR: VLAN extraction from interface names (e.g., ethernet1/1.100 → 100)',
+            'STORAGE: Added details_json field to returned logs for parsing',
+            'STORAGE: Fixed source_count/dest_count to use correct field names',
+            'VERIFICATION: All application data working (categories, zones, VLANs, counts)',
+            'Modified files: templates/index.html (dropdown), static/app.js (localStorage)',
+            'Modified files: throughput_collector.py (JSON parsing), throughput_storage.py (fields)',
+            'Modified files: version.py (v1.8.3)',
+            'DOCKER: Tested and verified with full rebuild (clean cache)',
+            'NO BREAKING CHANGES: Fully backward compatible',
+            'DOCUMENTATION: Created RELEASE_NOTES_v1.8.3.md with complete details'
+        ]
+    },
     {
         'version': '1.8.2',
         'codename': 'JavaScript Refactoring',
