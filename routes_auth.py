@@ -93,6 +93,35 @@ def register_auth_routes(app, csrf, limiter):
             'message': 'Session refreshed'
         })
 
+    @app.route('/api/auth/status', methods=['GET'])
+    @csrf.exempt  # Public endpoint for login page
+    @limiter.limit("100 per hour")
+    def auth_status():
+        """Check if default password is still in use (for login page warning)"""
+        try:
+            from auth import load_auth_data
+            auth_data = load_auth_data()
+
+            if auth_data and 'users' in auth_data and 'admin' in auth_data['users']:
+                must_change = auth_data['users']['admin'].get('must_change_password', False)
+                return jsonify({
+                    'status': 'success',
+                    'must_change_password': must_change
+                })
+
+            # If no admin user, assume password was changed
+            return jsonify({
+                'status': 'success',
+                'must_change_password': False
+            })
+        except Exception as e:
+            error(f"Auth status check error: {str(e)}")
+            # On error, don't show the warning
+            return jsonify({
+                'status': 'error',
+                'must_change_password': False
+            })
+
     @app.route('/api/change-password', methods=['POST'])
     @login_required
     @limiter.limit("3 per hour")

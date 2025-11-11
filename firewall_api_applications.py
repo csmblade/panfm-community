@@ -136,7 +136,8 @@ def get_application_statistics(firewall_config, max_logs=5000):
     """
     debug("=== get_application_statistics called ===")
     try:
-        traffic_logs = get_traffic_logs(firewall_config, max_logs)
+        traffic_logs_data = get_traffic_logs(firewall_config, max_logs)
+        traffic_logs = traffic_logs_data.get('logs', [])
         debug(f"Retrieved {len(traffic_logs)} traffic logs for application analysis")
 
         # Get DHCP leases for hostname resolution
@@ -329,9 +330,24 @@ def get_application_statistics(firewall_config, max_logs=5000):
 
         debug(f"Aggregated {len(result)} unique applications")
 
-        # Return both applications list and summary statistics
+        # Aggregate bytes by category for alerting
+        category_stats = {}
+        for app in result:
+            category = app.get('category', 'unknown')
+            if category not in category_stats:
+                category_stats[category] = {
+                    'bytes': 0,
+                    'sessions': 0
+                }
+            category_stats[category]['bytes'] += app['bytes']
+            category_stats[category]['sessions'] += app['sessions']
+
+        debug(f"Aggregated {len(category_stats)} unique categories")
+
+        # Return both applications list, category stats, and summary statistics
         return {
             'applications': result,
+            'categories': category_stats,
             'summary': {
                 'total_applications': len(result),
                 'total_sessions': total_sessions,
@@ -347,6 +363,7 @@ def get_application_statistics(firewall_config, max_logs=5000):
         exception(f"Error getting application statistics: {str(e)}")
         return {
             'applications': [],
+            'categories': {},
             'summary': {
                 'total_applications': 0,
                 'total_sessions': 0,

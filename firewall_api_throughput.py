@@ -297,7 +297,7 @@ def get_throughput_data(device_id=None):
             # Import functions from other modules
             from firewall_api_metrics import get_session_count, get_system_resources, get_interface_stats
             from firewall_api_logs import get_threat_stats, get_system_logs
-            from firewall_api_applications import get_top_applications
+            from firewall_api_applications import get_top_applications, get_application_statistics
             from firewall_api_health import get_license_info, get_software_updates
 
             # Get session count data
@@ -327,6 +327,10 @@ def get_throughput_data(device_id=None):
 
             # Get top applications (from firewall_api_applications module)
             top_apps = get_top_applications(firewall_config, top_apps_count)
+
+            # Get full application statistics including category aggregation for alerting
+            app_stats_full = get_application_statistics(firewall_config)
+            category_data = app_stats_full.get('categories', {})
 
             # Get license information (from firewall_api_health module)
             license_info = get_license_info(firewall_config)
@@ -407,7 +411,8 @@ def get_throughput_data(device_id=None):
                 'top_applications': top_apps,
                 'license': license_info.get('license', {'expired': 0, 'licensed': 0}),
                 'api_stats': get_api_stats(),
-                'pan_os_version': panos_version,  # Changed from 'panos_version' to match Phase 2 schema
+                'panos_version': panos_version,  # Dashboard UI expects 'panos_version'
+                'pan_os_version': panos_version,  # Also include snake_case for database storage
                 'wan_ip': wan_ip,
                 'wan_speed': wan_speed,
                 # Phase 2 fields for database storage
@@ -416,6 +421,7 @@ def get_throughput_data(device_id=None):
                 'interface_stats': interface_stats_list,
                 'hostname': hostname,
                 'uptime_seconds': uptime_seconds,
+                'categories': category_data,  # Category-level traffic for alerting
                 'status': 'success'
             }
         else:

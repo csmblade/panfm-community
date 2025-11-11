@@ -29,6 +29,7 @@ def register_routes(app, csrf, limiter):
     from routes_devices import register_devices_routes
     from routes_upgrades import register_upgrades_routes
     from routes_operations import register_operations_routes
+    from routes_alerts import register_alert_routes
 
     # Register route modules in logical order
     debug("Registering route modules...")
@@ -52,6 +53,10 @@ def register_routes(app, csrf, limiter):
     # 5. Upgrade routes (PAN-OS and content updates)
     register_upgrades_routes(app, csrf, limiter)
     debug("✓ Upgrade routes registered")
+
+    # 6. Alert management routes (alert configs, history, notifications)
+    register_alert_routes(app, csrf, limiter)
+    debug("✓ Alert management routes registered")
 
     info("=== All routes registered successfully ===")
     info(f"Total endpoints registered: {len([rule for rule in app.url_map.iter_rules()])}")

@@ -66,12 +66,20 @@ def register_system_routes(app, csrf, limiter):
             }
 
             # Get APScheduler status
-            # Import global scheduler from app.py
-            from app import scheduler
+            # Import global scheduler and stats from app.py
+            from app import scheduler, scheduler_stats
 
             if scheduler is not None:
                 result['scheduler']['state'] = 'Running' if scheduler.running else 'Stopped'
                 result['scheduler']['jobs_count'] = len(scheduler.get_jobs())
+
+                # Add scheduler execution statistics
+                result['scheduler']['total_executions'] = scheduler_stats['total_executions']
+                result['scheduler']['total_errors'] = scheduler_stats['total_errors']
+                result['scheduler']['last_execution'] = scheduler_stats['last_execution']
+                result['scheduler']['last_error'] = scheduler_stats['last_error']
+                result['scheduler']['last_error_time'] = scheduler_stats['last_error_time']
+                result['scheduler']['execution_history'] = scheduler_stats['execution_history']
 
                 # Get job details
                 jobs = scheduler.get_jobs()
@@ -84,7 +92,7 @@ def register_system_routes(app, csrf, limiter):
                     }
                     result['jobs'].append(job_info)
 
-                # Get last run time from storage
+                # Get last run time from storage (as fallback verification)
                 collector = get_collector()
                 if collector is not None:
                     storage = collector.storage
@@ -94,16 +102,18 @@ def register_system_routes(app, csrf, limiter):
                     if device_id:
                         latest_sample = storage.get_latest_sample(device_id, max_age_seconds=7200)  # 2 hours
                         if latest_sample:
-                            result['scheduler']['last_run'] = latest_sample['timestamp']
+                            result['scheduler']['last_db_sample'] = latest_sample['timestamp']
                         else:
-                            result['scheduler']['last_run'] = None
+                            result['scheduler']['last_db_sample'] = None
                     else:
-                        result['scheduler']['last_run'] = None
+                        result['scheduler']['last_db_sample'] = None
                 else:
-                    result['scheduler']['last_run'] = None
+                    result['scheduler']['last_db_sample'] = None
             else:
                 result['scheduler']['state'] = 'Not Initialized'
                 result['scheduler']['jobs_count'] = 0
+                result['scheduler']['total_executions'] = 0
+                result['scheduler']['total_errors'] = 0
 
             # Get Database status
             collector = get_collector()
@@ -229,6 +239,61 @@ def register_system_routes(app, csrf, limiter):
 
         except Exception as e:
             exception(f"Failed to clear database: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/system/collect-now', methods=['POST'])
+    @limiter.limit("20 per hour")  # Allow manual triggers for testing
+    @login_required
+    def manual_collection_trigger():
+        """API endpoint to manually trigger throughput collection (for testing/debugging)"""
+        from throughput_collector import get_collector
+        from datetime import datetime
+
+        debug("=== Manual Collection Trigger API endpoint called ===")
+
+        try:
+            collector = get_collector()
+            if collector is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Throughput collector not initialized'
+                }), 503
+
+            # Trigger collection
+            start_time = datetime.utcnow()
+            info(f"Manual collection triggered by user {session.get('username', 'unknown')}")
+
+            try:
+                collector.collect_all_devices()
+                end_time = datetime.utcnow()
+                duration = (end_time - start_time).total_seconds()
+
+                info(f"Manual collection completed in {duration:.2f}s")
+
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Collection completed successfully',
+                    'duration_seconds': round(duration, 2),
+                    'timestamp': end_time.isoformat()
+                })
+
+            except Exception as e:
+                end_time = datetime.utcnow()
+                duration = (end_time - start_time).total_seconds()
+
+                exception(f"Manual collection failed after {duration:.2f}s: {str(e)}")
+
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Collection failed: {str(e)}',
+                    'duration_seconds': round(duration, 2)
+                }), 500
+
+        except Exception as e:
+            exception(f"Failed to trigger manual collection: {str(e)}")
             return jsonify({
                 'status': 'error',
                 'message': str(e)

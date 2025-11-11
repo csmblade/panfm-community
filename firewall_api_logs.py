@@ -84,11 +84,17 @@ def get_system_logs(firewall_config, max_logs=50):
 
             debug(f"Total system logs collected: {len(system_logs)}")
 
-        return system_logs
+        return {
+            'status': 'success',
+            'logs': system_logs
+        }
 
     except Exception as e:
         debug(f"Error fetching system logs: {str(e)}")
-        return []
+        return {
+            'status': 'error',
+            'logs': []
+        }
 
 
 def get_threat_stats(firewall_config, max_logs=5):
@@ -323,6 +329,7 @@ def get_threat_stats(firewall_config, max_logs=5):
                     blocked_url_last_seen = latest_blocked['time']
 
             return {
+                'status': 'success',
                 'medium_threats': medium_count,
                 'critical_threats': critical_count,
                 'blocked_urls': url_blocked,
@@ -336,6 +343,7 @@ def get_threat_stats(firewall_config, max_logs=5):
             }
         else:
             return {
+                'status': 'error',
                 'medium_threats': 0,
                 'critical_threats': 0,
                 'blocked_urls': 0,
@@ -349,6 +357,7 @@ def get_threat_stats(firewall_config, max_logs=5):
 
     except Exception as e:
         return {
+            'status': 'error',
             'medium_threats': 0,
             'critical_threats': 0,
             'blocked_urls': 0,
@@ -445,8 +454,14 @@ def get_traffic_logs(firewall_config, max_logs=50):
 
             debug(f"Found {len(traffic_logs)} traffic log entries")
 
-        return traffic_logs
+        return {
+            'status': 'success',
+            'logs': traffic_logs
+        }
 
     except Exception as e:
         debug(f"Error fetching traffic logs: {e}")
-        return []
+        return {
+            'status': 'error',
+            'logs': []
+        }

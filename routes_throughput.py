@@ -19,10 +19,18 @@ def register_throughput_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")  # Support auto-refresh (configurable interval)
     @login_required
     def throughput():
-        """API endpoint for throughput data (reads from database, not firewall)"""
+        """API endpoint for throughput data (reads from database, not firewall)
+
+        Query parameters:
+            range (optional): Time range for historical data (30m, 1h, 6h, 24h, 7d, 30d)
+                             If not specified, returns latest real-time sample
+        """
         from throughput_collector import get_collector
 
-        debug("=== Throughput API endpoint called (database-first) ===")
+        # Check if range parameter is provided for historical data
+        time_range = request.args.get('range')
+
+        debug(f"=== Throughput API endpoint called (database-first, range={time_range}) ===")
         settings = load_settings()
         device_id = settings.get('selected_device_id', '')
         refresh_interval = settings.get('refresh_interval', 60)
@@ -60,9 +68,84 @@ def register_throughput_routes(app, csrf, limiter):
 
             storage = collector.storage
 
-            # Query latest sample from database (use 2x refresh_interval as max age to allow for timing variance)
-            max_age_seconds = refresh_interval * 2
-            latest_sample = storage.get_latest_sample(device_id, max_age_seconds=max_age_seconds)
+            # If time range is specified, aggregate threat/URL data from that period
+            if time_range:
+                debug(f"Time range specified: {time_range}, aggregating logs...")
+
+                # Parse time range to get start time
+                range_map = {
+                    '30m': 30 * 60,
+                    '1h': 60 * 60,
+                    '6h': 6 * 60 * 60,
+                    '24h': 24 * 60 * 60,
+                    '7d': 7 * 24 * 60 * 60,
+                    '30d': 30 * 24 * 60 * 60
+                }
+
+                seconds = range_map.get(time_range, 60 * 60)  # Default to 1 hour
+                start_time = datetime.now() - timedelta(seconds=seconds)
+                start_timestamp = start_time.isoformat()
+
+                debug(f"Fetching logs from {start_timestamp} onwards ({time_range})")
+
+                # Get logs for the specified time range (fetch more to ensure coverage)
+                critical_logs = storage.get_threat_logs(device_id, severity='critical', limit=500)
+                medium_logs = storage.get_threat_logs(device_id, severity='medium', limit=500)
+                url_logs = storage.get_url_filtering_logs(device_id, limit=500)
+
+                # Filter logs by timestamp (only include logs within the time range)
+                def filter_by_time(logs, start_ts):
+                    filtered = []
+                    for log in logs:
+                        try:
+                            log_time = datetime.fromisoformat(log.get('time', ''))
+                            if log_time >= start_time:
+                                filtered.append(log)
+                        except (ValueError, TypeError):
+                            pass  # Skip logs with invalid timestamps
+                    return filtered
+
+                critical_logs = filter_by_time(critical_logs, start_timestamp)
+                medium_logs = filter_by_time(medium_logs, start_timestamp)
+                url_logs = filter_by_time(url_logs, start_timestamp)
+
+                debug(f"Filtered logs: {len(critical_logs)} critical, {len(medium_logs)} medium, {len(url_logs)} URL")
+
+                # Get latest sample for throughput/sessions/CPU data
+                latest_sample = storage.get_latest_sample(device_id, max_age_seconds=seconds)
+
+                if latest_sample is None:
+                    # No throughput data, create minimal response with just log data
+                    latest_sample = {
+                        'timestamp': datetime.now().isoformat(),
+                        'inbound_mbps': 0,
+                        'outbound_mbps': 0,
+                        'total_mbps': 0,
+                        'inbound_pps': 0,
+                        'outbound_pps': 0,
+                        'total_pps': 0,
+                        'sessions': {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0},
+                        'cpu': {'data_plane_cpu': 0, 'mgmt_plane_cpu': 0, 'memory_used_pct': 0}
+                    }
+
+                # Override threats with aggregated historical data
+                latest_sample['threats'] = {
+                    'critical_threats': len(critical_logs),
+                    'medium_threats': len(medium_logs),
+                    'blocked_urls': len(url_logs),
+                    'critical_logs': critical_logs[:50],  # Limit to 50 for modal display
+                    'medium_logs': medium_logs[:50],
+                    'blocked_url_logs': url_logs[:50],
+                    'critical_last_seen': critical_logs[0]['time'] if critical_logs else None,
+                    'medium_last_seen': medium_logs[0]['time'] if medium_logs else None,
+                    'blocked_url_last_seen': url_logs[0]['time'] if url_logs else None
+                }
+
+                debug(f"Historical aggregation complete: {len(critical_logs)} critical, {len(medium_logs)} medium, {len(url_logs)} URL")
+            else:
+                # Real-time mode: Query latest sample from database (use 2x refresh_interval as max age to allow for timing variance)
+                max_age_seconds = refresh_interval * 2
+                latest_sample = storage.get_latest_sample(device_id, max_age_seconds=max_age_seconds)
 
             if latest_sample is None:
                 debug("No recent throughput data in database, returning zeros")
@@ -112,15 +195,17 @@ def register_throughput_routes(app, csrf, limiter):
             cpu['memory_used_pct'] = float(cpu.get('memory_used_pct') or 0)
 
             # Ensure threats object exists with defaults and sanitize values
-            if not latest_sample.get('threats'):
-                latest_sample['threats'] = {}
-            threats = latest_sample['threats']
-            threats['critical_threats'] = int(threats.get('critical_threats') or threats.get('critical') or 0)
-            threats['medium_threats'] = int(threats.get('medium_threats') or threats.get('medium') or 0)
-            threats['blocked_urls'] = int(threats.get('blocked_urls') or 0)
-            threats['critical_logs'] = threats.get('critical_logs') or []
-            threats['medium_logs'] = threats.get('medium_logs') or []
-            threats['blocked_url_logs'] = threats.get('blocked_url_logs') or []
+            # (Skip sanitization if we're in historical mode - already populated above)
+            if not time_range:
+                if not latest_sample.get('threats'):
+                    latest_sample['threats'] = {}
+                threats = latest_sample['threats']
+                threats['critical_threats'] = int(threats.get('critical_threats') or threats.get('critical') or 0)
+                threats['medium_threats'] = int(threats.get('medium_threats') or threats.get('medium') or 0)
+                threats['blocked_urls'] = int(threats.get('blocked_urls') or 0)
+                threats['critical_logs'] = threats.get('critical_logs') or []
+                threats['medium_logs'] = threats.get('medium_logs') or []
+                threats['blocked_url_logs'] = threats.get('blocked_url_logs') or []
 
             return jsonify(latest_sample)
 
