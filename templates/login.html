@@ -232,11 +232,24 @@
         // Load version on page load
         loadVersion();
 
-        // Show default credentials info if first time
-        const showDefaultInfo = localStorage.getItem('panfm_first_visit') !== 'false';
-        if (showDefaultInfo) {
-            document.getElementById('defaultInfo').style.display = 'block';
+        // Check if default password is still in use and show warning if so
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/status');
+                const data = await response.json();
+
+                if (data.status === 'success' && data.must_change_password) {
+                    // Show default credentials info only if password hasn't been changed
+                    document.getElementById('defaultInfo').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Failed to check auth status:', error);
+                // Don't show warning on error
+            }
         }
+
+        // Check auth status on page load
+        checkAuthStatus();
 
         async function handleLogin(event) {
             event.preventDefault();
@@ -270,9 +283,6 @@
                 console.log('[LOGIN] must_change_password flag:', data.must_change_password);
 
                 if (data.status === 'success') {
-                    // Mark as not first visit
-                    localStorage.setItem('panfm_first_visit', 'false');
-
                     // Check if password must be changed
                     if (data.must_change_password) {
                         console.log('[LOGIN] Password change required - redirecting with flag');

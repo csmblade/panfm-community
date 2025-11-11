@@ -1130,6 +1130,7 @@ function initPageNavigation() {
         'applications': document.getElementById('applications-content'),
         'device-info': document.getElementById('device-info-content'),
         'logs': document.getElementById('logs-content'),
+        'alerts': document.getElementById('alerts-content'),
         'devices': document.getElementById('devices-content'),
         'settings': document.getElementById('settings-content')
     };
@@ -1158,6 +1159,17 @@ function initPageNavigation() {
                     } else if (pageKey === 'logs') {
                         // Load system logs by default (first tab)
                         loadSystemLogs();
+                    } else if (pageKey === 'alerts') {
+                        // Load alerts page
+                        if (typeof initAlertsPage === 'function') {
+                            initAlertsPage();
+                        }
+                        if (typeof loadAlertTemplates === 'function') {
+                            loadAlertTemplates();
+                        }
+                        if (typeof loadQuickStartScenarios === 'function') {
+                            loadQuickStartScenarios();
+                        }
                     } else if (pageKey === 'devices') {
                         loadDevices();
                     } else if (pageKey === 'settings') {
@@ -1659,6 +1671,12 @@ function refreshAllDataForDevice() {
     } else if (currentVisiblePage === 'traffic' && typeof updateTrafficPage === 'function') {
         console.log('Loading Traffic page');
         updateTrafficPage();
+    } else if (currentVisiblePage === 'alerts' && typeof loadAlertStats === 'function') {
+        console.log('Loading Alerts page');
+        // Reload alert statistics and configurations for new device
+        loadAlertStats();
+        loadAlertConfigs();
+        loadAlertHistory(false);
     }
 
     console.log('=== refreshAllDataForDevice complete ===');

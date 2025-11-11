@@ -747,40 +747,52 @@ function initializeTonyMode(enabled) {
 
 /**
  * Refresh services status (APScheduler + Database)
+ * Phase 5: Updated to use both /api/services/status and /api/collector/status
  */
 async function refreshServicesStatus() {
     try {
-        const response = await fetch('/api/services/status', {
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
+        // Fetch both endpoints in parallel for comprehensive data
+        const [servicesResponse, collectorResponse] = await Promise.all([
+            fetch('/api/services/status', {
+                headers: { 'Content-Type': 'application/json' }
+            }),
+            fetch('/api/collector/status', {
+                headers: { 'Content-Type': 'application/json' }
+            })
+        ]);
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+        if (!servicesResponse.ok || !collectorResponse.ok) {
+            throw new Error(`HTTP ${servicesResponse.status || collectorResponse.status}`);
         }
 
-        const data = await response.json();
+        const servicesData = await servicesResponse.json();
+        const collectorData = await collectorResponse.json();
 
-        if (data.status === 'success') {
-            // Update APScheduler status
+        if (servicesData.status === 'success' && collectorData.status === 'success') {
+            // Update APScheduler status (from services endpoint)
             const schedulerState = document.getElementById('scheduler-state');
             const schedulerJobs = document.getElementById('scheduler-jobs');
             const schedulerLastRun = document.getElementById('scheduler-last-run');
             const schedulerNextRun = document.getElementById('scheduler-next-run');
 
             if (schedulerState) {
-                schedulerState.textContent = data.scheduler.state || 'Unknown';
-                schedulerState.style.color = (data.scheduler.state === 'Running') ? '#10b981' : '#ef4444';
+                const isEnabled = collectorData.enabled;
+                const isRunning = servicesData.scheduler.state === 'Running';
+                schedulerState.textContent = isEnabled && isRunning ? 'Running' : 'Stopped';
+                schedulerState.style.color = isEnabled && isRunning ? '#10b981' : '#ef4444';
             }
 
             if (schedulerJobs) {
-                schedulerJobs.textContent = data.scheduler.jobs_count || 0;
+                // Show total collections from collector endpoint
+                schedulerJobs.textContent = collectorData.total_collections?.toLocaleString() || 0;
             }
 
             if (schedulerLastRun) {
-                if (data.scheduler.last_run) {
-                    const lastRun = new Date(data.scheduler.last_run);
+                if (collectorData.last_cleanup) {
+                    const lastRun = new Date(collectorData.last_cleanup);
+                    schedulerLastRun.textContent = formatRelativeTime(lastRun);
+                } else if (servicesData.scheduler.last_run) {
+                    const lastRun = new Date(servicesData.scheduler.last_run);
                     schedulerLastRun.textContent = formatRelativeTime(lastRun);
                 } else {
                     schedulerLastRun.textContent = 'Never';
@@ -788,47 +800,62 @@ async function refreshServicesStatus() {
             }
 
             if (schedulerNextRun) {
-                if (data.jobs && data.jobs.length > 0 && data.jobs[0].next_run) {
-                    const nextRun = new Date(data.jobs[0].next_run);
+                // Calculate next run based on interval
+                if (servicesData.jobs && servicesData.jobs.length > 0 && servicesData.jobs[0].next_run) {
+                    const nextRun = new Date(servicesData.jobs[0].next_run);
                     schedulerNextRun.textContent = formatRelativeTime(nextRun);
+                } else if (collectorData.interval_seconds) {
+                    const intervalSecs = collectorData.interval_seconds;
+                    schedulerNextRun.textContent = `in ${intervalSecs} sec${intervalSecs !== 1 ? 's' : ''}`;
                 } else {
                     schedulerNextRun.textContent = 'N/A';
                 }
             }
 
-            // Update Database status
+            // Update Database status (from collector endpoint - more accurate)
             const databaseState = document.getElementById('database-state');
             const databaseSize = document.getElementById('database-size');
             const databaseSamples = document.getElementById('database-samples');
             const databaseOldest = document.getElementById('database-oldest');
 
             if (databaseState) {
-                databaseState.textContent = data.database.state || 'Unknown';
-                databaseState.style.color = (data.database.state === 'Connected') ? '#10b981' : '#ef4444';
+                const hasData = collectorData.sample_count > 0;
+                databaseState.textContent = hasData ? 'Connected' : 'Empty';
+                databaseState.style.color = hasData ? '#10b981' : '#f59e0b';
             }
 
             if (databaseSize) {
-                databaseSize.textContent = data.database.size || '0 bytes';
+                const sizeMB = collectorData.database_size_mb || 0;
+                if (sizeMB >= 1) {
+                    databaseSize.textContent = `${sizeMB.toFixed(2)} MB`;
+                } else {
+                    databaseSize.textContent = `${(sizeMB * 1024).toFixed(2)} KB`;
+                }
             }
 
             if (databaseSamples) {
-                databaseSamples.textContent = (data.database.total_samples || 0).toLocaleString();
+                databaseSamples.textContent = (collectorData.sample_count || 0).toLocaleString();
             }
 
             if (databaseOldest) {
-                if (data.database.oldest_sample) {
-                    const oldest = new Date(data.database.oldest_sample);
+                // Calculate oldest based on retention days
+                if (collectorData.retention_days && collectorData.sample_count > 0) {
+                    const retentionDays = collectorData.retention_days;
+                    const oldestDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+                    databaseOldest.textContent = formatRelativeTime(oldestDate);
+                } else if (servicesData.database.oldest_sample) {
+                    const oldest = new Date(servicesData.database.oldest_sample);
                     databaseOldest.textContent = formatRelativeTime(oldest);
                 } else {
                     databaseOldest.textContent = 'No data';
                 }
             }
 
-            // Update jobs list
+            // Update jobs list (from services endpoint)
             const jobsList = document.getElementById('jobs-list');
-            if (jobsList && data.jobs && data.jobs.length > 0) {
+            if (jobsList && servicesData.jobs && servicesData.jobs.length > 0) {
                 let jobsHtml = '<div style="display: grid; gap: 10px;">';
-                data.jobs.forEach(job => {
+                servicesData.jobs.forEach(job => {
                     const nextRun = job.next_run ? new Date(job.next_run) : null;
                     jobsHtml += `
                         <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #FA582D;">
@@ -839,6 +866,9 @@ async function refreshServicesStatus() {
                             <div style="font-size: 0.85em; color: #666;">
                                 <strong>Trigger:</strong> ${escapeHtml(job.trigger)}
                             </div>
+                            <div style="font-size: 0.85em; color: #666;">
+                                <strong>Interval:</strong> ${collectorData.interval_seconds || 60} seconds
+                            </div>
                         </div>
                     `;
                 });
@@ -848,31 +878,47 @@ async function refreshServicesStatus() {
                 jobsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No scheduled jobs</div>';
             }
 
-            // Update device stats
+            // Update device stats (from services endpoint)
             const deviceStats = document.getElementById('device-stats');
-            if (deviceStats && data.device_stats && data.device_stats.length > 0) {
-                let statsHtml = '<div style="display: grid; gap: 10px;">';
-                data.device_stats.forEach(stat => {
-                    const oldest = stat.oldest ? new Date(stat.oldest) : null;
-                    const newest = stat.newest ? new Date(stat.newest) : null;
-                    statsHtml += `
+            if (deviceStats) {
+                if (servicesData.device_stats && servicesData.device_stats.length > 0) {
+                    let statsHtml = '<div style="display: grid; gap: 10px;">';
+                    servicesData.device_stats.forEach(stat => {
+                        const oldest = stat.oldest ? new Date(stat.oldest) : null;
+                        const newest = stat.newest ? new Date(stat.newest) : null;
+                        statsHtml += `
+                            <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #6366f1;">
+                                <div style="font-weight: 600; margin-bottom: 5px;">${escapeHtml(stat.device_name)}</div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85em; color: #666;">
+                                    <div><strong>Samples:</strong> ${stat.sample_count.toLocaleString()}</div>
+                                    <div><strong>Oldest:</strong> ${oldest ? formatRelativeTime(oldest) : 'N/A'}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    statsHtml += '</div>';
+                    deviceStats.innerHTML = statsHtml;
+                } else if (collectorData.devices_monitored > 0) {
+                    // Show collector data if services endpoint has no device stats
+                    statsHtml = `
                         <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #6366f1;">
-                            <div style="font-weight: 600; margin-bottom: 5px;">${escapeHtml(stat.device_name)}</div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85em; color: #666;">
-                                <div><strong>Samples:</strong> ${stat.sample_count.toLocaleString()}</div>
-                                <div><strong>Oldest:</strong> ${oldest ? formatRelativeTime(oldest) : 'N/A'}</div>
+                            <div style="font-weight: 600; margin-bottom: 5px;">Monitoring ${collectorData.devices_monitored} device${collectorData.devices_monitored !== 1 ? 's' : ''}</div>
+                            <div style="font-size: 0.85em; color: #666;">
+                                <strong>Total Samples:</strong> ${collectorData.sample_count.toLocaleString()}
+                            </div>
+                            <div style="font-size: 0.85em; color: #666;">
+                                <strong>Retention:</strong> ${collectorData.retention_days} days
                             </div>
                         </div>
                     `;
-                });
-                statsHtml += '</div>';
-                deviceStats.innerHTML = statsHtml;
-            } else if (deviceStats) {
-                deviceStats.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No data collected yet</div>';
+                    deviceStats.innerHTML = statsHtml;
+                } else {
+                    deviceStats.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No data collected yet</div>';
+                }
             }
 
         } else {
-            console.error('Failed to load services status:', data.message);
+            console.error('Failed to load services status:', servicesData.message || collectorData.message);
         }
 
     } catch (error) {
@@ -971,3 +1017,175 @@ async function clearDatabase() {
     }
 }
 
+
+// ===== Notification Channel Management =====
+
+/**
+ * Load notification channel configurations and populate form fields
+ */
+async function loadNotificationChannels() {
+    try {
+        const response = await fetch('/api/settings/notifications');
+        const data = await response.json();
+
+        if (data.status === 'success' && data.channels) {
+            const channels = data.channels;
+
+            // Load Email settings
+            if (channels.email) {
+                document.getElementById('emailEnabled').checked = channels.email.enabled || false;
+                document.getElementById('emailSmtpHost').value = channels.email.smtp_host || '';
+                document.getElementById('emailSmtpPort').value = channels.email.smtp_port || 587;
+                document.getElementById('emailSmtpUser').value = channels.email.smtp_user || '';
+                document.getElementById('emailSmtpPassword').value = channels.email.smtp_password || '';
+                document.getElementById('emailFromEmail').value = channels.email.from_email || '';
+                document.getElementById('emailUseTls').checked = channels.email.use_tls !== false;
+                // Convert array to comma-separated string
+                const toEmails = Array.isArray(channels.email.to_emails) ? channels.email.to_emails.join(', ') : '';
+                document.getElementById('emailToEmails').value = toEmails;
+            }
+
+            // Load Slack settings
+            if (channels.slack) {
+                document.getElementById('slackEnabled').checked = channels.slack.enabled || false;
+                document.getElementById('slackWebhookUrl').value = channels.slack.webhook_url || '';
+                document.getElementById('slackChannel').value = channels.slack.channel || '#alerts';
+                document.getElementById('slackUsername').value = channels.slack.username || 'PANfm Alerts';
+            }
+
+            // Load Webhook settings
+            if (channels.webhook) {
+                document.getElementById('webhookEnabled').checked = channels.webhook.enabled || false;
+                document.getElementById('webhookUrl').value = channels.webhook.url || '';
+                // Convert headers object to JSON string for display
+                const headers = channels.webhook.headers || {};
+                document.getElementById('webhookHeaders').value = JSON.stringify(headers, null, 2);
+            }
+
+            console.log('Notification channels loaded successfully');
+        }
+    } catch (error) {
+        console.error('Error loading notification channels:', error);
+    }
+}
+
+/**
+ * Save notification channel configuration
+ * @param channel - Channel type: 'email', 'slack', or 'webhook'
+ */
+async function saveNotificationChannel(channel) {
+    try {
+        let config = {};
+
+        if (channel === 'email') {
+            // Parse comma-separated email list
+            const toEmailsStr = document.getElementById('emailToEmails').value.trim();
+            const toEmailsArray = toEmailsStr ? toEmailsStr.split(',').map(e => e.trim()).filter(e => e) : [];
+
+            config = {
+                enabled: document.getElementById('emailEnabled').checked,
+                smtp_host: document.getElementById('emailSmtpHost').value.trim(),
+                smtp_port: parseInt(document.getElementById('emailSmtpPort').value) || 587,
+                smtp_user: document.getElementById('emailSmtpUser').value.trim(),
+                smtp_password: document.getElementById('emailSmtpPassword').value,
+                from_email: document.getElementById('emailFromEmail').value.trim(),
+                to_emails: toEmailsArray,
+                use_tls: document.getElementById('emailUseTls').checked
+            };
+        } else if (channel === 'slack') {
+            config = {
+                enabled: document.getElementById('slackEnabled').checked,
+                webhook_url: document.getElementById('slackWebhookUrl').value.trim(),
+                channel: document.getElementById('slackChannel').value.trim() || '#alerts',
+                username: document.getElementById('slackUsername').value.trim() || 'PANfm Alerts'
+            };
+        } else if (channel === 'webhook') {
+            // Parse JSON headers
+            let headers = {};
+            const headersStr = document.getElementById('webhookHeaders').value.trim();
+            if (headersStr) {
+                try {
+                    headers = JSON.parse(headersStr);
+                } catch (e) {
+                    alert('Invalid JSON format for webhook headers. Please check your syntax.');
+                    return;
+                }
+            }
+
+            config = {
+                enabled: document.getElementById('webhookEnabled').checked,
+                url: document.getElementById('webhookUrl').value.trim(),
+                headers: headers
+            };
+        }
+
+        // Save via API
+        const response = await fetch('/api/settings/notifications/' + channel, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify(config)
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            const channelCap = channel.charAt(0).toUpperCase() + channel.slice(1);
+            alert(channelCap + ' notification settings saved successfully!');
+        } else {
+            alert('Error saving ' + channel + ' settings: ' + (data.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error saving ' + channel + ' notification settings:', error);
+        alert('Error saving ' + channel + ' settings: ' + error.message);
+    }
+}
+
+/**
+ * Test notification channel by sending a test message
+ * @param channel - Channel type: 'email', 'slack', or 'webhook'
+ */
+async function testNotificationChannel(channel) {
+    try {
+        // Show loading indicator
+        const channelCap = channel.charAt(0).toUpperCase() + channel.slice(1);
+        const confirmTest = confirm('Send a test notification via ' + channelCap + '?\n\nMake sure you have saved your settings first.');
+
+        if (!confirmTest) {
+            return;
+        }
+
+        const response = await fetch('/api/settings/notifications/test/' + channel, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            alert('Test ' + channelCap + ' notification sent successfully!\n\nCheck your ' + channelCap + ' to verify receipt.');
+        } else {
+            alert('Test ' + channelCap + ' notification failed:\n\n' + (data.message || 'Unknown error') + '\n\nPlease check your configuration.');
+        }
+    } catch (error) {
+        console.error('Error testing ' + channel + ' notification:', error);
+        alert('Error testing ' + channel + ' notification: ' + error.message);
+    }
+}
+
+// Load notification channels when settings page is opened
+document.addEventListener('DOMContentLoaded', function() {
+    // Load notification channels when Integrations tab is clicked
+    const integrationsTab = document.querySelector('.settings-tab[data-tab="integrations"]');
+    if (integrationsTab) {
+        integrationsTab.addEventListener('click', function() {
+            // Small delay to ensure tab content is visible
+            setTimeout(loadNotificationChannels, 100);
+        });
+    }
+});

@@ -507,6 +507,163 @@
                 height: 300px;
             }
         }
+
+        /* Alert System Styles */
+        .templates-grid,
+        .quick-start-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .template-card,
+        .scenario-card {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .template-card:hover,
+        .scenario-card:hover {
+            border-color: #FA582D;
+            box-shadow: 0 4px 12px rgba(250, 88, 45, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .template-card h3,
+        .scenario-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .template-description,
+        .scenario-description {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .template-info,
+        .scenario-info {
+            margin: 15px 0;
+        }
+
+        .template-info .badge,
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #e0e0e0;
+            color: #333;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            color: #333;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-small:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-small.btn-primary {
+            background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%);
+            color: white;
+        }
+
+        .btn-small.btn-primary:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+        }
+
+        .severity-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-critical {
+            background: #dc3545;
+            color: white;
+        }
+
+        .severity-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .severity-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .template-alerts-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .template-alerts-list li {
+            padding: 12px;
+            background: #f8f9fa;
+            border-left: 4px solid #FA582D;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .template-alerts-list li strong {
+            color: #FA582D;
+        }
+
+        .template-alerts-list li em {
+            display: block;
+            margin-top: 5px;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .scenario-info p {
+            margin: 8px 0;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .scenario-info strong {
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -542,6 +699,10 @@
             <div class="menu-item" data-page="logs">
                 <span class="menu-icon" style="color: #FA582D;">●</span>
                 <span>Logs</span>
+            </div>
+            <div class="menu-item" data-page="alerts">
+                <span class="menu-icon" style="color: #FA582D;">●</span>
+                <span>Alerts</span>
             </div>
             <div class="menu-item" data-page="settings">
                 <span class="menu-icon" style="color: #FA582D;">●</span>
@@ -1569,6 +1730,73 @@
             </div>
         </div>
 
+        <!-- Alerts Content -->
+        <div id="alerts-content" class="page-content" style="display: none;">
+            <div class="container">
+                <div class="header" style="text-align: left; margin-bottom: 30px;">
+                    <h1 style="color: #ffffff; font-size: 1.8em; font-weight: 700; margin: 0 0 5px 0; font-family: var(--font-primary);">Alert Management</h1>
+                    <p style="color: #FA582D; font-size: 0.9em; margin: 0; font-family: var(--font-secondary);">Configure and Monitor Firewall Alerts</p>
+                </div>
+
+                <!-- Alert Statistics Tiles -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                    <div style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(250, 88, 45, 0.3);">
+                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; font-family: var(--font-primary);">ALERT RULES</div>
+                        <div id="alertStatsRules" style="font-size: 2em; font-weight: 700; font-family: var(--font-primary);">0</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #17a2b8 0%, #3ec9dd 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);">
+                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; font-family: var(--font-primary);">ACTIVE ALERTS</div>
+                        <div id="alertStatsActive" style="font-size: 2em; font-weight: 700; font-family: var(--font-primary);">0</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #dc3545 0%, #ff5a6a 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);">
+                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; font-family: var(--font-primary);">CRITICAL</div>
+                        <div id="alertStatsCritical" style="font-size: 2em; font-weight: 700; font-family: var(--font-primary);">0</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #ffc107 0%, #ffcd39 100%); color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);">
+                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; font-family: var(--font-primary);">WARNINGS</div>
+                        <div id="alertStatsWarnings" style="font-size: 2em; font-weight: 700; font-family: var(--font-primary);">0</div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions Section -->
+                <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 25px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <button onclick="showCreateAlertModal()" style="padding: 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(250, 88, 45, 0.2); font-family: var(--font-primary);">
+                            <div style="font-size: 1.5em; margin-bottom: 5px;">+</div>
+                            Create New Alert
+                        </button>
+                        <button onclick="showCreateApplicationAlertModal()" style="padding: 20px; background: linear-gradient(135deg, #28a745 0%, #48c765 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2); font-family: var(--font-primary);">
+                            <div style="font-size: 1.5em; margin-bottom: 5px;">📱</div>
+                            Create Application Alert
+                        </button>
+                        <button onclick="showTemplatesModal()" style="padding: 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(250, 88, 45, 0.2); font-family: var(--font-primary);">
+                            <div style="font-size: 1.5em; margin-bottom: 5px;">📋</div>
+                            Browse Templates
+                        </button>
+                        <button onclick="showQuickStartModal()" style="padding: 20px; background: linear-gradient(135deg, #007bff 0%, #3395ff 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2); font-family: var(--font-primary);">
+                            <div style="font-size: 1.5em; margin-bottom: 5px;">🚀</div>
+                            Quick Start Setup
+                        </button>
+                        <button onclick="loadAlertHistory()" style="padding: 20px; background: linear-gradient(135deg, #6c757d 0%, #8896a3 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(108, 117, 125, 0.2); font-family: var(--font-primary);">
+                            <div style="font-size: 1.5em; margin-bottom: 5px;">📊</div>
+                            View Alert History
+                        </button>
+                    </div>
+                </div>
+
+                <!-- My Alert Configurations -->
+                <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #FA582D; margin-bottom: 25px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="color: #333; margin: 0; font-size: 1.4em; font-family: var(--font-primary);">My Alert Configurations</h2>
+                        <button onclick="loadAlertConfigs()" style="padding: 10px 20px; background: linear-gradient(135deg, #6c757d 0%, #8896a3 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 600; font-family: var(--font-primary); box-shadow: 0 2px 6px rgba(108, 117, 125, 0.2); transition: transform 0.2s;">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                    <div id="alertConfigsTable" style="font-family: var(--font-secondary);"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Settings Content -->
         <!-- Devices Content -->
         <div id="devices-content" class="page-content" style="display: none;">
@@ -2287,14 +2515,127 @@
 
                         <!-- Integrations Tab -->
                         <div id="integrations-tab" class="settings-tab-content" style="display: none;">
-                            <h2 style="color: #333; margin-bottom: 20px; font-size: 1.3em;">Integration Settings</h2>
+                            <h2 style="color: #333; margin-bottom: 20px; font-size: 1.3em; font-family: var(--font-primary);">Alert Notification Channels</h2>
+                            <p style="color: #666; margin-bottom: 30px;">Configure how alert notifications are delivered. Test each channel after configuration.</p>
 
-                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 30px; text-align: center;">
-                                <div style="font-size: 3em; margin-bottom: 15px; opacity: 0.3;">🔌</div>
-                                <h3 style="color: #666; margin: 0 0 10px 0; font-weight: 600;">Third-Party Integrations</h3>
-                                <p style="color: #999; margin: 0;">Integration settings will be available in a future release.</p>
-                                <p style="color: #999; margin: 10px 0 0 0; font-size: 0.9em;">Planned integrations: SIEM, ticketing systems, alerting platforms</p>
+                            <!-- Email Notifications -->
+                            <div style="background: white; border: 2px solid #FA582D; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #FA582D;">
+                                    <h3 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.2em;">📧 Email (SMTP)</h3>
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <span style="margin-right: 10px; color: #666; font-weight: 600;">Enabled</span>
+                                        <input type="checkbox" id="emailEnabled" style="width: 20px; height: 20px; cursor: pointer; accent-color: #FA582D;">
+                                    </label>
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">SMTP Host</label>
+                                        <input type="text" id="emailSmtpHost" placeholder="smtp.gmail.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">SMTP Port</label>
+                                        <input type="number" id="emailSmtpPort" value="587" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">SMTP Username</label>
+                                        <input type="text" id="emailSmtpUser" placeholder="your-email@example.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">SMTP Password</label>
+                                        <input type="password" id="emailSmtpPassword" placeholder="••••••••" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">From Email</label>
+                                        <input type="email" id="emailFromEmail" placeholder="alerts@example.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                    </div>
+                                    <div>
+                                        <label style="display: flex; align-items: center; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">
+                                            <input type="checkbox" id="emailUseTls" checked style="width: 18px; height: 18px; margin-right: 8px; cursor: pointer; accent-color: #FA582D;">
+                                            Use TLS/STARTTLS
+                                        </label>
+                                        <p style="color: #999; font-size: 0.85em; margin: 0;">Recommended for security</p>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 15px;">
+                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">To Emails (comma-separated)</label>
+                                    <input type="text" id="emailToEmails" placeholder="admin1@example.com, admin2@example.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                </div>
+                                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                                    <button onclick="saveNotificationChannel('email')" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Save Email Settings</button>
+                                    <button onclick="testNotificationChannel('email')" style="padding: 12px 20px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Test Email</button>
+                                </div>
                             </div>
+
+                            <!-- Slack Notifications -->
+                            <div style="background: white; border: 2px solid #FA582D; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #FA582D;">
+                                    <h3 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.2em;">💬 Slack</h3>
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <span style="margin-right: 10px; color: #666; font-weight: 600;">Enabled</span>
+                                        <input type="checkbox" id="slackEnabled" style="width: 20px; height: 20px; cursor: pointer; accent-color: #FA582D;">
+                                    </label>
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">Webhook URL</label>
+                                        <input type="text" id="slackWebhookUrl" placeholder="https://hooks.slack.com/services/YOUR/WEBHOOK/URL" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                        <p style="color: #999; font-size: 0.85em; margin: 5px 0 0 0;">Create a webhook at: <a href="https://api.slack.com/messaging/webhooks" target="_blank" style="color: #FA582D;">Slack Incoming Webhooks</a></p>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">Channel</label>
+                                        <input type="text" id="slackChannel" placeholder="#alerts" value="#alerts" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">Bot Username</label>
+                                        <input type="text" id="slackUsername" placeholder="PANfm Alerts" value="PANfm Alerts" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                    </div>
+                                </div>
+                                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                                    <button onclick="saveNotificationChannel('slack')" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Save Slack Settings</button>
+                                    <button onclick="testNotificationChannel('slack')" style="padding: 12px 20px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Test Slack</button>
+                                </div>
+                            </div>
+
+                            <!-- Generic Webhook Notifications -->
+                            <div style="background: white; border: 2px solid #FA582D; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #FA582D;">
+                                    <h3 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.2em;">🔗 Generic Webhook</h3>
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <span style="margin-right: 10px; color: #666; font-weight: 600;">Enabled</span>
+                                        <input type="checkbox" id="webhookEnabled" style="width: 20px; height: 20px; cursor: pointer; accent-color: #FA582D;">
+                                    </label>
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">Webhook URL</label>
+                                        <input type="text" id="webhookUrl" placeholder="https://your-webhook-endpoint.com/alerts" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em;">
+                                        <p style="color: #999; font-size: 0.85em; margin: 5px 0 0 0;">Sends JSON POST requests with alert data</p>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-secondary);">Custom Headers (JSON format, optional)</label>
+                                        <textarea id="webhookHeaders" placeholder='{"Authorization": "Bearer YOUR_TOKEN", "X-Custom-Header": "value"}' style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: monospace; min-height: 80px;"></textarea>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                                    <button onclick="saveNotificationChannel('webhook')" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Save Webhook Settings</button>
+                                    <button onclick="testNotificationChannel('webhook')" style="padding: 12px 20px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Test Webhook</button>
+                                </div>
+                            </div>
+
+                            <!-- Info Box -->
+                            <div style="background: #e8f4fd; border-left: 4px solid #0066cc; padding: 15px; border-radius: 6px;">
+                                <p style="color: #004080; margin: 0; font-size: 0.95em; line-height: 1.6; font-family: var(--font-secondary);">
+                                    <strong>ℹ️ How to use:</strong> Enable one or more notification channels, configure the settings, and click "Save" for each channel.
+                                    Use the "Test" button to verify your configuration before creating alerts.
+                                    Notification channels are selected per alert in the Alerts page.
+                                </p>
+                            </div>
+                        </div>
+
+
                         </div>
 
                         <!-- Save Buttons (shared across all tabs) -->
@@ -2476,6 +2817,214 @@
         });
     </script>
 
+    <!-- Alert Configuration Modal -->
+    <div id="alertConfigModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h2 id="alertConfigModalTitle" style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Create Alert</h2>
+                <span class="close" onclick="closeAlertConfigModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+            </div>
+
+            <form id="alertConfigForm">
+            <input type="hidden" id="alertConfigId">
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Device</label>
+                <select id="alertConfigDeviceId" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: var(--font-secondary);">
+                    <option value="">Select Device</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Metric Type</label>
+                <select id="alertConfigMetricType" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: var(--font-secondary);">
+                    <option value="throughput_in">Throughput (Inbound)</option>
+                    <option value="throughput_out">Throughput (Outbound)</option>
+                    <option value="throughput_total">Throughput (Total)</option>
+                    <option value="cpu">CPU Usage</option>
+                    <option value="memory">Memory Usage</option>
+                    <option value="sessions">Active Sessions</option>
+                    <option value="threats_critical">Critical Threats</option>
+                    <option value="interface_errors">Interface Errors</option>
+                </select>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; margin-bottom: 20px;">
+                <div>
+                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Operator</label>
+                    <select id="alertConfigOperator" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: var(--font-secondary);">
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                        <option value=">=">&gt;=</option>
+                        <option value="<=">&lt;=</option>
+                        <option value="==">==</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Threshold Value</label>
+                    <input type="number" id="alertConfigThreshold" step="0.01" placeholder="Enter threshold value" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: var(--font-secondary);">
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Severity</label>
+                <select id="alertConfigSeverity" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: var(--font-secondary);">
+                    <option value="info">Info</option>
+                    <option value="warning">Warning</option>
+                    <option value="critical">Critical</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Notification Channels</label>
+                <select id="alertConfigChannels" multiple style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; height: 100px; font-family: var(--font-secondary);">
+                    <option value="email">Email</option>
+                    <option value="webhook">Webhook</option>
+                    <option value="slack">Slack</option>
+                </select>
+                <div style="font-size: 0.85em; color: #666; margin-top: 5px; font-family: var(--font-secondary);">Hold Ctrl/Cmd to select multiple</div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="alertConfigEnabled" checked style="margin-right: 8px; width: 18px; height: 18px;">
+                    <span style="color: #333; font-weight: 600; font-family: var(--font-primary);">Enabled</span>
+                </label>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <button type="button" onclick="closeAlertConfigModal()" style="padding: 10px 24px; background: #f0f0f0; color: #333; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Cancel</button>
+                <button type="button" onclick="saveAlertConfig()" style="padding: 10px 24px; background: linear-gradient(135deg, #FA582D 0%, #C64620 100%); color: white; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Save</button>
+            </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Template Details Modal -->
+    <div id="templateDetailsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Template Details</h2>
+                <span class="close" onclick="closeTemplateDetailsModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+            </div>
+            <div id="templateDetailsContent" style="font-family: var(--font-secondary);"></div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <button onclick="closeTemplateDetailsModal()" style="padding: 10px 24px; background: #f0f0f0; color: #333; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Apply Template Modal -->
+    <div id="applyTemplateModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Apply Alert Template</h2>
+                <span class="close" onclick="closeApplyTemplateModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+            </div>
+
+            <input type="hidden" id="applyTemplateId">
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Select Device</label>
+                <select id="applyTemplateDeviceId" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: var(--font-secondary);">
+                    <option value="">Select Device</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Notification Channels</label>
+                <select id="applyTemplateChannels" multiple style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; height: 100px; font-family: var(--font-secondary);">
+                    <option value="email">Email</option>
+                    <option value="webhook">Webhook</option>
+                    <option value="slack">Slack</option>
+                </select>
+                <div style="font-size: 0.85em; color: #666; margin-top: 5px; font-family: var(--font-secondary);">Hold Ctrl/Cmd to select multiple</div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <button onclick="closeApplyTemplateModal()" style="padding: 10px 24px; background: #f0f0f0; color: #333; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Cancel</button>
+                <button onclick="applyTemplate()" style="padding: 10px 24px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Apply Template</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Apply Quick Start Modal -->
+    <div id="applyQuickStartModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Apply Quick Start Scenario</h2>
+                <span class="close" onclick="closeApplyQuickStartModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+            </div>
+
+            <input type="hidden" id="applyQuickStartId">
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-family: var(--font-primary);">Select Device</label>
+                <select id="applyQuickStartDeviceId" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; font-family: var(--font-secondary);">
+                    <option value="">Select Device</option>
+                </select>
+            </div>
+
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                <p style="margin: 0; font-size: 0.9em; color: #666; font-family: var(--font-secondary);">This scenario will apply multiple pre-configured templates with recommended settings for your environment.</p>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <button onclick="closeApplyQuickStartModal()" style="padding: 10px 24px; background: #f0f0f0; color: #333; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Cancel</button>
+                <button onclick="applyQuickStart()" style="padding: 10px 24px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">Apply Scenario</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates Browser Modal -->
+    <div id="templatesBrowserModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <div>
+                    <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary); font-size: 1.6em;">Browse Alert Templates</h2>
+                    <p style="color: #666; margin: 0; font-family: var(--font-secondary); font-size: 0.95em;">Choose from professional monitoring templates for common scenarios</p>
+                </div>
+                <span class="close" onclick="closeTemplatesBrowserModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+            </div>
+
+            <div id="templatesBrowserContainer"></div>
+        </div>
+    </div>
+
+    <!-- Quick Start Browser Modal -->
+    <div id="quickStartBrowserModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <div>
+                    <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary); font-size: 1.6em;">Quick Start Scenarios</h2>
+                    <p style="color: #666; margin: 0; font-family: var(--font-secondary); font-size: 0.95em;">Deploy complete monitoring setups optimized for common environments</p>
+                </div>
+                <span class="close" onclick="closeQuickStartBrowserModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+            </div>
+
+            <div id="quickStartBrowserContainer"></div>
+        </div>
+    </div>
+
+    <!-- Alert History Modal -->
+    <div id="alertHistoryModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.6em;">Alert History</h2>
+                <span class="close" onclick="closeAlertHistoryModal()" style="font-size: 28px; color: #999; cursor: pointer; font-weight: 300; line-height: 1; transition: color 0.2s;">&times;</span>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: inline-flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="historyUnresolvedOnly" onchange="filterAlertHistory()" style="margin-right: 8px;">
+                    <span style="color: #333; font-weight: 500; font-family: var(--font-primary);">Show unresolved alerts only</span>
+                </label>
+            </div>
+
+            <div id="alertHistoryTableModal" style="font-family: var(--font-secondary);"></div>
+        </div>
+    </div>
+
     <!-- Load JavaScript modules in order -->
     <script src="/static/logs.js"></script>
     <script src="/static/pages.js?v=1.9.2"></script>
@@ -2487,6 +3036,7 @@
     <script src="/static/pages-panos-upgrade.js"></script>
     <script src="/static/pages-content-updates.js"></script>
     <script src="/static/pages-backup-restore.js"></script>
+    <script src="/static/pages-alerts.js?v=1.10.2"></script>
     <script src="/static/settings.js?v=1.9.0"></script>
     <script src="/static/devices.js?v=1.8.4"></script>
     <script src="/static/app.js?v=1.9.5"></script>

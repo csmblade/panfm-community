@@ -351,19 +351,80 @@ function renderSoftwareTable(items, timestamp) {
 // HOMEPAGE MODAL FUNCTIONS
 // ============================================================================
 
+/**
+ * Group threat/URL logs by unique combination of key fields
+ * Returns array of grouped logs with occurrence counts, limited to top 10
+ */
+function groupLogsByUniqueEntry(logs, keyFields) {
+    // Safety check: ensure logs is an array
+    if (!logs || !Array.isArray(logs) || logs.length === 0) {
+        return [];
+    }
+
+    const grouped = {};
+
+    logs.forEach(log => {
+        // Create unique key from specified fields
+        const key = keyFields.map(field => log[field] || 'N/A').join('|');
+
+        if (!grouped[key]) {
+            grouped[key] = {
+                ...log,
+                count: 1,
+                first_time: log.time,
+                last_time: log.time
+            };
+        } else {
+            grouped[key].count++;
+            // Update time range
+            if (log.time) {
+                const logTime = new Date(log.time);
+                const firstTime = new Date(grouped[key].first_time);
+                const lastTime = new Date(grouped[key].last_time);
+
+                if (logTime < firstTime) {
+                    grouped[key].first_time = log.time;
+                }
+                if (logTime > lastTime) {
+                    grouped[key].last_time = log.time;
+                }
+            }
+        }
+    });
+
+    // Convert to array and sort by count (descending), then by last occurrence (most recent first)
+    const groupedArray = Object.values(grouped);
+    groupedArray.sort((a, b) => {
+        if (b.count !== a.count) {
+            return b.count - a.count;
+        }
+        return new Date(b.last_time) - new Date(a.last_time);
+    });
+
+    // Return top 10
+    return groupedArray.slice(0, 10);
+}
+
 // Critical Threats Modal
-function showCriticalThreatsModal() {
+window.showCriticalThreatsModal = function showCriticalThreatsModal() {
     const modal = document.getElementById('criticalThreatsModal');
     const container = document.getElementById('criticalThreatsTableContainer');
     const countElement = document.getElementById('criticalModalCount');
 
-    // Update count
-    countElement.textContent = currentCriticalLogs.length;
+    // Phase 4: Logs now available from database in all modes (real-time and historical)
+    // Safety check: ensure currentCriticalLogs exists
+    const logs = window.currentCriticalLogs || [];
+
+    // Group identical entries and show top 10 unique threats
+    const groupedLogs = groupLogsByUniqueEntry(logs, ['threat', 'src', 'dst', 'app', 'action']);
+
+    // Update count to show total threats (before grouping)
+    countElement.textContent = logs.length;
 
     // Build table
-    if (currentCriticalLogs.length === 0) {
+    if (groupedLogs.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No critical threats detected</div>';
-    } else {
+    } else{
         let tableHtml = `
             <table style="width: 100%; border-collapse: collapse;">
                 <thead>
@@ -373,21 +434,23 @@ function showCriticalThreatsModal() {
                         <th style="padding: 12px; text-align: left;">Destination</th>
                         <th style="padding: 12px; text-align: left;">App</th>
                         <th style="padding: 12px; text-align: left;">Action</th>
-                        <th style="padding: 12px; text-align: left;">Time</th>
+                        <th style="padding: 12px; text-align: center;">Count</th>
+                        <th style="padding: 12px; text-align: left;">Last Seen</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        currentCriticalLogs.forEach((log, index) => {
+        groupedLogs.forEach((log, index) => {
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
             const threat = log.threat || 'Unknown';
             const src = log.src || 'N/A';
             const dst = log.dst || 'N/A';
             const app = log.app || 'N/A';
             const action = log.action || 'N/A';
-            const datetime = log.time ? new Date(log.time) : null;
+            const datetime = log.last_time ? new Date(log.last_time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
+            const count = log.count || 1;
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
@@ -396,6 +459,9 @@ function showCriticalThreatsModal() {
                     <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${dst}</td>
                     <td style="padding: 12px; color: #666;">${app}</td>
                     <td style="padding: 12px; color: #FA582D; font-weight: 600;">${action}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <span style="background: #FA582D; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 600; font-size: 0.9em;">${count}</span>
+                    </td>
                     <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
                 </tr>
             `;
@@ -416,16 +482,23 @@ function closeCriticalThreatsModal() {
 }
 
 // Medium Threats Modal
-function showMediumThreatsModal() {
+window.showMediumThreatsModal = function showMediumThreatsModal() {
     const modal = document.getElementById('mediumThreatsModal');
     const container = document.getElementById('mediumThreatsTableContainer');
     const countElement = document.getElementById('mediumModalCount');
 
-    // Update count
-    countElement.textContent = currentMediumLogs.length;
+    // Phase 4: Logs now available from database in all modes (real-time and historical)
+    // Safety check: ensure currentMediumLogs exists
+    const logs = window.currentMediumLogs || [];
+
+    // Group identical entries and show top 10 unique threats
+    const groupedLogs = groupLogsByUniqueEntry(logs, ['threat', 'src', 'dst', 'app', 'action']);
+
+    // Update count to show total threats (before grouping)
+    countElement.textContent = logs.length;
 
     // Build table
-    if (currentMediumLogs.length === 0) {
+    if (groupedLogs.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No medium threats detected</div>';
     } else {
         let tableHtml = `
@@ -437,21 +510,23 @@ function showMediumThreatsModal() {
                         <th style="padding: 12px; text-align: left;">Destination</th>
                         <th style="padding: 12px; text-align: left;">App</th>
                         <th style="padding: 12px; text-align: left;">Action</th>
-                        <th style="padding: 12px; text-align: left;">Time</th>
+                        <th style="padding: 12px; text-align: center;">Count</th>
+                        <th style="padding: 12px; text-align: left;">Last Seen</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        currentMediumLogs.forEach((log, index) => {
+        groupedLogs.forEach((log, index) => {
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
             const threat = log.threat || 'Unknown';
             const src = log.src || 'N/A';
             const dst = log.dst || 'N/A';
             const app = log.app || 'N/A';
             const action = log.action || 'N/A';
-            const datetime = log.time ? new Date(log.time) : null;
+            const datetime = log.last_time ? new Date(log.last_time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
+            const count = log.count || 1;
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
@@ -460,6 +535,9 @@ function showMediumThreatsModal() {
                     <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${dst}</td>
                     <td style="padding: 12px; color: #666;">${app}</td>
                     <td style="padding: 12px; color: #E04F26; font-weight: 600;">${action}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <span style="background: #E04F26; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 600; font-size: 0.9em;">${count}</span>
+                    </td>
                     <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
                 </tr>
             `;
@@ -480,16 +558,23 @@ function closeMediumThreatsModal() {
 }
 
 // Blocked URLs Modal
-function showBlockedUrlsModal() {
+window.showBlockedUrlsModal = function showBlockedUrlsModal() {
     const modal = document.getElementById('blockedUrlsModal');
     const container = document.getElementById('blockedUrlsTableContainer');
     const countElement = document.getElementById('blockedUrlsModalCount');
 
-    // Update count
-    countElement.textContent = currentBlockedUrlLogs.length;
+    // Phase 4: Logs now available from database in all modes (real-time and historical)
+    // Safety check: ensure currentBlockedUrlLogs exists
+    const logs = window.currentBlockedUrlLogs || [];
+
+    // Group identical entries and show top 10 unique blocked URLs
+    const groupedLogs = groupLogsByUniqueEntry(logs, ['url', 'threat', 'category', 'src', 'dst', 'action']);
+
+    // Update count to show total blocked URLs (before grouping)
+    countElement.textContent = logs.length;
 
     // Build table
-    if (currentBlockedUrlLogs.length === 0) {
+    if (groupedLogs.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No blocked URLs</div>';
     } else {
         let tableHtml = `
@@ -501,21 +586,23 @@ function showBlockedUrlsModal() {
                         <th style="padding: 12px; text-align: left;">Source</th>
                         <th style="padding: 12px; text-align: left;">Destination</th>
                         <th style="padding: 12px; text-align: left;">Action</th>
-                        <th style="padding: 12px; text-align: left;">Time</th>
+                        <th style="padding: 12px; text-align: center;">Count</th>
+                        <th style="padding: 12px; text-align: left;">Last Seen</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        currentBlockedUrlLogs.forEach((log, index) => {
+        groupedLogs.forEach((log, index) => {
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
             const url = log.url || log.threat || 'Unknown';
             const category = log.category || 'N/A';
             const src = log.src || 'N/A';
             const dst = log.dst || 'N/A';
             const action = log.action || 'N/A';
-            const datetime = log.time ? new Date(log.time) : null;
+            const datetime = log.last_time ? new Date(log.last_time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
+            const count = log.count || 1;
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
@@ -524,6 +611,9 @@ function showBlockedUrlsModal() {
                     <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${src}</td>
                     <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${dst}</td>
                     <td style="padding: 12px; color: #C64620; font-weight: 600;">${action}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <span style="background: #C64620; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 600; font-size: 0.9em;">${count}</span>
+                    </td>
                     <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
                 </tr>
             `;
@@ -544,16 +634,17 @@ function closeBlockedUrlsModal() {
 }
 
 // Top Applications Modal
-function showTopAppsModal() {
+window.showTopAppsModal = function showTopAppsModal() {
     const modal = document.getElementById('topAppsModal');
     const container = document.getElementById('topAppsTableContainer');
     const countElement = document.getElementById('topAppsModalCount');
 
+    // Phase 4: All data now available from database in all modes
     // Update count
-    countElement.textContent = currentTopApps.length;
+    countElement.textContent = window.currentTopApps.length;
 
     // Build table
-    if (currentTopApps.length === 0) {
+    if (window.currentTopApps.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No application data</div>';
     } else {
         let tableHtml = `
@@ -569,9 +660,9 @@ function showTopAppsModal() {
                 <tbody>
         `;
 
-        const maxCount = currentTopApps[0]?.count || 1;
+        const maxCount = window.currentTopApps[0]?.count || 1;
 
-        currentTopApps.forEach((app, index) => {
+        window.currentTopApps.forEach((app, index) => {
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
             const barWidth = maxCount > 0 ? (app.count / maxCount * 100) : 0;
 

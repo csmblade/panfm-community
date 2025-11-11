@@ -29,6 +29,19 @@ async function loadApplications() {
 
         console.log('Applications API response:', data);
 
+        // Log data source for debugging
+        if (data.source) {
+            if (data.source === 'database') {
+                console.log('✓ Using cached database data (fast)');
+            } else if (data.source === 'firewall') {
+                console.log('⚠ Using real-time firewall query (slow)');
+            } else if (data.source === 'none') {
+                console.warn('⚠ No device selected');
+            } else if (data.source === 'error') {
+                console.error('✗ Error retrieving data');
+            }
+        }
+
         if (data.status === 'success') {
             allApplications = data.applications || [];
 
