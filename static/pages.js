@@ -141,6 +141,11 @@ function sortSystemLogs(logs, sortBy) {
 // DHCP Leases Functions
 // ============================================================================
 
+// Global state for DHCP sorting and filtering (v1.10.13)
+let allDhcpLeases = []; // Store all leases for filtering/sorting
+let dhcpSortBy = 'ip'; // Default sort by IP address
+let dhcpSortDesc = false; // Ascending by default
+
 /**
  * Load DHCP leases from the firewall
  */
@@ -166,11 +171,17 @@ async function loadDhcpLeases() {
                 errorDiv.style.display = 'none';
                 contentDiv.style.display = 'block';
 
+                // Store leases globally for filtering/sorting (v1.10.13)
+                allDhcpLeases = data.leases;
+
+                // Populate interface filter options (v1.10.13)
+                populateDhcpInterfaceFilter();
+
                 // Update summary
                 document.getElementById('dhcpTotalLeases').textContent = data.total || data.leases.length;
 
                 // Render the DHCP leases table
-                renderDhcpTable(data.leases);
+                renderDhcpTable();
             } else {
                 // No leases found - show empty state
                 contentDiv.style.display = 'block';
@@ -195,17 +206,119 @@ async function loadDhcpLeases() {
 }
 
 /**
- * Render the DHCP leases table
- * @param {Array} leases - Array of DHCP lease objects
+ * Populate DHCP interface filter dropdown (v1.10.13)
  */
-function renderDhcpTable(leases) {
+function populateDhcpInterfaceFilter() {
+    const interfaceFilter = document.getElementById('dhcpInterfaceFilter');
+    if (!interfaceFilter) return;
+
+    // Get unique interfaces
+    const interfaces = [...new Set(allDhcpLeases.map(lease => lease.interface).filter(Boolean))].sort();
+
+    // Clear existing options except "All Interfaces"
+    interfaceFilter.innerHTML = '<option value="">All Interfaces</option>';
+
+    // Add interface options
+    interfaces.forEach(iface => {
+        const option = document.createElement('option');
+        option.value = iface;
+        option.textContent = iface;
+        interfaceFilter.appendChild(option);
+    });
+}
+
+/**
+ * Render the DHCP leases table with search and sorting (v1.10.13)
+ */
+function renderDhcpTable() {
     const tableBody = document.getElementById('dhcpLeasesTableBody');
     const emptyState = document.getElementById('dhcpEmptyState');
     const table = document.getElementById('dhcpLeasesTable');
+    const searchInput = document.getElementById('dhcpSearchInput');
+    const interfaceFilter = document.getElementById('dhcpInterfaceFilter');
+    const stateFilter = document.getElementById('dhcpStateFilter');
 
-    if (!leases || leases.length === 0) {
+    if (!allDhcpLeases || allDhcpLeases.length === 0) {
         table.style.display = 'none';
         emptyState.style.display = 'block';
+        return;
+    }
+
+    // Get filter values
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const selectedInterface = interfaceFilter ? interfaceFilter.value : '';
+    const selectedState = stateFilter ? stateFilter.value : '';
+
+    // Filter leases
+    let filtered = allDhcpLeases.filter(lease => {
+        // Search filter
+        if (searchTerm) {
+            const ip = (lease.ip || '').toLowerCase();
+            const mac = (lease.mac || '').toLowerCase();
+            const hostname = (lease.hostname || '').toLowerCase();
+            const iface = (lease.interface || '').toLowerCase();
+            const state = (lease.state || '').toLowerCase();
+
+            const matchesSearch = ip.includes(searchTerm) ||
+                   mac.includes(searchTerm) ||
+                   hostname.includes(searchTerm) ||
+                   iface.includes(searchTerm) ||
+                   state.includes(searchTerm);
+
+            if (!matchesSearch) return false;
+        }
+
+        // Interface filter
+        if (selectedInterface && lease.interface !== selectedInterface) {
+            return false;
+        }
+
+        // State filter
+        if (selectedState && (lease.state || '').toUpperCase() !== selectedState) {
+            return false;
+        }
+
+        return true;
+    });
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+        let aVal, bVal;
+
+        if (dhcpSortBy === 'ip') {
+            // Numerical IP sort
+            const ipToNumber = (ip) => {
+                const parts = (ip || '0.0.0.0').split('.');
+                return parts.reduce((acc, part, i) => acc + (parseInt(part) || 0) * Math.pow(256, 3 - i), 0);
+            };
+            aVal = ipToNumber(a.ip);
+            bVal = ipToNumber(b.ip);
+        } else if (dhcpSortBy === 'state') {
+            // State priority: BOUND > OFFERED > EXPIRED > UNKNOWN
+            const statePriority = { 'BOUND': 3, 'OFFERED': 2, 'EXPIRED': 1, 'UNKNOWN': 0 };
+            aVal = statePriority[(a.state || 'UNKNOWN').toUpperCase()] || 0;
+            bVal = statePriority[(b.state || 'UNKNOWN').toUpperCase()] || 0;
+        } else {
+            // String fields (mac, hostname, interface, expiration)
+            aVal = a[dhcpSortBy] || '';
+            bVal = b[dhcpSortBy] || '';
+        }
+
+        // Compare values
+        if (typeof aVal === 'string') {
+            return dhcpSortDesc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+        }
+        return dhcpSortDesc ? bVal - aVal : aVal - bVal;
+    });
+
+    // Check if we have results after filtering
+    if (filtered.length === 0) {
+        table.style.display = 'none';
+        emptyState.style.display = 'block';
+        document.getElementById('dhcpEmptyState').innerHTML = `
+            <p style="color: #999; font-family: var(--font-secondary); font-size: 1em; margin: 0;">No matching DHCP leases found</p>
+            <p style="color: #ccc; font-family: var(--font-secondary); font-size: 0.9em; margin: 10px 0 0 0;">Try adjusting your search criteria.</p>
+        `;
         return;
     }
 
@@ -215,7 +328,7 @@ function renderDhcpTable(leases) {
 
     // Build table rows
     let tableHTML = '';
-    leases.forEach(lease => {
+    filtered.forEach(lease => {
         const ip = escapeHtml(lease.ip || 'N/A');
         const mac = escapeHtml(lease.mac || 'N/A');
         const hostname = escapeHtml(lease.hostname || 'Unknown');
@@ -234,7 +347,7 @@ function renderDhcpTable(leases) {
         }
 
         tableHTML += `
-            <tr style="border-bottom: 1px solid #eee;">
+            <tr style="border-bottom: 1px solid #eee; transition: background 0.2s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='white'">
                 <td style="padding: 12px; font-family: 'Courier New', monospace; color: #FA582D; font-weight: 600;">${ip}</td>
                 <td style="padding: 12px; font-family: 'Courier New', monospace; color: #666;">${mac}</td>
                 <td style="padding: 12px; color: #333; font-weight: 500;">${hostname}</td>
@@ -250,6 +363,63 @@ function renderDhcpTable(leases) {
     });
 
     tableBody.innerHTML = tableHTML;
+
+    // Update displayed count
+    document.getElementById('dhcpTotalLeases').textContent = filtered.length;
+}
+
+/**
+ * Sort DHCP leases by field (v1.10.13)
+ * @param {string} field - Field to sort by
+ */
+function sortDhcpLeases(field) {
+    // Toggle sort direction if clicking same field
+    if (dhcpSortBy === field) {
+        dhcpSortDesc = !dhcpSortDesc;
+    } else {
+        dhcpSortBy = field;
+        dhcpSortDesc = false; // Default to ascending for new field
+    }
+
+    // Update header indicators
+    updateDhcpHeaderIndicators();
+
+    renderDhcpTable();
+}
+
+/**
+ * Update DHCP table header sort indicators (v1.10.13)
+ */
+function updateDhcpHeaderIndicators() {
+    const headers = {
+        'ip': 'dhcpHeaderIp',
+        'mac': 'dhcpHeaderMac',
+        'hostname': 'dhcpHeaderHostname',
+        'state': 'dhcpHeaderState',
+        'expiration': 'dhcpHeaderExpiration',
+        'interface': 'dhcpHeaderInterface'
+    };
+
+    const labels = {
+        'ip': 'IP Address',
+        'mac': 'MAC Address',
+        'hostname': 'Hostname',
+        'state': 'State',
+        'expiration': 'Expiration',
+        'interface': 'Interface'
+    };
+
+    // Update all headers
+    for (const [field, headerId] of Object.entries(headers)) {
+        const headerEl = document.getElementById(headerId);
+        if (headerEl) {
+            if (field === dhcpSortBy) {
+                headerEl.textContent = labels[field] + (dhcpSortDesc ? ' ▼' : ' ▲');
+            } else {
+                headerEl.textContent = labels[field];
+            }
+        }
+    }
 }
 
 // Load system logs data
@@ -415,14 +585,14 @@ window.showCriticalThreatsModal = function showCriticalThreatsModal() {
     // Safety check: ensure currentCriticalLogs exists
     const logs = window.currentCriticalLogs || [];
 
-    // Group identical entries and show top 10 unique threats
-    const groupedLogs = groupLogsByUniqueEntry(logs, ['threat', 'src', 'dst', 'app', 'action']);
+    // Show last 5 entries without grouping
+    const recentLogs = logs.slice(0, 5);
 
-    // Update count to show total threats (before grouping)
+    // Update count to show total threats
     countElement.textContent = logs.length;
 
     // Build table
-    if (groupedLogs.length === 0) {
+    if (recentLogs.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No critical threats detected</div>';
     } else{
         let tableHtml = `
@@ -430,38 +600,24 @@ window.showCriticalThreatsModal = function showCriticalThreatsModal() {
                 <thead>
                     <tr style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white;">
                         <th style="padding: 12px; text-align: left;">Threat</th>
-                        <th style="padding: 12px; text-align: left;">Source</th>
-                        <th style="padding: 12px; text-align: left;">Destination</th>
-                        <th style="padding: 12px; text-align: left;">App</th>
                         <th style="padding: 12px; text-align: left;">Action</th>
-                        <th style="padding: 12px; text-align: center;">Count</th>
                         <th style="padding: 12px; text-align: left;">Last Seen</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        groupedLogs.forEach((log, index) => {
+        recentLogs.forEach((log, index) => {
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
             const threat = log.threat || 'Unknown';
-            const src = log.src || 'N/A';
-            const dst = log.dst || 'N/A';
-            const app = log.app || 'N/A';
             const action = log.action || 'N/A';
             const datetime = log.last_time ? new Date(log.last_time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
-            const count = log.count || 1;
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
                     <td style="padding: 12px; color: #333; font-weight: 600;">${threat}</td>
-                    <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${src}</td>
-                    <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${dst}</td>
-                    <td style="padding: 12px; color: #666;">${app}</td>
                     <td style="padding: 12px; color: #FA582D; font-weight: 600;">${action}</td>
-                    <td style="padding: 12px; text-align: center;">
-                        <span style="background: #FA582D; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 600; font-size: 0.9em;">${count}</span>
-                    </td>
                     <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
                 </tr>
             `;
@@ -491,14 +647,25 @@ window.showMediumThreatsModal = function showMediumThreatsModal() {
     // Safety check: ensure currentMediumLogs exists
     const logs = window.currentMediumLogs || [];
 
-    // Group identical entries and show top 10 unique threats
-    const groupedLogs = groupLogsByUniqueEntry(logs, ['threat', 'src', 'dst', 'app', 'action']);
+    // v1.10.10: Group by threat name and show last 5 UNIQUE threats
+    const uniqueThreats = [];
+    const seenThreats = new Set();
 
-    // Update count to show total threats (before grouping)
-    countElement.textContent = logs.length;
+    for (const log of logs) {
+        const threatName = log.threat || 'Unknown';
+        if (!seenThreats.has(threatName) && uniqueThreats.length < 5) {
+            uniqueThreats.push(log);
+            seenThreats.add(threatName);
+        }
+    }
+
+    const recentLogs = uniqueThreats;
+
+    // Update count to show unique threats (out of total logs)
+    countElement.textContent = recentLogs.length;
 
     // Build table
-    if (groupedLogs.length === 0) {
+    if (recentLogs.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No medium threats detected</div>';
     } else {
         let tableHtml = `
@@ -506,38 +673,25 @@ window.showMediumThreatsModal = function showMediumThreatsModal() {
                 <thead>
                     <tr style="background: linear-gradient(135deg, #E04F26 0%, #FF6B3D 100%); color: white;">
                         <th style="padding: 12px; text-align: left;">Threat</th>
-                        <th style="padding: 12px; text-align: left;">Source</th>
-                        <th style="padding: 12px; text-align: left;">Destination</th>
-                        <th style="padding: 12px; text-align: left;">App</th>
                         <th style="padding: 12px; text-align: left;">Action</th>
-                        <th style="padding: 12px; text-align: center;">Count</th>
                         <th style="padding: 12px; text-align: left;">Last Seen</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        groupedLogs.forEach((log, index) => {
+        recentLogs.forEach((log, index) => {
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
             const threat = log.threat || 'Unknown';
-            const src = log.src || 'N/A';
-            const dst = log.dst || 'N/A';
-            const app = log.app || 'N/A';
             const action = log.action || 'N/A';
-            const datetime = log.last_time ? new Date(log.last_time) : null;
+            // v1.10.10 FIX: Database returns 'time' field, not 'last_time'
+            const datetime = log.time ? new Date(log.time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
-            const count = log.count || 1;
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
                     <td style="padding: 12px; color: #333; font-weight: 600;">${threat}</td>
-                    <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${src}</td>
-                    <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${dst}</td>
-                    <td style="padding: 12px; color: #666;">${app}</td>
                     <td style="padding: 12px; color: #E04F26; font-weight: 600;">${action}</td>
-                    <td style="padding: 12px; text-align: center;">
-                        <span style="background: #E04F26; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 600; font-size: 0.9em;">${count}</span>
-                    </td>
                     <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
                 </tr>
             `;
@@ -567,14 +721,25 @@ window.showBlockedUrlsModal = function showBlockedUrlsModal() {
     // Safety check: ensure currentBlockedUrlLogs exists
     const logs = window.currentBlockedUrlLogs || [];
 
-    // Group identical entries and show top 10 unique blocked URLs
-    const groupedLogs = groupLogsByUniqueEntry(logs, ['url', 'threat', 'category', 'src', 'dst', 'action']);
+    // v1.10.10: Group by URL and show last 5 UNIQUE URLs
+    const uniqueUrls = [];
+    const seenUrls = new Set();
 
-    // Update count to show total blocked URLs (before grouping)
-    countElement.textContent = logs.length;
+    for (const log of logs) {
+        const url = log.url || log.threat || 'Unknown';
+        if (!seenUrls.has(url) && uniqueUrls.length < 5) {
+            uniqueUrls.push(log);
+            seenUrls.add(url);
+        }
+    }
+
+    const recentLogs = uniqueUrls;
+
+    // Update count to show unique URLs (out of total logs)
+    countElement.textContent = recentLogs.length;
 
     // Build table
-    if (groupedLogs.length === 0) {
+    if (recentLogs.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No blocked URLs</div>';
     } else {
         let tableHtml = `
@@ -582,38 +747,25 @@ window.showBlockedUrlsModal = function showBlockedUrlsModal() {
                 <thead>
                     <tr style="background: linear-gradient(135deg, #C64620 0%, #E85A31 100%); color: white;">
                         <th style="padding: 12px; text-align: left;">URL</th>
-                        <th style="padding: 12px; text-align: left;">Category</th>
-                        <th style="padding: 12px; text-align: left;">Source</th>
-                        <th style="padding: 12px; text-align: left;">Destination</th>
                         <th style="padding: 12px; text-align: left;">Action</th>
-                        <th style="padding: 12px; text-align: center;">Count</th>
                         <th style="padding: 12px; text-align: left;">Last Seen</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        groupedLogs.forEach((log, index) => {
+        recentLogs.forEach((log, index) => {
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
             const url = log.url || log.threat || 'Unknown';
-            const category = log.category || 'N/A';
-            const src = log.src || 'N/A';
-            const dst = log.dst || 'N/A';
             const action = log.action || 'N/A';
-            const datetime = log.last_time ? new Date(log.last_time) : null;
+            // v1.10.10 FIX: Database returns 'time' field, not 'last_time'
+            const datetime = log.time ? new Date(log.time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
-            const count = log.count || 1;
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
                     <td style="padding: 12px; color: #333; font-weight: 600; word-break: break-all;">${url}</td>
-                    <td style="padding: 12px; color: #666;">${category}</td>
-                    <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${src}</td>
-                    <td style="padding: 12px; color: #666; font-family: monospace; font-size: 0.9em;">${dst}</td>
                     <td style="padding: 12px; color: #C64620; font-weight: 600;">${action}</td>
-                    <td style="padding: 12px; text-align: center;">
-                        <span style="background: #C64620; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 600; font-size: 0.9em;">${count}</span>
-                    </td>
                     <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
                 </tr>
             `;

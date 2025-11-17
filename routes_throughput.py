@@ -50,14 +50,14 @@ def register_throughput_routes(app, csrf, limiter):
         debug(f"Refresh interval: {refresh_interval}s")
 
         try:
-            # Get collector and storage
+            # Get collector and storage (shared across all threads in gthread worker)
             collector = get_collector()
             if collector is None:
-                warning("Throughput collector not initialized")
+                warning("Throughput collection not initialized")
                 from datetime import datetime
                 return jsonify({
                     'error': 'Throughput collection not enabled',
-                    'timestamp': datetime.utcnow().isoformat() + 'Z',  # Add current timestamp
+                    'timestamp': datetime.utcnow().isoformat() + 'Z',
                     'inbound_mbps': 0,
                     'outbound_mbps': 0,
                     'total_mbps': 0,
@@ -150,21 +150,21 @@ def register_throughput_routes(app, csrf, limiter):
                 latest_sample = storage.get_latest_sample(device_id, max_age_seconds=max_age_seconds)
 
             if latest_sample is None:
-                debug("No recent throughput data in database, returning zeros")
-                # Return zero values if no recent data (collector may be starting up)
-                from datetime import datetime
+                debug("No recent throughput data in database, returning no_data status")
+                # Return no_data status instead of zeros (collector may be starting up or collection failed)
                 return jsonify({
-                    'status': 'success',
-                    'timestamp': datetime.utcnow().isoformat() + 'Z',  # Add current timestamp
-                    'inbound_mbps': 0,
-                    'outbound_mbps': 0,
-                    'total_mbps': 0,
-                    'inbound_pps': 0,
-                    'outbound_pps': 0,
-                    'total_pps': 0,
-                    'sessions': {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0},
-                    'cpu': {'data_plane_cpu': 0, 'mgmt_plane_cpu': 0, 'memory_used_pct': 0},
-                    'note': 'Waiting for collector data'
+                    'status': 'no_data',
+                    'message': 'No recent data available from collector',
+                    'timestamp': None,
+                    'inbound_mbps': None,
+                    'outbound_mbps': None,
+                    'total_mbps': None,
+                    'inbound_pps': None,
+                    'outbound_pps': None,
+                    'total_pps': None,
+                    'sessions': None,
+                    'cpu': None,
+                    'note': 'Waiting for collector data or collection failed'
                 })
 
             debug(f"Returning latest sample from database: {latest_sample['timestamp']}")

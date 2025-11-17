@@ -17,6 +17,8 @@ from apscheduler.events import (
 from config import THROUGHPUT_DB_FILE, ALERTS_DB_FILE, load_settings
 from throughput_collector import init_collector, get_collector
 from alert_manager import AlertManager
+from scan_storage import ScanStorage
+from scan_scheduler import ScanScheduler
 from logger import info, exception, warning, error, debug
 
 # Track current running job for graceful shutdown
@@ -25,6 +27,7 @@ shutdown_requested = False
 clock_start_time = None
 current_refresh_interval = None  # Track current interval to detect changes
 scheduler_instance = None  # Global reference to scheduler for dynamic rescheduling
+scan_scheduler_instance = None  # Global reference to scan scheduler
 
 # Scheduler execution tracking
 scheduler_stats = {
@@ -369,6 +372,25 @@ def persist_scheduler_stats():
     except Exception as e:
         exception(f"Error persisting scheduler stats: {str(e)}")
 
+def process_scheduled_scans():
+    """
+    Placeholder for scheduled scan monitoring.
+
+    NOTE: ScanScheduler manages its own APScheduler internally and does not
+    need to be called from this clock process. This function exists for
+    future monitoring/statistics but does not execute scans.
+    """
+    global current_job
+    current_job = 'scheduled_scans'
+
+    try:
+        # ScanScheduler runs independently via its own APScheduler
+        # This is just a heartbeat/monitoring placeholder
+        debug("Scheduled scans running via ScanScheduler (independent APScheduler)")
+
+    finally:
+        current_job = None
+
 def cleanup_old_data():
     """Daily cleanup of old throughput samples and expired alert cooldowns."""
     global current_job
@@ -458,8 +480,9 @@ def main():
     retention_days = settings.get('throughput_retention_days', 90)
     collection_enabled = settings.get('throughput_collection_enabled', True)
     refresh_interval = settings.get('refresh_interval', 60)
+    timezone = settings.get('timezone', 'UTC')
 
-    print(f"[CLOCK INIT] collection_enabled={collection_enabled}, retention_days={retention_days}, refresh_interval={refresh_interval}s")
+    print(f"[CLOCK INIT] collection_enabled={collection_enabled}, retention_days={retention_days}, refresh_interval={refresh_interval}s, timezone={timezone}")
 
     if not collection_enabled:
         print(f"[CLOCK INIT] ✗ Throughput collection DISABLED in settings")
@@ -485,12 +508,36 @@ def main():
         exception("Clock process exiting - failed to initialize throughput collector: %s", str(e))
         return
 
+    # Initialize scan scheduler
+    print(f"[CLOCK INIT] Initializing scan scheduler...")
+    info("Initializing scan scheduler for automated nmap scanning")
+
+    try:
+        global scan_scheduler_instance
+        from config import NMAP_SCANS_DB_FILE
+        scan_storage = ScanStorage(NMAP_SCANS_DB_FILE)
+        scan_scheduler_instance = ScanScheduler(scan_storage, max_concurrent_scans=3)
+
+        print(f"[CLOCK INIT] ✓ Scan scheduler initialized successfully")
+        info("Scan scheduler initialized successfully")
+
+        # Start the scan scheduler (runs its own BackgroundScheduler)
+        print(f"[CLOCK INIT] Starting scan scheduler...")
+        scan_scheduler_instance.start()
+        print(f"[CLOCK INIT] ✓ Scan scheduler started (independent APScheduler)")
+        info("Scan scheduler started with timezone=%s", timezone)
+
+    except Exception as e:
+        print(f"[CLOCK INIT] ⚠ WARNING: Scan scheduler initialization failed: {str(e)}")
+        warning("Scan scheduler initialization failed - scheduled scans will not work: %s", str(e))
+        # Continue anyway - other functions still work
+
     # Initialize BlockingScheduler (NOT BackgroundScheduler!)
     # BlockingScheduler keeps the main thread alive
     global scheduler_instance
-    print(f"[CLOCK INIT] Initializing BlockingScheduler...")
+    print(f"[CLOCK INIT] Initializing BlockingScheduler with timezone={timezone}...")
     scheduler = BlockingScheduler(
-        timezone='UTC',
+        timezone=timezone,
         jobstores={'default': {'type': 'memory'}},
         executors={'default': {'type': 'threadpool', 'max_workers': 3}},
         job_defaults={
@@ -552,6 +599,14 @@ def main():
         replace_existing=True
     )
     print(f"[CLOCK INIT] ✓ Job 'persist_scheduler_stats' registered (every 60 seconds)")
+
+    # NOTE: Job 5 (Scheduled Scans) is NOT registered here
+    # ScanScheduler runs its own independent BackgroundScheduler and manages
+    # scan execution internally. No polling required from clock process.
+    if scan_scheduler_instance:
+        print(f"[CLOCK INIT] ✓ Scheduled scans managed by ScanScheduler (independent APScheduler)")
+    else:
+        print(f"[CLOCK INIT] ⚠ Scheduled scans DISABLED (scan scheduler not initialized)")
 
     # Register signal handlers for graceful shutdown
     print(f"[CLOCK INIT] Registering signal handlers (SIGTERM, SIGINT)...")

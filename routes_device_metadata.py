@@ -55,9 +55,18 @@ def register_device_metadata_routes(app, csrf, limiter):
                     'timestamp': datetime.now().isoformat()
                 })
 
+            # Check if bandwidth data is requested (v1.10.11)
+            include_bandwidth = request.args.get('include_bandwidth', 'false').lower() == 'true'
+
             # Query from database (max 90 seconds old)
             storage = ThroughputStorage(THROUGHPUT_DB_FILE)
-            devices = storage.get_connected_devices(device_id, max_age_seconds=90)
+
+            if include_bandwidth:
+                debug("Fetching connected devices WITH bandwidth data (60-minute window)")
+                devices = storage.get_connected_devices_with_bandwidth(device_id, max_age_seconds=90, bandwidth_window_minutes=60)
+            else:
+                debug("Fetching connected devices WITHOUT bandwidth data")
+                devices = storage.get_connected_devices(device_id, max_age_seconds=90)
 
             if not devices:
                 debug(f"No recent connected devices data for device {device_id}, waiting for collection")
@@ -69,7 +78,7 @@ def register_device_metadata_routes(app, csrf, limiter):
                     'timestamp': datetime.now().isoformat()
                 })
 
-            debug(f"Retrieved {len(devices)} devices from database for device {device_id}")
+            debug(f"Retrieved {len(devices)} devices from database for device {device_id} (bandwidth: {include_bandwidth})")
             return jsonify({
                 'status': 'success',
                 'devices': devices,
@@ -115,6 +124,325 @@ def register_device_metadata_routes(app, csrf, limiter):
                 'leases': [],
                 'total': 0
             })
+
+    # ============================================================================
+    # Nmap Network Scanning Endpoint (v1.10.14)
+    # ============================================================================
+
+    @app.route('/api/connected-devices/<ip>/nmap-scan', methods=['POST'])
+    @login_required
+    @limiter.limit("10 per hour")  # Limit resource-intensive scans
+    def nmap_scan_device(ip):
+        """
+        Execute nmap scan on connected device IP address.
+
+        Security:
+        - Only RFC 1918 private IPs allowed (10.x, 172.16-31.x, 192.168.x)
+        - Rate limited to 10 scans per hour
+        - CSRF protection required
+        - Dynamic timeout: Quick (60s), Balanced (120s), Thorough (180s)
+
+        Request body (optional):
+            {
+                "scan_type": "quick" | "balanced" | "thorough"  (default: "balanced")
+            }
+
+        Response:
+            {
+                "status": "success" | "error",
+                "message": "...",
+                "data": {
+                    "ip": "192.168.1.100",
+                    "hostname": "...",
+                    "status": "up" | "down",
+                    "os_matches": [...],
+                    "ports": [...]
+                },
+                "summary": "..." (human-readable summary),
+                "scan_duration": "..." (seconds)
+            }
+        """
+        debug(f"=== Nmap scan endpoint called for IP: {ip} ===")
+
+        try:
+            # Import nmap functions
+            from firewall_api_nmap import run_nmap_scan, is_private_ip, get_scan_summary
+            from scan_storage import ScanStorage
+
+            # Security: Validate RFC 1918 private IP
+            if not is_private_ip(ip):
+                error(f"Security: Rejected nmap scan of non-private IP: {ip}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Security: Only RFC 1918 private IPs can be scanned (10.x.x.x, 172.16-31.x.x, 192.168.x.x)'
+                }), 403
+
+            # Get scan type from request body (optional)
+            data = request.get_json() or {}
+            scan_type = data.get('scan_type', 'balanced')
+
+            # Validate scan type
+            if scan_type not in ['quick', 'balanced', 'thorough']:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Invalid scan_type: {scan_type}. Must be quick, balanced, or thorough'
+                }), 400
+
+            info(f"Starting {scan_type} nmap scan for IP: {ip}")
+
+            # Execute nmap scan
+            scan_result = run_nmap_scan(ip, scan_type=scan_type)
+
+            if scan_result['success']:
+                # Generate human-readable summary
+                summary = get_scan_summary(scan_result['data'])
+
+                info(f"Nmap scan successful for {ip}, {len(scan_result['data'].get('ports', []))} ports found")
+
+                # Store scan result in database and detect changes
+                try:
+                    settings = load_settings()
+                    device_id = settings.get('selected_device_id', 'unknown')
+
+                    storage = ScanStorage()
+                    scan_id = storage.store_scan_result(device_id, ip, scan_result['data'])
+
+                    if scan_id:
+                        debug(f"Stored scan result with ID: {scan_id}")
+
+                        # Get any detected changes
+                        changes = storage.get_change_events(device_id, target_ip=ip, limit=5)
+                        debug(f"Retrieved {len(changes)} recent changes for {ip}")
+                    else:
+                        warning(f"Failed to store scan result for {ip}")
+                        changes = []
+                except Exception as storage_error:
+                    exception(f"Error storing scan result: {str(storage_error)}")
+                    changes = []
+                    # Don't fail the request if storage fails
+
+                return jsonify({
+                    'status': 'success',
+                    'message': scan_result['message'],
+                    'data': scan_result['data'],
+                    'summary': summary,
+                    'scan_duration': scan_result['data'].get('scan_duration', 'Unknown'),
+                    'scan_type': scan_type,
+                    'changes': changes  # Include detected changes in response
+                })
+            else:
+                error(f"Nmap scan failed for {ip}: {scan_result['message']}")
+                return jsonify({
+                    'status': 'error',
+                    'message': scan_result['message'],
+                    'data': None
+                }), 500
+
+        except Exception as e:
+            exception(f"Error in nmap scan endpoint for {ip}: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Error executing nmap scan: {str(e)}'
+            }), 500
+
+    # ============================================================================
+    # Nmap Scan History & Change Detection Endpoints (v1.11.0)
+    # ============================================================================
+
+    @app.route('/api/connected-devices/<ip>/scan-history', methods=['GET'])
+    @login_required
+    @limiter.limit("600 per hour")  # Read-only endpoint
+    def get_scan_history(ip):
+        """
+        Retrieve nmap scan history for a target IP address.
+
+        Query parameters:
+            - limit: Maximum number of scans to return (default: 10, max: 50)
+
+        Response:
+            {
+                "status": "success",
+                "scans": [
+                    {
+                        "id": 1,
+                        "scan_timestamp": "2025-11-14T...",
+                        "scan_type": "balanced",
+                        "scan_duration_seconds": 110.5,
+                        "hostname": "...",
+                        "host_status": "up",
+                        "os_name": "Linux 3.x",
+                        "os_accuracy": 95,
+                        "total_ports": 15,
+                        "open_ports_count": 5,
+                        "scan_results": {...}
+                    }
+                ]
+            }
+        """
+        debug(f"=== Scan history endpoint called for IP: {ip} ===")
+
+        try:
+            from scan_storage import ScanStorage
+
+            # Get limit from query params
+            limit = request.args.get('limit', 10, type=int)
+            if limit > 50:
+                limit = 50  # Cap at 50 for performance
+
+            # Get device ID from settings
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', 'unknown')
+
+            # Retrieve scan history
+            storage = ScanStorage()
+            scans = storage.get_scan_history(device_id, ip, limit=limit)
+
+            info(f"Retrieved {len(scans)} scan history records for {ip}")
+
+            return jsonify({
+                'status': 'success',
+                'scans': scans,
+                'count': len(scans)
+            })
+
+        except Exception as e:
+            exception(f"Error retrieving scan history for {ip}: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Error retrieving scan history: {str(e)}'
+            }), 500
+
+    @app.route('/api/scan-changes', methods=['GET'])
+    @login_required
+    @limiter.limit("600 per hour")  # Read-only endpoint
+    def get_scan_changes():
+        """
+        Retrieve scan change events with optional filtering.
+
+        Query parameters:
+            - target_ip: Filter by specific IP address (optional)
+            - severity: Filter by severity (low, medium, high, critical) (optional)
+            - acknowledged: Filter by acknowledgment status (true/false) (optional)
+            - limit: Maximum number of changes to return (default: 50, max: 100)
+
+        Response:
+            {
+                "status": "success",
+                "changes": [
+                    {
+                        "id": 1,
+                        "device_id": "...",
+                        "target_ip": "192.168.1.100",
+                        "change_timestamp": "2025-11-14T...",
+                        "change_type": "port_opened",
+                        "severity": "critical",
+                        "old_value": null,
+                        "new_value": "3389/tcp",
+                        "details": {...},
+                        "acknowledged": false
+                    }
+                ]
+            }
+        """
+        debug("=== Scan changes endpoint called ===")
+
+        try:
+            from scan_storage import ScanStorage
+
+            # Get device ID from settings
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', 'unknown')
+
+            # Get query parameters
+            target_ip = request.args.get('target_ip')
+            severity = request.args.get('severity')
+            acknowledged_str = request.args.get('acknowledged')
+            limit = request.args.get('limit', 50, type=int)
+
+            if limit > 100:
+                limit = 100  # Cap at 100 for performance
+
+            # Parse acknowledged parameter
+            acknowledged = None
+            if acknowledged_str is not None:
+                acknowledged = acknowledged_str.lower() in ['true', '1', 'yes']
+
+            # Retrieve change events
+            storage = ScanStorage()
+            changes = storage.get_change_events(
+                device_id=device_id,
+                target_ip=target_ip,
+                severity=severity,
+                acknowledged=acknowledged,
+                limit=limit
+            )
+
+            info(f"Retrieved {len(changes)} change events for device {device_id}")
+
+            return jsonify({
+                'status': 'success',
+                'changes': changes,
+                'count': len(changes)
+            })
+
+        except Exception as e:
+            exception(f"Error retrieving scan changes: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Error retrieving scan changes: {str(e)}'
+            }), 500
+
+    @app.route('/api/scan-changes/<int:change_id>/acknowledge', methods=['POST'])
+    @login_required
+    @limiter.limit("100 per hour")  # Write endpoint
+    def acknowledge_scan_change(change_id):
+        """
+        Mark a scan change event as acknowledged.
+
+        Request body:
+            {
+                "acknowledged_by": "username"
+            }
+
+        Response:
+            {
+                "status": "success",
+                "message": "Change acknowledged successfully"
+            }
+        """
+        debug(f"=== Acknowledge scan change endpoint called for change_id: {change_id} ===")
+
+        try:
+            from scan_storage import ScanStorage
+            from flask import session
+
+            # Get username from request or session
+            data = request.get_json() or {}
+            acknowledged_by = data.get('acknowledged_by') or session.get('username', 'unknown')
+
+            # Acknowledge the change
+            storage = ScanStorage()
+            success = storage.acknowledge_change(change_id, acknowledged_by)
+
+            if success:
+                info(f"Change {change_id} acknowledged by {acknowledged_by}")
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Change acknowledged successfully'
+                })
+            else:
+                warning(f"Failed to acknowledge change {change_id}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to acknowledge change'
+                }), 500
+
+        except Exception as e:
+            exception(f"Error acknowledging change {change_id}: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Error acknowledging change: {str(e)}'
+            }), 500
 
     # ============================================================================
     # Device Metadata Endpoints

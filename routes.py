@@ -15,6 +15,8 @@ def register_routes(app, csrf, limiter):
     - Devices (device CRUD, metadata, connected devices, vendors, backup/restore)
     - Upgrades (PAN-OS versions, downloads, installs, content updates)
     - Operations (logs, applications, interfaces, licenses, settings, tech support)
+    - Alerts (alert configurations, history, notifications)
+    - Security (scheduled scans, scan queue, change detection)
 
     Args:
         app: Flask application instance
@@ -30,6 +32,7 @@ def register_routes(app, csrf, limiter):
     from routes_upgrades import register_upgrades_routes
     from routes_operations import register_operations_routes
     from routes_alerts import register_alert_routes
+    from routes_security import register_security_routes
 
     # Register route modules in logical order
     debug("Registering route modules...")
@@ -57,6 +60,10 @@ def register_routes(app, csrf, limiter):
     # 6. Alert management routes (alert configs, history, notifications)
     register_alert_routes(app, csrf, limiter)
     debug("✓ Alert management routes registered")
+
+    # 7. Security monitoring routes (scheduled scans, scan queue)
+    register_security_routes(app, limiter)
+    debug("✓ Security monitoring routes registered")
 
     info("=== All routes registered successfully ===")
     info(f"Total endpoints registered: {len([rule for rule in app.url_map.iter_rules()])}")

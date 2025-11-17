@@ -50,7 +50,8 @@ function exportDevices(format) {
  * @param {Array} devices - Array of device objects to export
  */
 function exportDevicesCSV(devices) {
-    const headers = ['Hostname', 'IP Address', 'MAC Address', 'VLAN', 'Security Zone', 'Interface', 'TTL (minutes)', 'Status'];
+    // v1.10.11: Added Total Volume column
+    const headers = ['Hostname', 'IP Address', 'MAC Address', 'VLAN', 'Security Zone', 'Interface', 'TTL (minutes)', 'Total Volume', 'Status'];
     let csv = headers.join(',') + '\n';
 
     devices.forEach(device => {
@@ -62,6 +63,7 @@ function exportDevicesCSV(devices) {
             device.zone || '-',
             device.interface,
             device.ttl,
+            device.total_volume || 0,
             device.status
         ];
         csv += row.map(field => `"${field}"`).join(',') + '\n';
@@ -88,6 +90,9 @@ function exportDevicesXML(devices) {
         xml += `    <zone>${escapeXML(device.zone || '-')}</zone>\n`;
         xml += `    <interface>${escapeXML(device.interface)}</interface>\n`;
         xml += `    <ttl>${escapeXML(device.ttl)}</ttl>\n`;
+        xml += `    <total_volume>${device.total_volume || 0}</total_volume>\n`;
+        xml += `    <bytes_sent>${device.bytes_sent || 0}</bytes_sent>\n`;
+        xml += `    <bytes_received>${device.bytes_received || 0}</bytes_received>\n`;
         xml += `    <status>${escapeXML(device.status)}</status>\n`;
         xml += '  </device>\n';
     });

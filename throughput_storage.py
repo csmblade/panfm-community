@@ -1050,9 +1050,10 @@ class ThroughputStorage:
                     'medium_last_seen': row['medium_last_seen'],
                     'blocked_url_last_seen': row['blocked_url_last_seen'],
                     # Phase 3: Load detailed threat logs from database
-                    'critical_logs': self.get_threat_logs(device_id, severity='critical', limit=10),
-                    'medium_logs': self.get_threat_logs(device_id, severity='medium', limit=10),
-                    'blocked_url_logs': self.get_url_filtering_logs(device_id, limit=10)
+                    # Note: Retrieve more logs than needed so frontend can group duplicates and show top 10 unique
+                    'critical_logs': self.get_threat_logs(device_id, severity='critical', limit=100),
+                    'medium_logs': self.get_threat_logs(device_id, severity='medium', limit=100),
+                    'blocked_url_logs': self.get_url_filtering_logs(device_id, limit=100)
                 },
                 # Phase 2 fields: Applications
                 'top_applications': top_apps,
@@ -2149,6 +2150,87 @@ class ThroughputStorage:
 
         except Exception as e:
             exception(f"Failed to retrieve connected devices for device {device_id}: {str(e)}")
+            return []
+
+    def get_connected_devices_with_bandwidth(self, device_id: str, max_age_seconds: int = 90, bandwidth_window_minutes: int = 60) -> List[Dict]:
+        """
+        Get connected devices enriched with bandwidth data.
+
+        Args:
+            device_id: Firewall device identifier
+            max_age_seconds: Maximum age of connected devices data in seconds (default: 90)
+            bandwidth_window_minutes: Time window for bandwidth aggregation in minutes (default: 60)
+
+        Returns:
+            List of device dictionaries with added bandwidth fields:
+            - bytes_sent: Total bytes sent by this IP in time window
+            - bytes_received: Total bytes received by this IP in time window
+            - total_volume: Sum of bytes_sent + bytes_received
+        """
+        debug(f"Retrieving connected devices with bandwidth for device {device_id} (bandwidth window: {bandwidth_window_minutes}min)")
+
+        try:
+            # Step 1: Get base connected devices list
+            devices = self.get_connected_devices(device_id, max_age_seconds)
+
+            if not devices:
+                debug("No connected devices found, returning empty list")
+                return []
+
+            # Step 2: Query bandwidth data from traffic_logs
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # Calculate cutoff time for bandwidth window
+            cutoff_time = datetime.utcnow() - timedelta(minutes=bandwidth_window_minutes)
+
+            # Aggregate bandwidth per source_ip
+            cursor.execute('''
+                SELECT
+                    source_ip,
+                    SUM(bytes_sent) as bytes_sent,
+                    SUM(bytes_received) as bytes_received,
+                    SUM(bytes_sent + bytes_received) as total_volume
+                FROM traffic_logs
+                WHERE device_id = ?
+                    AND timestamp >= ?
+                    AND source_ip IS NOT NULL
+                GROUP BY source_ip
+            ''', (device_id, cutoff_time.isoformat()))
+
+            rows = cursor.fetchall()
+            conn.close()
+
+            # Step 3: Create bandwidth lookup dictionary
+            bandwidth_map = {}
+            for row in rows:
+                bandwidth_map[row['source_ip']] = {
+                    'bytes_sent': row['bytes_sent'] or 0,
+                    'bytes_received': row['bytes_received'] or 0,
+                    'total_volume': row['total_volume'] or 0
+                }
+
+            debug(f"Found bandwidth data for {len(bandwidth_map)} IPs in last {bandwidth_window_minutes} minutes")
+
+            # Step 4: Enrich devices with bandwidth data
+            for device in devices:
+                ip = device.get('ip')
+                if ip and ip in bandwidth_map:
+                    device['bytes_sent'] = bandwidth_map[ip]['bytes_sent']
+                    device['bytes_received'] = bandwidth_map[ip]['bytes_received']
+                    device['total_volume'] = bandwidth_map[ip]['total_volume']
+                else:
+                    # No traffic data found for this IP
+                    device['bytes_sent'] = 0
+                    device['bytes_received'] = 0
+                    device['total_volume'] = 0
+
+            debug(f"Enriched {len(devices)} devices with bandwidth data")
+            return devices
+
+        except Exception as e:
+            exception(f"Failed to retrieve connected devices with bandwidth for device {device_id}: {str(e)}")
             return []
 
     def get_connected_device_history(self, device_id: str, mac: str, limit: int = 100) -> List[Dict]:

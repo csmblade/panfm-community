@@ -84,6 +84,19 @@ class ThroughputCollector:
                         throughput_data['top_internal_client'] = top_clients.get('top_internal', {})
                         throughput_data['top_internet_client'] = top_clients.get('top_internet', {})
 
+                    # Compute top categories (LAN and Internet) from application_statistics
+                    top_categories = self._compute_top_categories(device_id)
+                    if top_categories:
+                        # Add both category types to throughput data (as dictionaries)
+                        throughput_data['top_category_lan'] = top_categories.get('top_category_lan', {})
+                        throughput_data['top_category_internet'] = top_categories.get('top_category_internet', {})
+
+                    # Compute top applications by bandwidth from application_statistics
+                    top_apps = self._compute_top_applications(device_id, top_count=5)
+                    if top_apps:
+                        # Replace firewall API's session-based top_applications with bandwidth-based data
+                        throughput_data['top_applications'] = top_apps
+
                     if throughput_data and throughput_data.get('status') == 'success':
                         # Store throughput sample in database
                         if self.storage.insert_sample(device_id, throughput_data):
@@ -93,9 +106,12 @@ class ThroughputCollector:
                             # Check alert thresholds after successful data collection
                             self._check_alert_thresholds(device_id, device_name, throughput_data)
                         else:
-                            warning("Failed to store throughput data for device: %s", device_name)
+                            error("Failed to store throughput data for device %s in database", device_name)
                     else:
-                        warning("Failed to get throughput data for device: %s", device_name)
+                        # Collection failed - log detailed error information
+                        error_msg = throughput_data.get('message', 'Unknown error') if throughput_data else 'No data returned'
+                        error("Collection failed for device %s (%s): %s - This will create data gap in graph",
+                              device_name, device.get('ip'), error_msg)
 
                     # Phase 3: Collect detailed logs from firewall API
                     self._collect_logs_for_device(device_id, device_name)
@@ -350,16 +366,16 @@ class ThroughputCollector:
         try:
             debug(f"Computing top bandwidth clients (internal & internet) for device {device_id}")
 
-            # Get top internal client (internal-only traffic)
-            top_internal = self.storage.get_top_internal_client(device_id, minutes=5)
+            # Get top internal client (internal-only traffic) - v1.10.12: Changed to 60 minutes
+            top_internal = self.storage.get_top_internal_client(device_id, minutes=60)
             if top_internal:
                 debug(f"Top internal client: {top_internal['ip']} ({top_internal.get('custom_name') or top_internal.get('hostname', 'Unknown')}) "
                       f"- {top_internal['total_bytes']/1_000_000:.2f} MB total")
             else:
                 debug("No internal-only client found")
 
-            # Get top internet client (internet-bound traffic)
-            top_internet = self.storage.get_top_internet_client(device_id, minutes=5)
+            # Get top internet client (internet-bound traffic) - v1.10.12: Changed to 60 minutes
+            top_internet = self.storage.get_top_internet_client(device_id, minutes=60)
             if top_internet:
                 debug(f"Top internet client: {top_internet['ip']} ({top_internet.get('custom_name') or top_internet.get('hostname', 'Unknown')}) "
                       f"- {top_internet['total_bytes']/1_000_000:.2f} MB total")
@@ -381,6 +397,149 @@ class ThroughputCollector:
                 'top_internal': {},
                 'top_internet': {},
                 'top_bandwidth': {}
+            }
+
+    def _compute_top_categories(self, device_id: str) -> Dict:
+        """
+        Compute top categories (LAN and Internet) from application_statistics in database.
+
+        This reads from the same database source as the Applications page to ensure consistency.
+        Returns properly formatted category objects matching the firewall API structure.
+
+        Returns dict with two keys:
+        - 'top_category_lan': Top category for LAN traffic (excludes 'private-ip-addresses')
+        - 'top_category_internet': Top category for Internet traffic (all categories)
+
+        Each category object contains: category, bytes, sessions, bytes_sent, bytes_received
+        """
+        try:
+            debug(f"Computing top categories (LAN & Internet) for device {device_id}")
+
+            # Query application statistics from database (latest collection)
+            app_stats = self.storage.get_application_statistics(device_id, limit=1000)
+
+            if not app_stats:
+                debug("No application statistics available for top category computation")
+                return {
+                    'top_category_lan': {},
+                    'top_category_internet': {}
+                }
+
+            # Aggregate by category
+            category_data = {}
+            for app in app_stats:
+                category = app.get('category', 'unknown')
+
+                if category not in category_data:
+                    category_data[category] = {
+                        'bytes': 0,
+                        'sessions': 0,
+                        'bytes_sent': 0,
+                        'bytes_received': 0
+                    }
+
+                # Accumulate stats
+                category_data[category]['bytes'] += app.get('bytes', 0)
+                category_data[category]['sessions'] += app.get('sessions', 0)
+                category_data[category]['bytes_sent'] += app.get('bytes_sent', 0)
+                category_data[category]['bytes_received'] += app.get('bytes_received', 0)
+
+            # Find top LAN category (ONLY 'private-ip-addresses' which represents local-to-local traffic)
+            top_category_lan = {}
+            if 'private-ip-addresses' in category_data:
+                lan_stats = category_data['private-ip-addresses']
+                top_category_lan = {
+                    'category': 'private-ip-addresses',
+                    'bytes': lan_stats['bytes'],
+                    'sessions': lan_stats['sessions'],
+                    'bytes_sent': lan_stats['bytes_sent'],
+                    'bytes_received': lan_stats['bytes_received']
+                }
+                debug(f"Top LAN category: private-ip-addresses ({top_category_lan['bytes']/1_000_000:.2f} MB)")
+            else:
+                debug("No private-ip-addresses category found for Local LAN")
+
+            # Find top Internet category (top category EXCLUDING 'private-ip-addresses')
+            internet_categories = {cat: stats for cat, stats in category_data.items()
+                                 if cat != 'private-ip-addresses'}
+
+            top_category_internet = {}
+            if internet_categories:
+                # Get category with highest bytes
+                top_internet_name = max(internet_categories, key=lambda cat: internet_categories[cat]['bytes'])
+                top_category_internet = {
+                    'category': top_internet_name,
+                    'bytes': internet_categories[top_internet_name]['bytes'],
+                    'sessions': internet_categories[top_internet_name]['sessions'],
+                    'bytes_sent': internet_categories[top_internet_name]['bytes_sent'],
+                    'bytes_received': internet_categories[top_internet_name]['bytes_received']
+                }
+                debug(f"Top Internet category: {top_internet_name} ({top_category_internet['bytes']/1_000_000:.2f} MB)")
+            else:
+                debug("No internet categories found (all traffic may be local LAN)")
+
+            return {
+                'top_category_lan': top_category_lan,
+                'top_category_internet': top_category_internet
+            }
+
+        except Exception as e:
+            exception(f"Error computing top categories: {str(e)}")
+            return {
+                'top_category_lan': {},
+                'top_category_internet': {}
+            }
+
+    def _compute_top_applications(self, device_id: str, top_count: int = 5) -> Dict:
+        """
+        Compute top applications by bandwidth from application_statistics in database.
+
+        This reads from the same database source as the Applications page to ensure consistency.
+        Applications are sorted by total bytes (bandwidth usage), not session count.
+
+        Args:
+            device_id: Device identifier
+            top_count: Number of top applications to return (default: 5)
+
+        Returns:
+            dict with 'apps' (list of top apps) and 'total_count' (total unique apps)
+        """
+        try:
+            debug(f"Computing top {top_count} applications by bandwidth for device {device_id}")
+
+            # Query application statistics from database (sorted by bytes_total DESC)
+            app_stats = self.storage.get_application_statistics(device_id, limit=500)
+
+            if not app_stats:
+                debug("No application statistics available for top applications computation")
+                return {
+                    'apps': [],
+                    'total_count': 0
+                }
+
+            # Get top N applications by total bytes
+            top_apps = []
+            for app in app_stats[:top_count]:
+                top_apps.append({
+                    'name': app.get('name', 'unknown'),
+                    'count': app.get('sessions', 0),  # For backward compatibility (dashboard shows this)
+                    'bytes': app.get('bytes', 0),  # Total bytes for the modal
+                    'category': app.get('category', 'unknown')
+                })
+
+            total_count = len(app_stats)
+            debug(f"Top {top_count} applications computed: {[app['name'] for app in top_apps]}")
+
+            return {
+                'apps': top_apps,
+                'total_count': total_count
+            }
+
+        except Exception as e:
+            exception(f"Error computing top applications: {str(e)}")
+            return {
+                'apps': [],
+                'total_count': 0
             }
 
     # ========================================================================

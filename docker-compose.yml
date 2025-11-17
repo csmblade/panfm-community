@@ -7,7 +7,7 @@ services:
     volumes:
       # Persist data files (create these as files first, not directories)
       # Run setup.sh before starting to create all required files
-      # Files: settings.json devices.json encryption.key auth.json device_metadata.json mac_vendor_db.json service_port_db.json throughput_history.db alerts.db
+      # Files: settings.json devices.json encryption.key auth.json device_metadata.json mac_vendor_db.json service_port_db.json throughput_history.db alerts.db nmap_scans.db
       - ./settings.json:/app/settings.json
       - ./devices.json:/app/devices.json
       - ./encryption.key:/app/encryption.key
@@ -17,11 +17,14 @@ services:
       - ./service_port_db.json:/app/service_port_db.json
       - ./throughput_history.db:/app/throughput_history.db
       - ./alerts.db:/app/alerts.db
+      - ./nmap_scans.db:/app/nmap_scans.db
+      # Persist Flask sessions across workers and container restarts
+      - ./data/flask_session:/app/data/flask_session
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=False
     restart: unless-stopped
-    command: python app.py
+    command: gunicorn --bind 0.0.0.0:3000 --worker-class gthread --workers 1 --threads 8 --worker-tmp-dir /dev/shm --timeout 120 --access-logfile - --error-logfile - app:app
 
   panfm-clock:
     build: .
@@ -36,6 +39,7 @@ services:
       - ./service_port_db.json:/app/service_port_db.json
       - ./throughput_history.db:/app/throughput_history.db
       - ./alerts.db:/app/alerts.db
+      - ./nmap_scans.db:/app/nmap_scans.db
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=False

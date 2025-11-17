@@ -10,6 +10,7 @@ let sessionKeepaliveIntervalId = null; // Store interval ID for session keepaliv
 // Make chartData globally accessible
 window.chartData = {
     labels: [],
+    timestamps: [],  // Store ISO timestamps for accurate duplicate detection
     inbound: [],
     outbound: [],
     total: []
@@ -212,6 +213,12 @@ function updateChart(data) {
         return;
     }
 
+    // Handle no_data status (no recent data from collector)
+    if (data.status === 'no_data') {
+        console.warn('No recent throughput data available from collector');
+        return; // Don't add to chart - creates gap instead of zero drop
+    }
+
     const timestamp = new Date(data.timestamp);
 
     // Check if date is valid
@@ -232,14 +239,16 @@ function updateChart(data) {
         hour12: false
     });
 
-    // Deduplicate: Skip if the last data point has the same timestamp
-    // Simple check: if the most recent label matches, it's the same data point
-    if (chartData.labels.length > 0 && chartData.labels[chartData.labels.length - 1] === timeLabel) {
-        // Same data point being returned by API - skip silently (normal during polling)
+    // Deduplicate: Skip if the last data point has the EXACT SAME ISO timestamp
+    // Use ISO timestamp comparison instead of formatted time labels to avoid false positives
+    if (chartData.timestamps.length > 0 &&
+        chartData.timestamps[chartData.timestamps.length - 1] === data.timestamp) {
+        // True duplicate - same ISO timestamp - skip silently
         return;
     }
 
     // Add new data (backend already returns Mbps rates)
+    chartData.timestamps.push(data.timestamp);
     chartData.labels.push(timeLabel);
     chartData.inbound.push(data.inbound_mbps);
     chartData.outbound.push(data.outbound_mbps);
@@ -247,6 +256,7 @@ function updateChart(data) {
 
     // Keep only the last MAX_DATA_POINTS
     if (chartData.labels.length > MAX_DATA_POINTS) {
+        chartData.timestamps.shift();
         chartData.labels.shift();
         chartData.inbound.shift();
         chartData.outbound.shift();
@@ -452,14 +462,37 @@ function updateStats(data) {
             historicalData.urlFiltering.shift();
         }
 
-        document.getElementById('criticalValue').innerHTML = data.threats.critical_threats.toLocaleString();
-        document.getElementById('mediumValue').innerHTML = data.threats.medium_threats.toLocaleString();
-        document.getElementById('blockedUrlValue').innerHTML = data.threats.blocked_urls.toLocaleString();
-
-        // Store threat logs for modals
+        // Store threat logs for modals FIRST (v1.10.13 - calculate unique counts)
         window.currentCriticalLogs = data.threats.critical_logs || [];
         window.currentMediumLogs = data.threats.medium_logs || [];
         window.currentBlockedUrlLogs = data.threats.blocked_url_logs || [];
+
+        // v1.10.13 FIX: Calculate unique counts for dashboard tiles (match modal logic)
+        // Critical threats - unique by threat name
+        const uniqueCritical = new Set();
+        window.currentCriticalLogs.forEach(log => {
+            const threat = log.threat || 'Unknown';
+            uniqueCritical.add(threat);
+        });
+
+        // Medium threats - unique by threat name
+        const uniqueMedium = new Set();
+        window.currentMediumLogs.forEach(log => {
+            const threat = log.threat || 'Unknown';
+            uniqueMedium.add(threat);
+        });
+
+        // Blocked URLs - unique by URL
+        const uniqueBlockedUrls = new Set();
+        window.currentBlockedUrlLogs.forEach(log => {
+            const url = log.url || log.threat || 'Unknown';
+            uniqueBlockedUrls.add(url);
+        });
+
+        // Display unique counts on dashboard tiles
+        document.getElementById('criticalValue').innerHTML = uniqueCritical.size.toLocaleString();
+        document.getElementById('mediumValue').innerHTML = uniqueMedium.size.toLocaleString();
+        document.getElementById('blockedUrlValue').innerHTML = uniqueBlockedUrls.size.toLocaleString();
 
         // Update last seen stats in tiles
         const criticalLastSeen = document.getElementById('criticalLastSeen');
@@ -770,6 +803,7 @@ async function preloadChartData() {
             console.log(`Preloaded ${data.samples.length} historical samples`);
 
             // Clear existing data
+            chartData.timestamps = [];
             chartData.labels = [];
             chartData.inbound = [];
             chartData.outbound = [];
@@ -796,6 +830,7 @@ async function preloadChartData() {
                     second: '2-digit',
                     hour12: false
                 });
+                chartData.timestamps.push(sample.timestamp);
                 chartData.labels.push(timeLabel);
                 chartData.inbound.push(sample.inbound_mbps || 0);
                 chartData.outbound.push(sample.outbound_mbps || 0);
@@ -1021,6 +1056,7 @@ async function loadHistoricalThroughput(range) {
             console.log(`Loaded ${data.samples.length} historical samples (${data.resolution} resolution)`);
 
             // Clear both chartData and chart datasets
+            window.chartData.timestamps = [];
             window.chartData.labels = [];
             window.chartData.inbound = [];
             window.chartData.outbound = [];
@@ -1039,6 +1075,7 @@ async function loadHistoricalThroughput(range) {
                     second: '2-digit',
                     hour12: false
                 });
+                window.chartData.timestamps.push(sample.timestamp);
                 window.chartData.labels.push(timeLabel);
                 window.chartData.inbound.push(sample.inbound_mbps || 0);
                 window.chartData.outbound.push(sample.outbound_mbps || 0);
@@ -1183,6 +1220,7 @@ function initPageNavigation() {
         'device-info': document.getElementById('device-info-content'),
         'logs': document.getElementById('logs-content'),
         'alerts': document.getElementById('alerts-content'),
+        'security': document.getElementById('security-content'),
         'devices': document.getElementById('devices-content'),
         'settings': document.getElementById('settings-content')
     };
@@ -1222,6 +1260,9 @@ function initPageNavigation() {
                         if (typeof loadQuickStartScenarios === 'function') {
                             loadQuickStartScenarios();
                         }
+                    } else if (pageKey === 'security') {
+                        // Load security monitoring page
+                        initSecurityPage();
                     } else if (pageKey === 'devices') {
                         loadDevices();
                     } else if (pageKey === 'settings') {
@@ -1424,6 +1465,7 @@ function refreshAllDataForDevice() {
     // ========================================================================
     // 1. CLEAR MAIN CHART DATA
     // ========================================================================
+    chartData.timestamps = [];
     chartData.labels = [];
     chartData.inbound = [];
     chartData.outbound = [];

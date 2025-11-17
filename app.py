@@ -7,6 +7,7 @@ from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_session import Session
 from datetime import timedelta
 import urllib3
 import os
@@ -18,12 +19,54 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 app = Flask(__name__)
 
 # Configuration
-# Secret key for sessions - use environment variable or generate random key
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(24).hex())
+# SECRET_KEY stored in file for persistence across container restarts
+# With gthread worker (1 worker, multiple threads), all threads share memory
+def get_or_create_secret_key():
+    """Get or create a persistent SECRET_KEY for Flask sessions."""
+    secret_key_file = os.path.join(os.getcwd(), 'data', 'secret.key')
+
+    # Try environment variable first
+    secret_key = os.environ.get('SECRET_KEY')
+    if secret_key:
+        return secret_key
+
+    # Try loading from file
+    if os.path.exists(secret_key_file):
+        try:
+            with open(secret_key_file, 'r') as f:
+                return f.read().strip()
+        except Exception:
+            pass
+
+    # Generate new key and save to file
+    os.makedirs(os.path.dirname(secret_key_file), exist_ok=True)
+    new_key = os.urandom(24).hex()
+    try:
+        with open(secret_key_file, 'w') as f:
+            f.write(new_key)
+        os.chmod(secret_key_file, 0o600)  # Secure permissions
+    except Exception:
+        pass
+
+    return new_key
+
+app.config['SECRET_KEY'] = get_or_create_secret_key()
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if using HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Flask-Session configuration (filesystem for persistence across container restarts)
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'data', 'flask_session')
+app.config['SESSION_PERMANENT'] = True
+app.config['SESSION_USE_SIGNER'] = False  # Set to False to avoid bytes/string incompatibility
+
+# Ensure session directory exists
+os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+
+# Initialize Flask-Session
+Session(app)
 
 # CSRF Protection
 csrf = CSRFProtect(app)

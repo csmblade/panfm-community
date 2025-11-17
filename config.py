@@ -22,6 +22,7 @@ METADATA_FILE = os.path.join(os.path.dirname(__file__), 'device_metadata.json')
 SECURITY_LOG_FILE = os.path.join(os.path.dirname(__file__), 'security.log')
 THROUGHPUT_DB_FILE = os.path.join(os.path.dirname(__file__), 'throughput_history.db')
 ALERTS_DB_FILE = os.path.join(os.path.dirname(__file__), 'alerts.db')
+NMAP_SCANS_DB_FILE = os.path.join(os.path.dirname(__file__), 'nmap_scans.db')
 
 # Global caches for vendor and service port databases
 _vendor_db_cache = None

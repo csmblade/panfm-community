@@ -24,8 +24,9 @@
 
 let allConnectedDevices = [];
 let connectedDevicesMetadata = {};
-let connectedDevicesSortBy = 'age'; // Default sort by age
-let connectedDevicesSortDesc = false; // Default ascending (lowest to highest)
+// v1.10.11: Changed default sort from 'age' to 'total_volume' (highest bandwidth first)
+let connectedDevicesSortBy = 'total_volume'; // Default sort by total bandwidth
+let connectedDevicesSortDesc = true; // Default descending (highest to lowest)
 let deviceMetadataCache = {}; // Cache metadata keyed by MAC address (normalized lowercase)
 let expandedRows = new Set(); // Track which rows are expanded for comments
 let allTagsCache = []; // Cache all unique tags for autocomplete
@@ -114,8 +115,9 @@ async function loadConnectedDevices() {
     console.log('Loading connected devices...');
     try {
         // Load metadata, tags, and locations in parallel with devices
+        // v1.10.11: Request bandwidth data for Total Volume column
         const [devicesResponse, metadataResponse, tagsResponse, locationsResponse] = await Promise.all([
-            fetch('/api/connected-devices'),
+            fetch('/api/connected-devices?include_bandwidth=true'),
             fetch('/api/device-metadata'),
             fetch('/api/device-metadata/tags'),
             fetch('/api/device-metadata/locations')
@@ -447,7 +449,8 @@ function renderConnectedDevicesTable() {
                             <th onclick="sortConnectedDevices('vlan')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">VLAN${getSortIndicator('vlan')}</th>
                             <th onclick="sortConnectedDevices('zone')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Security Zone${getSortIndicator('zone')}</th>
                             <th onclick="sortConnectedDevices('interface')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Interface${getSortIndicator('interface')}</th>
-                            <th onclick="sortConnectedDevices('age')" style="padding: 12px; text-align: left; font-weight: 600; color: #FA582D; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Age (minutes)${getSortIndicator('age')}</th>
+                            <th onclick="sortConnectedDevices('age')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Age (minutes)${getSortIndicator('age')}</th>
+                            <th onclick="sortConnectedDevices('total_volume')" style="padding: 12px; text-align: right; font-weight: 600; color: #FA582D; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Total Volume${getSortIndicator('total_volume')}</th>
                         </tr>
                     </thead>
                     <tbody>`;
@@ -531,7 +534,9 @@ function renderConnectedDevicesTable() {
             <tr id="${rowId}" onclick="window.openDeviceEditModal('${escapeHtml(device.mac)}')" data-device='${deviceDataAttr}' style="${rowStyle} border-bottom: 1px solid #dee2e6; cursor: pointer;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
                 <td style="padding: 8px 12px;">${chevronCell}</td>
                 <td style="padding: 12px;">${hostnameCell}</td>
-                <td style="padding: 12px; color: #666; font-family: monospace;">${device.ip}</td>
+                <td style="padding: 12px; color: #666; font-family: monospace;">
+                    <span onclick="event.stopPropagation(); window.openNmapScanModal('${escapeHtml(device.ip)}');" style="color: #FA582D; cursor: pointer; text-decoration: underline;" title="Click to run nmap scan">${device.ip}</span>
+                </td>
                 <td style="padding: 12px;">${macCell}</td>
                 <td style="padding: 12px;">${tagsCell}</td>
                 <td style="padding: 12px;">${locationCell}</td>
@@ -539,6 +544,7 @@ function renderConnectedDevicesTable() {
                 <td style="padding: 12px; color: #666;">${device.zone || '-'}</td>
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.interface}</td>
                 <td style="padding: 12px; color: #666;">${device.ttl}</td>
+                <td style="padding: 12px; text-align: right; color: #FA582D; font-weight: 600;">${formatBytesHuman(device.total_volume || 0)}</td>
             </tr>`;
 
         // Add expandable row detail for location/comments (if either exists)
@@ -547,7 +553,7 @@ function renderConnectedDevicesTable() {
             const displayStyle = isExpanded ? '' : 'display: none;';
             html += `
             <tr id="${commentRowId}" style="${displayStyle} background: #f8f9fa; border-bottom: 1px solid #dee2e6;">
-                <td colspan="10" style="padding: 12px 12px 12px 48px; color: #666; font-size: 0.9em; border-top: 1px solid #e0e0e0;">`;
+                <td colspan="11" style="padding: 12px 12px 12px 48px; color: #666; font-size: 0.9em; border-top: 1px solid #e0e0e0;">`;
 
             // Show location if it exists
             if (hasLocation) {
@@ -612,6 +618,29 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+/**
+ * Format bytes to human-readable format (B, KB, MB, GB, TB)
+ * v1.10.11: Added for Total Volume column display
+ */
+function formatBytesHuman(bytes) {
+    if (bytes === 0 || bytes === null || bytes === undefined) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Get sort indicator for table headers (▼ for descending, ▲ for ascending)
+ * v1.10.11: Added for sortable columns
+ */
+function getSortIndicator(field) {
+    if (connectedDevicesSortBy === field) {
+        return connectedDevicesSortDesc ? ' ▼' : ' ▲';
+    }
+    return '';
 }
 
 // ============================================================================

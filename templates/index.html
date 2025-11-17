@@ -460,40 +460,6 @@
             color: #333 !important;
         }
 
-        /* Sidebar Time Range Dropdown */
-        .sidebar-time-dropdown {
-            width: 100%;
-            padding: 10px 12px;
-            background: #2d2d2d;
-            color: #cccccc;
-            border: 1px solid rgba(255, 102, 0, 0.3);
-            border-radius: 6px;
-            font-size: 0.85em;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: var(--font-primary);
-            transition: all 0.3s ease;
-            outline: none;
-        }
-
-        .sidebar-time-dropdown:hover {
-            background: rgba(255, 102, 0, 0.15);
-            border-color: #FA582D;
-            color: #ffffff;
-        }
-
-        .sidebar-time-dropdown:focus {
-            background: rgba(255, 102, 0, 0.2);
-            border-color: #FA582D;
-            box-shadow: 0 0 0 3px rgba(250, 88, 45, 0.2);
-        }
-
-        .sidebar-time-dropdown option {
-            background: #2d2d2d;
-            color: #cccccc;
-            padding: 8px;
-        }
-
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 1.8em;
@@ -704,6 +670,10 @@
                 <span class="menu-icon" style="color: #FA582D;">●</span>
                 <span>Alerts</span>
             </div>
+            <div class="menu-item" data-page="security">
+                <span class="menu-icon" style="color: #FA582D;">●</span>
+                <span>Security Monitoring</span>
+            </div>
             <div class="menu-item" data-page="settings">
                 <span class="menu-icon" style="color: #FA582D;">●</span>
                 <span>Settings</span>
@@ -712,18 +682,6 @@
                 <span class="menu-icon" style="color: #FA582D;">●</span>
                 <span>Managed Devices</span>
             </div>
-        </div>
-
-        <!-- Time Range Selector -->
-        <div style="padding: 20px 15px; border-top: 1px solid rgba(255, 102, 0, 0.2);">
-            <div style="font-size: 0.75em; color: #FA582D; font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; font-family: var(--font-primary);">Time Range</div>
-            <select id="timeRangeSelect" class="sidebar-time-dropdown">
-                <option value="realtime">⏱️ Live (1-Min)</option>
-                <option value="1h">🕐 1 Hour</option>
-                <option value="24h">📅 24 Hours</option>
-                <option value="7d">📊 7 Days</option>
-                <option value="30d">📈 30 Days</option>
-            </select>
         </div>
 
         <!-- System Stats -->
@@ -799,14 +757,28 @@
         <div style="background: rgba(255, 180, 150, 0.12); border-radius: 12px; padding: 20px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <h2 style="color: #ffffff; font-size: 1.3em; font-weight: 700; margin: 0; font-family: var(--font-primary);">Network Throughput</h2>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <label style="color: #ffffff; font-weight: 500; font-size: 0.85em; font-family: var(--font-secondary);">Interface:</label>
-                    <input type="text" id="monitoredInterfaceInput" placeholder="ethernet1/12" value="ethernet1/12"
-                           style="padding: 6px 10px; border: 2px solid #FA582D; border-radius: 6px; font-size: 0.85em; width: 140px; font-family: var(--font-secondary);">
-                    <button id="updateInterfaceBtn"
-                            style="padding: 6px 14px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">
-                        Update
-                    </button>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <!-- Time Range Selector -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="color: #ffffff; font-weight: 500; font-size: 0.85em; font-family: var(--font-secondary);">Time Range:</label>
+                        <select id="timeRangeSelect" style="padding: 6px 10px; border: 2px solid #FA582D; border-radius: 6px; font-size: 0.85em; background: #fafafa; cursor: pointer; font-family: var(--font-secondary);">
+                            <option value="realtime">Live (1-Min)</option>
+                            <option value="1h">1 Hour</option>
+                            <option value="24h">24 Hours</option>
+                            <option value="7d">7 Days</option>
+                            <option value="30d">30 Days</option>
+                        </select>
+                    </div>
+                    <!-- Interface Selector -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="color: #ffffff; font-weight: 500; font-size: 0.85em; font-family: var(--font-secondary);">Interface:</label>
+                        <input type="text" id="monitoredInterfaceInput" placeholder="ethernet1/12" value="ethernet1/12"
+                               style="padding: 6px 10px; border: 2px solid #FA582D; border-radius: 6px; font-size: 0.85em; width: 140px; font-family: var(--font-secondary);">
+                        <button id="updateInterfaceBtn"
+                                style="padding: 6px 14px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">
+                            Update
+                        </button>
+                    </div>
                 </div>
             </div>
             <div style="background: #fafafa; border-radius: 8px; padding: 15px;">
@@ -955,7 +927,7 @@
                 <div style="min-width: 300px; padding: 8px 12px; background: #3a3a3a; border-radius: 4px;">
                     <!-- Header -->
                     <div style="font-size: 0.75em; color: white; font-family: var(--font-secondary); margin-bottom: 6px; text-align: center; border-bottom: 2px solid white; padding-bottom: 4px;">
-                        Top Category (5 min)
+                        Top Category (60 min)
                     </div>
 
                     <!-- Split View Container -->
@@ -990,7 +962,7 @@
                 <div style="min-width: 300px; padding: 8px 12px; background: #3a3a3a; border-radius: 4px;">
                     <!-- Header -->
                     <div style="font-size: 0.75em; color: white; font-family: var(--font-secondary); margin-bottom: 6px; text-align: center; border-bottom: 2px solid white; padding-bottom: 4px;">
-                        Top Clients (5 min)
+                        Top Clients (60 min)
                     </div>
 
                     <!-- Split View Container -->
@@ -1039,7 +1011,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                     <div>
                         <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Critical Threats</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">High severity threat detections</p>
+                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 5 entries</p>
                     </div>
                     <button onclick="closeCriticalThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
                 </div>
@@ -1068,7 +1040,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #E04F26; padding-bottom: 15px;">
                     <div>
                         <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Medium Threats</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Medium severity threat detections</p>
+                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 5 entries</p>
                     </div>
                     <button onclick="closeMediumThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
                 </div>
@@ -1097,7 +1069,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #C64620; padding-bottom: 15px;">
                     <div>
                         <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Blocked URLs</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">URL filtering blocks</p>
+                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 5 entries</p>
                     </div>
                     <button onclick="closeBlockedUrlsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
                 </div>
@@ -1299,16 +1271,6 @@
                             <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Filter by Category</label>
                             <select id="applicationsCategoryFilter" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer;">
                                 <option value="">All Categories</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Traffic Type</label>
-                            <select id="applicationsTrafficFilter" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer;">
-                                <option value="">All Traffic</option>
-                                <option value="internet">🌐 Internet Only</option>
-                                <option value="local">🏠 Local Only</option>
-                                <option value="mixed">🔀 Mixed</option>
-                                <option value="unknown">❓ Unknown</option>
                             </select>
                         </div>
                         <div>
@@ -1550,16 +1512,63 @@
                         <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                             <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 20px 0;">Active DHCP Leases</h3>
 
+                            <!-- Search and Filter Controls (v1.10.13) -->
+                            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                                <div>
+                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Search</label>
+                                    <input type="text"
+                                        id="dhcpSearchInput"
+                                        placeholder="Search by IP, MAC, hostname..."
+                                        oninput="renderDhcpTable()"
+                                        style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s; font-family: var(--font-secondary);"
+                                        onfocus="this.style.borderColor='#FA582D'"
+                                        onblur="this.style.borderColor='#ddd'"
+                                    />
+                                </div>
+                                <div>
+                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Filter by Interface</label>
+                                    <select id="dhcpInterfaceFilter"
+                                        onchange="renderDhcpTable()"
+                                        style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer; font-family: var(--font-secondary);">
+                                        <option value="">All Interfaces</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Filter by State</label>
+                                    <select id="dhcpStateFilter"
+                                        onchange="renderDhcpTable()"
+                                        style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer; font-family: var(--font-secondary);">
+                                        <option value="">All States</option>
+                                        <option value="BOUND">BOUND</option>
+                                        <option value="OFFERED">OFFERED</option>
+                                        <option value="EXPIRED">EXPIRED</option>
+                                        <option value="UNKNOWN">UNKNOWN</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div style="overflow-x: auto;">
                                 <table id="dhcpLeasesTable" style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary);">
                                     <thead>
                                         <tr style="background: linear-gradient(135deg, #FA582D 0%, #ff7849 100%); color: white;">
-                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">IP Address</th>
-                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">MAC Address</th>
-                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">Hostname</th>
-                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">State</th>
-                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">Expiration</th>
-                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary);">Interface</th>
+                                            <th onclick="sortDhcpLeases('ip')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                                <span id="dhcpHeaderIp">IP Address ▲</span>
+                                            </th>
+                                            <th onclick="sortDhcpLeases('mac')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                                <span id="dhcpHeaderMac">MAC Address</span>
+                                            </th>
+                                            <th onclick="sortDhcpLeases('hostname')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                                <span id="dhcpHeaderHostname">Hostname</span>
+                                            </th>
+                                            <th onclick="sortDhcpLeases('state')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                                <span id="dhcpHeaderState">State</span>
+                                            </th>
+                                            <th onclick="sortDhcpLeases('expiration')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                                <span id="dhcpHeaderExpiration">Expiration</span>
+                                            </th>
+                                            <th onclick="sortDhcpLeases('interface')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                                <span id="dhcpHeaderInterface">Interface</span>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody id="dhcpLeasesTableBody">
@@ -1855,6 +1864,40 @@
                 <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #FA582D; margin-bottom: 25px;">
                     <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">My Alert Configurations</h2>
                     <div id="alertConfigsTable" style="font-family: var(--font-secondary);"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Monitoring Content -->
+        <div id="security-content" class="page-content" style="display: none;">
+            <div class="container">
+                <div class="header" style="text-align: left; margin-bottom: 30px;">
+                    <h1 style="color: #ffffff; font-size: 1.8em; font-weight: 700; margin: 0 0 5px 0; font-family: var(--font-primary);">Security Monitoring</h1>
+                    <p style="color: #FA582D; font-size: 0.9em; margin: 0; font-family: var(--font-secondary);">Scheduled Network Scanning & Change Detection</p>
+                </div>
+
+                <!-- Security Dashboard Statistics -->
+                <div id="securityDashboardStats"></div>
+
+                <!-- Quick Actions Section -->
+                <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 25px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <button onclick="openCreateScheduleModal()" style="padding: 20px; background: linear-gradient(135deg, #E8491D 0%, #FA582D 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(232, 73, 29, 0.3); font-family: var(--font-primary);">
+                            Create Schedule
+                        </button>
+                        <button onclick="loadScanQueue()" style="padding: 20px; background: linear-gradient(135deg, #B8541E 0%, #D96534 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(184, 84, 30, 0.3); font-family: var(--font-primary);">
+                            View Scan Queue
+                        </button>
+                        <button onclick="showScanHistory()" style="padding: 20px; background: linear-gradient(135deg, #C23C14 0%, #D94A1F 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(194, 60, 20, 0.3); font-family: var(--font-primary);">
+                            Scan History
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scheduled Scans Table -->
+                <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #FA582D; margin-bottom: 25px;">
+                    <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Scheduled Scans</h2>
+                    <div id="schedulesTable" style="font-family: var(--font-secondary);"></div>
                 </div>
             </div>
         </div>
@@ -3162,18 +3205,82 @@
         </div>
     </div>
 
+    <!-- Nmap Network Scan Modal (v1.10.14) -->
+    <div id="nmapScanModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #e8f4ff 100%); border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(23, 162, 184, 0.3); border-top: 4px solid #17a2b8;">
+            <!-- Modal Header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; font-family: var(--font-primary); color: #17a2b8; font-size: 1.5em;">
+                    Network Scan (Nmap)
+                </h3>
+                <button onclick="closeNmapScanModal()" style="background: none; border: none; font-size: 1.8em; color: #666; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" onmouseover="this.style.color='#17a2b8'" onmouseout="this.style.color='#666'">×</button>
+            </div>
+
+            <!-- IP Address Display -->
+            <div style="background: #f0f8ff; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
+                <div style="font-size: 0.9em; color: #666; margin-bottom: 4px; font-family: var(--font-secondary);">Target IP:</div>
+                <div id="nmapScanIp" style="font-size: 1.2em; font-weight: 600; font-family: monospace; color: #17a2b8;"></div>
+            </div>
+
+            <!-- Scan Controls -->
+            <div id="nmapScanControls" style="margin-bottom: 20px;">
+                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 0.95em; font-family: var(--font-primary);">Scan Type:</label>
+                <select id="nmapScanType" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer; font-family: var(--font-secondary); margin-bottom: 15px;">
+                    <option value="quick">Quick Scan (Fast, top ports only)</option>
+                    <option value="balanced" selected>Balanced Scan (Recommended - version detection + OS fingerprinting)</option>
+                    <option value="thorough">Thorough Scan (Comprehensive, may take 60-90 seconds)</option>
+                </select>
+
+                <button onclick="startNmapScan()" style="width: 100%; padding: 14px 20px; background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; border: none; border-radius: 6px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; font-family: var(--font-primary); box-shadow: 0 4px 10px rgba(23, 162, 184, 0.3);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 15px rgba(23, 162, 184, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 10px rgba(23, 162, 184, 0.3)'">
+                    Start Scan
+                </button>
+            </div>
+
+            <!-- Scan Progress -->
+            <div id="nmapScanProgress" style="display: none; text-align: center; padding: 40px 20px;">
+                <div style="display: inline-block; width: 60px; height: 60px; border: 4px solid #f3f3f3; border-top: 4px solid #17a2b8; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
+                <div id="nmapScanProgressText" style="margin-top: 20px; font-size: 1em; color: #666; font-family: var(--font-secondary);">
+                    Running scan (May take 30-60 seconds)...
+                </div>
+            </div>
+
+            <!-- Scan Error -->
+            <div id="nmapScanError" style="display: none; background: #fff0f0; border-left: 4px solid #dc3545; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                <div style="font-weight: 600; color: #dc3545; margin-bottom: 8px; font-family: var(--font-primary); font-size: 1em;">Scan Failed</div>
+                <div id="nmapScanErrorMessage" style="color: #666; font-family: var(--font-secondary); font-size: 0.9em;"></div>
+            </div>
+
+            <!-- Scan Results -->
+            <div id="nmapScanResults" style="display: none;">
+                <div style="border-top: 2px solid #e0e0e0; padding-top: 20px; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 15px 0; font-family: var(--font-primary); color: #333; font-size: 1.2em;">Scan Results</h4>
+                    <div id="nmapResultsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Load JavaScript modules in order -->
     <script src="/static/logs.js"></script>
-    <script src="/static/pages.js?v=1.9.2"></script>
+    <script src="/static/pages.js?v=1.10.10"></script>
     <!-- Connected Devices modules (Phase 6 refactoring - v1.8.2) - Load in order: core, metadata, export -->
     <script src="/static/pages-connected-devices-core.js"></script>
     <script src="/static/pages-connected-devices-metadata.js"></script>
     <script src="/static/pages-connected-devices-export.js"></script>
+    <!-- Nmap Network Scanning module (v1.10.14) -->
+    <script src="/static/pages-nmap-scan.js"></script>
     <script src="/static/pages-applications.js"></script>
     <script src="/static/pages-panos-upgrade.js"></script>
     <script src="/static/pages-content-updates.js"></script>
     <script src="/static/pages-backup-restore.js"></script>
     <script src="/static/pages-alerts.js?v=1.10.2"></script>
+    <script src="/static/pages-security.js"></script>
     <script src="/static/settings.js?v=1.9.0"></script>
     <script src="/static/devices.js?v=1.8.4"></script>
     <script src="/static/app.js?v=1.10.7"></script>
