@@ -22,8 +22,8 @@ from device_metadata import (
 from firewall_api import get_firewall_config
 from utils import reverse_dns_lookup
 from logger import debug, info, error, exception
-from config import THROUGHPUT_DB_FILE, load_settings
-from throughput_storage import ThroughputStorage
+from config import load_settings, TIMESCALE_DSN
+from throughput_storage_timescale import TimescaleStorage
 
 
 def register_device_metadata_routes(app, csrf, limiter):
@@ -59,7 +59,7 @@ def register_device_metadata_routes(app, csrf, limiter):
             include_bandwidth = request.args.get('include_bandwidth', 'false').lower() == 'true'
 
             # Query from database (max 90 seconds old)
-            storage = ThroughputStorage(THROUGHPUT_DB_FILE)
+            storage = TimescaleStorage(TIMESCALE_DSN)
 
             if include_bandwidth:
                 debug("Fetching connected devices WITH bandwidth data (60-minute window)")

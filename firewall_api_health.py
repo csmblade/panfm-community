@@ -301,3 +301,97 @@ def get_license_info(firewall_config):
                 'licenses': []
             }
         }
+
+
+def get_database_versions(device_id=None):
+    """Fetch database versions from Palo Alto firewall
+
+    Args:
+        device_id (str, optional): Specific device ID to query. If None, uses selected_device_id from settings.
+
+    Returns:
+        dict: Database version information including:
+            - app_version: Application database version
+            - threat_version: Threat database version
+            - wildfire_version: WildFire database version
+            - url_version: URL filtering database version
+            - gp_version: GlobalProtect database version
+            - updated: Last update timestamp
+    """
+    from logger import debug, exception
+
+    debug("get_database_versions called (device_id=%s)", device_id)
+    try:
+        _, api_key, base_url = get_firewall_config(device_id)
+
+        # Check if no device is configured
+        if not api_key or not base_url:
+            debug("No device configured - returning empty database versions")
+            return {
+                'app_version': 'N/A',
+                'threat_version': 'N/A',
+                'wildfire_version': 'N/A',
+                'url_version': 'N/A',
+                'gp_version': 'N/A',
+                'updated': None
+            }
+
+        cmd = "<show><system><info></info></system></show>"
+        params = {
+            'type': 'op',
+            'cmd': cmd,
+            'key': api_key
+        }
+
+        from utils import api_request_get
+        response = api_request_get(base_url, params=params, verify=False, timeout=10)
+
+        app_version = 'N/A'
+        threat_version = 'N/A'
+        wildfire_version = 'N/A'
+        url_version = 'N/A'
+        gp_version = 'N/A'
+        updated = None
+
+        if response.status_code == 200:
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.text)
+
+            # Extract database versions
+            app_ver_elem = root.find('.//app-version')
+            threat_ver_elem = root.find('.//threat-version')
+            wildfire_ver_elem = root.find('.//wildfire-version')
+            url_ver_elem = root.find('.//url-filtering-version')
+            gp_ver_elem = root.find('.//global-protect-datafile-version')
+
+            app_version = app_ver_elem.text if app_ver_elem is not None and app_ver_elem.text else 'N/A'
+            threat_version = threat_ver_elem.text if threat_ver_elem is not None and threat_ver_elem.text else 'N/A'
+            wildfire_version = wildfire_ver_elem.text if wildfire_ver_elem is not None and wildfire_ver_elem.text else 'N/A'
+            url_version = url_ver_elem.text if url_ver_elem is not None and url_ver_elem.text else 'N/A'
+            gp_version = gp_ver_elem.text if gp_ver_elem is not None and gp_ver_elem.text else 'N/A'
+
+            # Try to get last update time
+            from datetime import datetime
+            updated = datetime.utcnow().isoformat() + 'Z'
+
+            debug(f"Database versions - App: {app_version}, Threat: {threat_version}, WildFire: {wildfire_version}, URL: {url_version}, GP: {gp_version}")
+
+        return {
+            'app_version': app_version,
+            'threat_version': threat_version,
+            'wildfire_version': wildfire_version,
+            'url_version': url_version,
+            'gp_version': gp_version,
+            'updated': updated
+        }
+
+    except Exception as e:
+        exception(f"Database versions error: {str(e)}")
+        return {
+            'app_version': 'N/A',
+            'threat_version': 'N/A',
+            'wildfire_version': 'N/A',
+            'url_version': 'N/A',
+            'gp_version': 'N/A',
+            'updated': None
+        }

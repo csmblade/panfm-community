@@ -22,14 +22,16 @@ async function updateTrafficPage() {
 
     try {
         console.log('Fetching traffic logs...');
-        const response = await fetch('/api/traffic-logs?max_logs=100');
-        console.log('Response status:', response.status);
+        const response = await window.apiClient.get('/api/traffic-logs', {
+            params: { max_logs: 100 }
+        });
+        console.log('Response status:', response.ok ? 'success' : 'error');
 
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            throw new Error('Failed to load traffic logs');
         }
 
-        const data = await response.json();
+        const data = response.data;
         console.log('Traffic logs data:', data);
 
         if (data.status === 'success' && data.logs && data.logs.length > 0) {
@@ -257,8 +259,11 @@ function filterTrafficLogs(searchTerm) {
 // Update threat log display
 async function loadSystemLogs() {
     try {
-        const response = await fetch('/api/system-logs');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/system-logs');
+        if (!response.ok) {
+            throw new Error('Failed to load system logs');
+        }
+        const data = response.data;
 
         const tableDiv = document.getElementById('systemLogsTable');
         const errorDiv = document.getElementById('systemLogsErrorMessage');

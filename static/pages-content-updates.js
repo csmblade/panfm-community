@@ -38,8 +38,11 @@ async function checkContentUpdates() {
 
     try {
         console.log('Checking for content updates...');
-        const response = await fetch('/api/content-updates/check');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/content-updates/check');
+        if (!response.ok) {
+            throw new Error('Failed to check for content updates');
+        }
+        const data = response.data;
 
         console.log('Content update check response:', data);
 
@@ -152,15 +155,12 @@ async function startContentUpdate() {
         if (!isDownloaded) {
             updateContentProgress('Downloading', 'Starting content download...', 0, false);
 
-            const downloadResponse = await fetch('/api/content-updates/download', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                }
-            });
+            const downloadResponse = await window.apiClient.post('/api/content-updates/download');
+            if (!downloadResponse.ok) {
+                throw new Error('Failed to start content download');
+            }
 
-            const downloadData = await downloadResponse.json();
+            const downloadData = downloadResponse.data;
             console.log('Download response:', downloadData);
 
             if (downloadData.status === 'success') {
@@ -274,18 +274,14 @@ async function startContentInstall(currentProgress) {
     updateContentProgress('Installing', 'Starting content installation...', currentProgress, false);
 
     try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-        const installResponse = await fetch('/api/content-updates/install', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ version: 'latest' })
+        const installResponse = await window.apiClient.post('/api/content-updates/install', {
+            version: 'latest'
         });
+        if (!installResponse.ok) {
+            throw new Error('Failed to start content installation');
+        }
 
-        const installData = await installResponse.json();
+        const installData = installResponse.data;
         console.log('Install response:', installData);
 
         if (installData.status === 'success') {

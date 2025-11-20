@@ -225,8 +225,11 @@ async function checkPanosVersions() {
         button.textContent = 'Checking...';
         versionInfo.innerHTML = '<div style="color: #999;">Checking for updates...</div>';
 
-        const response = await fetch('/api/panos-versions');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/panos-versions');
+        if (!response.ok) {
+            throw new Error('Failed to check PAN-OS versions');
+        }
+        const data = response.data;
 
         if (data.status === 'success') {
             upgradeState.currentVersion = data.current_version;
@@ -606,16 +609,11 @@ async function startUpgradeWorkflow() {
  */
 async function downloadPanosVersion(version) {
     try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        const response = await fetch('/api/panos-upgrade/download', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ version })
-        });
-        return await response.json();
+        const response = await window.apiClient.post('/api/panos-upgrade/download', { version });
+        if (!response.ok) {
+            return { status: 'error', message: 'Failed to start download' };
+        }
+        return response.data;
     } catch (error) {
         return { status: 'error', message: error.message };
     }
@@ -626,16 +624,11 @@ async function downloadPanosVersion(version) {
  */
 async function installPanosVersion(version) {
     try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        const response = await fetch('/api/panos-upgrade/install', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ version })
-        });
-        return await response.json();
+        const response = await window.apiClient.post('/api/panos-upgrade/install', { version });
+        if (!response.ok) {
+            return { status: 'error', message: 'Failed to start installation' };
+        }
+        return response.data;
     } catch (error) {
         return { status: 'error', message: error.message };
     }
@@ -646,15 +639,11 @@ async function installPanosVersion(version) {
  */
 async function rebootFirewall() {
     try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        const response = await fetch('/api/panos-upgrade/reboot', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            }
-        });
-        return await response.json();
+        const response = await window.apiClient.post('/api/panos-upgrade/reboot');
+        if (!response.ok) {
+            return { status: 'error', message: 'Failed to initiate reboot' };
+        }
+        return response.data;
     } catch (error) {
         return { status: 'error', message: error.message };
     }
@@ -955,12 +944,7 @@ function pollDeviceStatus() {
 
         try {
             // Try to fetch firewall health check (lightweight - no update server connections)
-            const response = await fetch('/api/firewall-health', {
-                method: 'GET',
-                headers: {
-                    'Cache-Control': 'no-cache'
-                }
-            });
+            const response = await window.apiClient.get('/api/firewall-health');
 
             if (response.ok) {
                 // Device responded successfully

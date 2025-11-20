@@ -61,15 +61,12 @@ async function createAndDownloadBackup() {
         btn.textContent = '⏳ Creating Backup...';
 
         // Call API to create backup
-        const response = await fetch('/api/backup/export', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        });
+        const response = await window.apiClient.post('/api/backup/export');
+        if (!response.ok) {
+            throw new Error('Failed to create backup');
+        }
 
-        const result = await response.json();
+        const result = response.data;
 
         if (response.ok && result.status === 'success') {
             // Create download
@@ -144,16 +141,14 @@ async function handleBackupFileSelected(event) {
         loadedBackupData = backupData;
 
         // Get backup info from API
-        const response = await fetch('/api/backup/info', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify({ backup: backupData })
+        const response = await window.apiClient.post('/api/backup/info', {
+            backup: backupData
         });
+        if (!response.ok) {
+            throw new Error('Failed to get backup info');
+        }
 
-        const result = await response.json();
+        const result = response.data;
 
         if (response.ok && result.status === 'success') {
             const info = result.info;
@@ -222,21 +217,17 @@ async function restoreFromBackup() {
         const restoreMetadata = document.getElementById('restoreMetadata').checked;
 
         // Call API
-        const response = await fetch('/api/backup/restore', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify({
-                backup: loadedBackupData,
-                restore_settings: restoreSettings,
-                restore_devices: restoreDevices,
-                restore_metadata: restoreMetadata
-            })
+        const response = await window.apiClient.post('/api/backup/restore', {
+            backup: loadedBackupData,
+            restore_settings: restoreSettings,
+            restore_devices: restoreDevices,
+            restore_metadata: restoreMetadata
         });
+        if (!response.ok) {
+            throw new Error('Failed to restore backup');
+        }
 
-        const result = await response.json();
+        const result = response.data;
 
         if (response.ok && result.status === 'success') {
             // Success
@@ -296,14 +287,12 @@ async function checkMigrationStatus() {
     try {
         statusText.textContent = 'Checking...';
 
-        const response = await fetch('/api/metadata/migration/check', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
+        const response = await window.apiClient.get('/api/metadata/migration/check');
+        if (!response.ok) {
+            throw new Error('Failed to check migration status');
+        }
 
-        const result = await response.json();
+        const result = response.data;
 
         if (response.ok && result.status === 'success') {
             const needsMigration = result.needs_migration;
@@ -356,16 +345,12 @@ async function executeMigration() {
         btn.textContent = '⏳ Migrating...';
 
         // Call API
-        const response = await fetch('/api/metadata/migration/migrate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify({})  // Will use selected_device_id from settings
-        });
+        const response = await window.apiClient.post('/api/metadata/migration/migrate', {});
+        if (!response.ok) {
+            throw new Error('Failed to execute migration');
+        }
 
-        const result = await response.json();
+        const result = response.data;
 
         if (response.ok && result.status === 'success') {
             // Success

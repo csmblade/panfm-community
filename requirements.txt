@@ -10,3 +10,7 @@ cryptography>=46.0.0
 bcrypt==4.1.2
 dnspython==2.4.2
 gunicorn==21.2.0
+
+# TimescaleDB / PostgreSQL support (v2.0.0)
+psycopg2-binary==2.9.9
+psycopg2-pool==1.1

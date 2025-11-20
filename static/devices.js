@@ -38,8 +38,15 @@ let devicesSortDesc = false;
 
 async function loadDevices() {
     try {
-        const response = await fetch('/api/devices');
-        const data = await response.json();
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/devices');
+
+        if (!response.ok) {
+            console.error('Failed to load devices:', response.status);
+            return;
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             currentDevices = data.devices;
@@ -66,8 +73,16 @@ async function updateDeviceSelector() {
     // ALWAYS fetch selected device from backend settings (source of truth)
     console.log('Fetching settings to get selected device...');
     try {
-        const response = await fetch('/api/settings');
-        const data = await response.json();
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/settings');
+
+        if (!response.ok) {
+            console.error('Failed to fetch settings:', response.status);
+            selectedDeviceId = '';
+            return;
+        }
+
+        const data = response.data;
         if (data.status === 'success') {
             selectedDeviceId = data.settings.selected_device_id || '';
             console.log('Got selectedDeviceId from settings:', selectedDeviceId);
@@ -140,28 +155,29 @@ async function onDeviceChange() {
         console.log('CSRF token:', csrfToken ? 'found' : 'missing');
 
         console.log('Fetching current settings...');
-        const currentSettings = await fetch('/api/settings').then(r => r.json());
-        console.log('Current settings:', currentSettings);
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const settingsResponse = await window.apiClient.get('/api/settings');
+        console.log('Current settings response:', settingsResponse);
+
+        if (!settingsResponse.ok) {
+            console.error('Failed to fetch settings');
+            return;
+        }
+
+        const currentSettings = settingsResponse.data;
 
         if (currentSettings.status === 'success') {
             const settings = currentSettings.settings;
             settings.selected_device_id = selectedDeviceId;
 
             console.log('Saving device selection to settings...');
-            const saveResponse = await fetch('/api/settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify(settings)
-            });
-            const saveData = await saveResponse.json();
-            console.log('Device selection save response:', saveData);
+            // ApiClient auto-injects CSRF token
+            const saveResponse = await window.apiClient.post('/api/settings', settings);
+            console.log('Device selection save response:', saveResponse);
 
-            if (saveData.status !== 'success') {
-                console.error('Failed to save device selection:', saveData.message);
-                alert('Failed to save device selection: ' + (saveData.message || 'Unknown error'));
+            if (!saveResponse.ok || saveResponse.data.status !== 'success') {
+                console.error('Failed to save device selection:', saveResponse.data?.message);
+                alert('Failed to save device selection: ' + (saveResponse.data?.message || 'Unknown error'));
                 return;
             }
 
@@ -188,19 +204,12 @@ async function onDeviceChange() {
                 // Update settings with device's interface
                 settings.monitored_interface = deviceInterface;
                 console.log('Saving interface to settings...');
-                const interfaceSaveResponse = await fetch('/api/settings', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify(settings)
-                });
-                const interfaceSaveData = await interfaceSaveResponse.json();
-                console.log('Interface save response:', interfaceSaveData);
+                // ApiClient auto-injects CSRF token
+                const interfaceSaveResponse = await window.apiClient.post('/api/settings', settings);
+                console.log('Interface save response:', interfaceSaveResponse);
 
-                if (interfaceSaveData.status !== 'success') {
-                    console.error('Failed to save interface:', interfaceSaveData.message);
+                if (!interfaceSaveResponse.ok || interfaceSaveResponse.data.status !== 'success') {
+                    console.error('Failed to save interface:', interfaceSaveResponse.data?.message);
                 }
 
                 // If device doesn't have interface saved yet, save the default
@@ -215,14 +224,8 @@ async function onDeviceChange() {
                         enabled: device.enabled !== undefined ? device.enabled : true,
                         monitored_interface: deviceInterface
                     };
-                    const deviceUpdateResponse = await fetch(`/api/devices/${selectedDeviceId}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        },
-                        body: JSON.stringify(deviceUpdatePayload)
-                    });
+                    // ApiClient auto-injects CSRF token
+                    const deviceUpdateResponse = await window.apiClient.put(`/api/devices/${selectedDeviceId}`, deviceUpdatePayload);
                     console.log('Device update response:', deviceUpdateResponse.status);
                 }
             }
@@ -233,13 +236,14 @@ async function onDeviceChange() {
 
             // Verify settings were saved by reading them back
             console.log('Verifying settings were saved...');
-            const verifyResponse = await fetch('/api/settings');
-            const verifyData = await verifyResponse.json();
-            if (verifyData.status === 'success') {
-                console.log('Verified selected_device_id in settings:', verifyData.settings.selected_device_id);
-                if (verifyData.settings.selected_device_id !== selectedDeviceId) {
+            // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+            const verifyResponse = await window.apiClient.get('/api/settings');
+
+            if (verifyResponse.ok && verifyResponse.data.status === 'success') {
+                console.log('Verified selected_device_id in settings:', verifyResponse.data.settings.selected_device_id);
+                if (verifyResponse.data.settings.selected_device_id !== selectedDeviceId) {
                     console.error('WARNING: Settings verification failed! Selected device ID mismatch.');
-                    console.error('Expected:', selectedDeviceId, 'Got:', verifyData.settings.selected_device_id);
+                    console.error('Expected:', selectedDeviceId, 'Got:', verifyResponse.data.settings.selected_device_id);
                 }
             }
 
@@ -456,31 +460,19 @@ async function saveDevice(event) {
     };
 
     try {
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
+        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
         let response;
         if (deviceId) {
-            response = await fetch(`/api/devices/${deviceId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify(deviceData)
-            });
+            response = await window.apiClient.put(`/api/devices/${deviceId}`, deviceData);
         } else {
-            response = await fetch('/api/devices', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify(deviceData)
-            });
+            response = await window.apiClient.post('/api/devices', deviceData);
         }
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error('Failed to save device');
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             hideDeviceModal();
@@ -535,17 +527,14 @@ async function deleteDevice(deviceId) {
     }
 
     try {
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
+        const response = await window.apiClient.delete(`/api/devices/${deviceId}`);
 
-        const response = await fetch(`/api/devices/${deviceId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRFToken': csrfToken
-            }
-        });
+        if (!response.ok) {
+            throw new Error('Failed to delete device');
+        }
 
-        const data = await response.json();
+        const data = response.data;
 
         if (data.status === 'success') {
             console.log('Device deleted successfully, reloading devices...');
@@ -576,17 +565,17 @@ async function testConnection() {
     resultDiv.style.color = '#856404';
 
     try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        const response = await fetch('/api/devices/test-connection', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ ip, api_key: apiKey })
+        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
+        const response = await window.apiClient.post('/api/devices/test-connection', {
+            ip,
+            api_key: apiKey
         });
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error('Connection test failed');
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             resultDiv.textContent = '✓ ' + data.message;
@@ -653,22 +642,14 @@ async function updateMonitoredInterface() {
         };
         console.log('Updating device with interface:', newInterface);
 
-        // Save device via API
-        const updateResponse = await fetch(`/api/devices/${selectedDeviceId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify(updatePayload)
-        });
+        // Save device via API using ApiClient (v1.14.0 - CSRF token auto-injected)
+        const updateResponse = await window.apiClient.put(`/api/devices/${selectedDeviceId}`, updatePayload);
 
         if (!updateResponse.ok) {
-            const errorText = await updateResponse.text();
-            throw new Error(`Device update failed (${updateResponse.status}): ${errorText}`);
+            throw new Error(`Device update failed: ${updateResponse.data?.message || 'Unknown error'}`);
         }
 
-        const updateData = await updateResponse.json();
+        const updateData = updateResponse.data;
         console.log('Device update response:', updateData);
 
         if (updateData.status !== 'success') {
@@ -677,19 +658,13 @@ async function updateMonitoredInterface() {
 
         // Also save to global settings for backward compatibility
         console.log('Updating global settings...');
-        const currentSettings = await fetch('/api/settings').then(r => r.json());
-        if (currentSettings.status === 'success') {
-            const settings = currentSettings.settings;
+        const settingsResponse = await window.apiClient.get('/api/settings');
+
+        if (settingsResponse.ok && settingsResponse.data.status === 'success') {
+            const settings = settingsResponse.data.settings;
             settings.monitored_interface = newInterface;
 
-            await fetch('/api/settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify(settings)
-            });
+            await window.apiClient.post('/api/settings', settings);
         }
 
         // Reload devices to ensure consistency

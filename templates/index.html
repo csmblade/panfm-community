@@ -670,9 +670,9 @@
                 <span class="menu-icon" style="color: #FA582D;">●</span>
                 <span>Alerts</span>
             </div>
-            <div class="menu-item" data-page="security">
+            <div class="menu-item" data-page="analytics">
                 <span class="menu-icon" style="color: #FA582D;">●</span>
-                <span>Security Monitoring</span>
+                <span>Insights</span>
             </div>
             <div class="menu-item" data-page="settings">
                 <span class="menu-icon" style="color: #FA582D;">●</span>
@@ -744,7 +744,7 @@
         <div id="homepage-content" class="page-content">
             <div class="container">
         <div class="header">
-            <h1>Firewall Analytics</h1>
+            <h1>Firewall Overview</h1>
         </div>
 
         <div id="debugAlert" style="display: none; margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); border-left: 5px solid #C44520; border-radius: 8px; color: white; font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -762,11 +762,10 @@
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <label style="color: #ffffff; font-weight: 500; font-size: 0.85em; font-family: var(--font-secondary);">Time Range:</label>
                         <select id="timeRangeSelect" style="padding: 6px 10px; border: 2px solid #FA582D; border-radius: 6px; font-size: 0.85em; background: #fafafa; cursor: pointer; font-family: var(--font-secondary);">
-                            <option value="realtime">Live (1-Min)</option>
-                            <option value="1h">1 Hour</option>
-                            <option value="24h">24 Hours</option>
-                            <option value="7d">7 Days</option>
-                            <option value="30d">30 Days</option>
+                            <option value="5m">5 Minutes</option>
+                            <option value="15m">15 Minutes</option>
+                            <option value="30m" selected>30 Minutes</option>
+                            <option value="60m">60 Minutes</option>
                         </select>
                     </div>
                     <!-- Interface Selector -->
@@ -844,7 +843,7 @@
             </div>
         </div>
 
-        <!-- Threat and Application Statistics Tiles -->
+        <!-- Threat Statistics Tiles (v1.10.14 - Enterprise scalable architecture) -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px;">
             <!-- Critical Threats Tile -->
             <div onclick="showCriticalThreatsModal()" style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(250, 88, 45, 0.3); color: white; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(250, 88, 45, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(250, 88, 45, 0.3)'">
@@ -852,41 +851,41 @@
                 <div id="criticalValue" style="font-size: 1.8em; font-weight: 700; line-height: 1; font-family: var(--font-primary);">-</div>
                 <div style="font-size: 0.65em; opacity: 0.8; margin-top: 3px; font-family: var(--font-secondary);">Click to view details</div>
                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3);">
-                    <div style="font-size: 0.65em; opacity: 0.7; font-family: var(--font-secondary);">Last seen</div>
-                    <div id="criticalLastSeen" style="font-size: 0.7em; font-weight: 600; margin-top: 2px; font-family: var(--font-primary);">-</div>
+                    <div style="font-size: 0.65em; opacity: 0.7; font-family: var(--font-secondary);">Latest</div>
+                    <div id="criticalLatest" style="font-size: 0.7em; font-weight: 600; margin-top: 2px; font-family: var(--font-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
+                </div>
+            </div>
+
+            <!-- High Threats Tile (NEW v1.10.14) -->
+            <div onclick="showHighThreatsModal()" style="background: linear-gradient(135deg, #E04F26 0%, #FF6B3D 100%); border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(224, 79, 38, 0.3); color: white; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(224, 79, 38, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(224, 79, 38, 0.3)'">
+                <div style="font-size: 0.7em; opacity: 0.9; margin-bottom: 4px; font-weight: 500; letter-spacing: 0.3px; font-family: var(--font-primary);">HIGH THREATS</div>
+                <div id="highValue" style="font-size: 1.8em; font-weight: 700; line-height: 1; font-family: var(--font-primary);">-</div>
+                <div style="font-size: 0.65em; opacity: 0.8; margin-top: 3px; font-family: var(--font-secondary);">Click to view details</div>
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3);">
+                    <div style="font-size: 0.65em; opacity: 0.7; font-family: var(--font-secondary);">Latest</div>
+                    <div id="highLatest" style="font-size: 0.7em; font-weight: 600; margin-top: 2px; font-family: var(--font-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
                 </div>
             </div>
 
             <!-- Medium Threats Tile -->
-            <div onclick="showMediumThreatsModal()" style="background: linear-gradient(135deg, #E04F26 0%, #FF6B3D 100%); border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(224, 79, 38, 0.3); color: white; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(224, 79, 38, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(224, 79, 38, 0.3)'">
+            <div onclick="showMediumThreatsModal()" style="background: linear-gradient(135deg, #C64620 0%, #E85A31 100%); border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(198, 70, 32, 0.3); color: white; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(198, 70, 32, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(198, 70, 32, 0.3)'">
                 <div style="font-size: 0.7em; opacity: 0.9; margin-bottom: 4px; font-weight: 500; letter-spacing: 0.3px; font-family: var(--font-primary);">MEDIUM THREATS</div>
                 <div id="mediumValue" style="font-size: 1.8em; font-weight: 700; line-height: 1; font-family: var(--font-primary);">-</div>
                 <div style="font-size: 0.65em; opacity: 0.8; margin-top: 3px; font-family: var(--font-secondary);">Click to view details</div>
                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3);">
-                    <div style="font-size: 0.65em; opacity: 0.7; font-family: var(--font-secondary);">Last seen</div>
-                    <div id="mediumLastSeen" style="font-size: 0.7em; font-weight: 600; margin-top: 2px; font-family: var(--font-primary);">-</div>
+                    <div style="font-size: 0.65em; opacity: 0.7; font-family: var(--font-secondary);">Latest</div>
+                    <div id="mediumLatest" style="font-size: 0.7em; font-weight: 600; margin-top: 2px; font-family: var(--font-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
                 </div>
             </div>
 
             <!-- Blocked URLs Tile -->
-            <div onclick="showBlockedUrlsModal()" style="background: linear-gradient(135deg, #C64620 0%, #E85A31 100%); border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(198, 70, 32, 0.3); color: white; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(198, 70, 32, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(198, 70, 32, 0.3)'">
+            <div onclick="showBlockedUrlsModal()" style="background: linear-gradient(135deg, #AD3D1A 0%, #D14925 100%); border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(173, 61, 26, 0.3); color: white; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(173, 61, 26, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(173, 61, 26, 0.3)'">
                 <div style="font-size: 0.7em; opacity: 0.9; margin-bottom: 4px; font-weight: 500; letter-spacing: 0.3px; font-family: var(--font-primary);">BLOCKED URLS</div>
                 <div id="blockedUrlValue" style="font-size: 1.8em; font-weight: 700; line-height: 1; font-family: var(--font-primary);">-</div>
                 <div style="font-size: 0.65em; opacity: 0.8; margin-top: 3px; font-family: var(--font-secondary);">Click to view details</div>
                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3);">
-                    <div style="font-size: 0.65em; opacity: 0.7; font-family: var(--font-secondary);">Last seen</div>
-                    <div id="blockedUrlLastSeen" style="font-size: 0.7em; font-weight: 600; margin-top: 2px; font-family: var(--font-primary);">-</div>
-                </div>
-            </div>
-
-            <!-- Top Applications Tile -->
-            <div onclick="showTopAppsModal()" style="background: linear-gradient(135deg, #AD3D1A 0%, #D14925 100%); border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(173, 61, 26, 0.3); color: white; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(173, 61, 26, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(173, 61, 26, 0.3)'">
-                <div style="font-size: 0.7em; opacity: 0.9; margin-bottom: 4px; font-weight: 500; letter-spacing: 0.3px; font-family: var(--font-primary);">TOP APPLICATIONS</div>
-                <div id="topAppsValue" style="font-size: 1.8em; font-weight: 700; line-height: 1; font-family: var(--font-primary);">-</div>
-                <div style="font-size: 0.65em; opacity: 0.8; margin-top: 3px; font-family: var(--font-secondary);">Click to view details</div>
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3);">
-                    <div style="font-size: 0.65em; opacity: 0.7; font-family: var(--font-secondary);">Top application</div>
-                    <div id="topAppName" style="font-size: 0.7em; font-weight: 600; margin-top: 2px; font-family: var(--font-primary);">-</div>
+                    <div style="font-size: 0.65em; opacity: 0.7; font-family: var(--font-secondary);">Latest</div>
+                    <div id="blockedUrlLatest" style="font-size: 0.7em; font-weight: 600; margin-top: 2px; font-family: var(--font-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
                 </div>
             </div>
         </div>
@@ -1011,7 +1010,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                     <div>
                         <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Critical Threats</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 5 entries</p>
+                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
                     </div>
                     <button onclick="closeCriticalThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
                 </div>
@@ -1033,14 +1032,43 @@
             </div>
         </div>
 
-        <!-- Medium Threats Modal -->
-        <div id="mediumThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <!-- High Threats Modal (NEW v1.10.14) -->
+        <div id="highThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
             <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
                 <!-- Modal Header -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #E04F26; padding-bottom: 15px;">
                     <div>
+                        <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">High Threats</h2>
+                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
+                    </div>
+                    <button onclick="closeHighThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                </div>
+
+                <!-- Summary Stats -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                    <div style="background: linear-gradient(135deg, #E04F26 0%, #FF6B3D 100%); border-radius: 8px; padding: 15px; color: white;">
+                        <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px; font-family: var(--font-secondary);">Total High Threats</div>
+                        <div id="highModalCount" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary);">0</div>
+                    </div>
+                </div>
+
+                <!-- Threats Table -->
+                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
+                    <div style="max-height: 500px; overflow-y: auto;" id="highThreatsTableContainer">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Medium Threats Modal -->
+        <div id="mediumThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                <!-- Modal Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #C64620; padding-bottom: 15px;">
+                    <div>
                         <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Medium Threats</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 5 entries</p>
+                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
                     </div>
                     <button onclick="closeMediumThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
                 </div>
@@ -1069,7 +1097,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #C64620; padding-bottom: 15px;">
                     <div>
                         <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Blocked URLs</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 5 entries</p>
+                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
                     </div>
                     <button onclick="closeBlockedUrlsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
                 </div>
@@ -1868,36 +1896,274 @@
             </div>
         </div>
 
-        <!-- Security Monitoring Content -->
-        <div id="security-content" class="page-content" style="display: none;">
+        <!-- Analytics Content -->
+        <div id="analytics-content" class="page-content" style="display: none;">
             <div class="container">
                 <div class="header" style="text-align: left; margin-bottom: 30px;">
-                    <h1 style="color: #ffffff; font-size: 1.8em; font-weight: 700; margin: 0 0 5px 0; font-family: var(--font-primary);">Security Monitoring</h1>
-                    <p style="color: #FA582D; font-size: 0.9em; margin: 0; font-family: var(--font-secondary);">Scheduled Network Scanning & Change Detection</p>
+                    <h1 style="color: #ffffff; font-size: 1.8em; font-weight: 700; margin: 0 0 5px 0; font-family: var(--font-primary);">Insights Dashboard</h1>
+                    <p style="color: #FA582D; font-size: 0.9em; margin: 0; font-family: var(--font-secondary);">Historical Data and Insights</p>
                 </div>
 
-                <!-- Security Dashboard Statistics -->
-                <div id="securityDashboardStats"></div>
-
-                <!-- Quick Actions Section -->
-                <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 25px;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <button onclick="openCreateScheduleModal()" style="padding: 20px; background: linear-gradient(135deg, #E8491D 0%, #FA582D 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(232, 73, 29, 0.3); font-family: var(--font-primary);">
-                            Create Schedule
-                        </button>
-                        <button onclick="loadScanQueue()" style="padding: 20px; background: linear-gradient(135deg, #B8541E 0%, #D96534 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(184, 84, 30, 0.3); font-family: var(--font-primary);">
-                            View Scan Queue
-                        </button>
-                        <button onclick="showScanHistory()" style="padding: 20px; background: linear-gradient(135deg, #C23C14 0%, #D94A1F 100%); color: white; border: none; border-radius: 10px; font-size: 1.05em; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(194, 60, 20, 0.3); font-family: var(--font-primary);">
-                            Scan History
-                        </button>
+                <!-- Time Range Controls -->
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 25px;">
+                    <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center;">
+                        <div>
+                            <label style="font-weight: 600; font-family: var(--font-primary); margin-right: 10px;">Time Range:</label>
+                            <select id="analyticsTimeRange" onchange="loadAnalyticsData()" style="padding: 10px 15px; border: 2px solid #FA582D; border-radius: 6px; font-size: 1em; font-family: var(--font-secondary); cursor: pointer;">
+                                <option value="1h">Last 1 Hour</option>
+                                <option value="6h">Last 6 Hours</option>
+                                <option value="24h" selected>Last 24 Hours</option>
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d">Last 30 Days</option>
+                                <option value="90d">Last 90 Days</option>
+                            </select>
+                        </div>
+                        <div style="text-align: center;">
+                            <span id="analyticsDataRange" style="color: #666; font-family: var(--font-secondary);"></span>
+                        </div>
+                        <div>
+                            <button onclick="exportAnalyticsCSV()" style="padding: 10px 20px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary); margin-right: 10px;">
+                                📥 Export CSV
+                            </button>
+                            <button onclick="refreshAnalyticsData()" style="padding: 10px 20px; background: linear-gradient(135deg, #17a2b8 0%, #20c9e0 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary); margin-right: 10px;">
+                                🔄 Refresh
+                            </button>
+                            <button onclick="openEnhancedInsightsModal()" style="padding: 10px 20px; background: linear-gradient(135deg, #FA582D 0%, #E04F26 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary); box-shadow: 0 2px 8px rgba(250,88,45,0.3);">
+                                ⚡ Enhanced Insights
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Scheduled Scans Table -->
+                <!-- Peak Usage Statistics -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #FA582D;">
+                        <h3 style="color: #666; font-size: 0.9em; margin: 0 0 10px 0; font-family: var(--font-primary);">PEAK THROUGHPUT</h3>
+                        <div id="analyticsPeakThroughput" style="font-size: 2em; font-weight: 700; color: #FA582D; font-family: var(--font-primary);">--</div>
+                        <div id="analyticsPeakTime" style="color: #999; font-size: 0.85em; margin-top: 5px; font-family: var(--font-secondary);"></div>
+                    </div>
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #E04F26;">
+                        <h3 style="color: #666; font-size: 0.9em; margin: 0 0 10px 0; font-family: var(--font-primary);">AVERAGE THROUGHPUT</h3>
+                        <div id="analyticsAvgThroughput" style="font-size: 2em; font-weight: 700; color: #E04F26; font-family: var(--font-primary);">--</div>
+                        <div style="color: #999; font-size: 0.85em; margin-top: 5px; font-family: var(--font-secondary);">Total (In + Out)</div>
+                    </div>
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #B8541E;">
+                        <h3 style="color: #666; font-size: 0.9em; margin: 0 0 10px 0; font-family: var(--font-primary);">PEAK SESSIONS</h3>
+                        <div id="analyticsPeakSessions" style="font-size: 2em; font-weight: 700; color: #B8541E; font-family: var(--font-primary);">--</div>
+                        <div id="analyticsPeakSessionsTime" style="color: #999; font-size: 0.85em; margin-top: 5px; font-family: var(--font-secondary);"></div>
+                    </div>
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #C23C14;">
+                        <h3 style="color: #666; font-size: 0.9em; margin: 0 0 10px 0; font-family: var(--font-primary);">DATA SAMPLES</h3>
+                        <div id="analyticsSampleCount" style="font-size: 2em; font-weight: 700; color: #C23C14; font-family: var(--font-primary);">--</div>
+                        <div style="color: #999; font-size: 0.85em; margin-top: 5px; font-family: var(--font-secondary);">Records in range</div>
+                    </div>
+                </div>
+
+                <!-- Historical Throughput Chart -->
                 <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #FA582D; margin-bottom: 25px;">
-                    <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Scheduled Scans</h2>
-                    <div id="schedulesTable" style="font-family: var(--font-secondary);"></div>
+                    <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Throughput History</h2>
+                    <div style="position: relative; height: 400px;">
+                        <canvas id="analyticsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- CPU & Memory Charts -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 25px;">
+                    <!-- CPU Chart -->
+                    <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #E04F26;">
+                        <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">CPU Usage History</h2>
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="analyticsCpuChart"></canvas>
+                        </div>
+                        <!-- CPU Stats -->
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+                            <div style="text-align: center; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">AVG DATA PLANE</div>
+                                <div id="avgCpuDataPlane" style="font-size: 1.5em; font-weight: 700; color: #E04F26; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">PEAK DATA PLANE</div>
+                                <div id="peakCpuDataPlane" style="font-size: 1.5em; font-weight: 700; color: #E04F26; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">AVG MGMT PLANE</div>
+                                <div id="avgCpuMgmt" style="font-size: 1.5em; font-weight: 700; color: #B8541E; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">PEAK MGMT PLANE</div>
+                                <div id="peakCpuMgmt" style="font-size: 1.5em; font-weight: 700; color: #B8541E; font-family: var(--font-primary);">--</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Memory Chart -->
+                    <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #C23C14;">
+                        <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Memory Usage History</h2>
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="analyticsMemoryChart"></canvas>
+                        </div>
+                        <!-- Memory Stats -->
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+                            <div style="text-align: center; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">AVG MEMORY</div>
+                                <div id="avgMemory" style="font-size: 1.5em; font-weight: 700; color: #C23C14; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">PEAK MEMORY</div>
+                                <div id="peakMemory" style="font-size: 1.5em; font-weight: 700; color: #C23C14; font-family: var(--font-primary);">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sessions Breakdown Stacked Area Chart -->
+                <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #9C27B0; margin-bottom: 25px;">
+                    <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Session Protocol Breakdown</h2>
+                    <div style="position: relative; height: 350px;">
+                        <canvas id="analyticsSessionsChart"></canvas>
+                    </div>
+
+                    <!-- Sessions Stats -->
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 25px; padding-top: 20px; border-top: 2px solid #f0f0f0;">
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">PEAK TOTAL</div>
+                            <div id="peakTotalSessions" style="font-size: 1.5em; font-weight: 700; color: #9C27B0; font-family: var(--font-primary);">--</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">PEAK TCP</div>
+                            <div id="peakTcpSessions" style="font-size: 1.5em; font-weight: 700; color: #2196F3; font-family: var(--font-primary);">--</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">PEAK UDP</div>
+                            <div id="peakUdpSessions" style="font-size: 1.5em; font-weight: 700; color: #4CAF50; font-family: var(--font-primary);">--</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">PEAK ICMP</div>
+                            <div id="peakIcmpSessions" style="font-size: 1.5em; font-weight: 700; color: #FF9800; font-family: var(--font-primary);">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Threat Count Timeline Chart -->
+                <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #D32F2F; margin-bottom: 25px;">
+                    <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Threat Detection Timeline</h2>
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="analyticsThreatsChart"></canvas>
+                    </div>
+
+                    <!-- Threat Stats -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 25px; padding-top: 20px; border-top: 2px solid #f0f0f0;">
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">TOTAL THREATS</div>
+                            <div id="totalThreats" style="font-size: 1.5em; font-weight: 700; color: #D32F2F; font-family: var(--font-primary);">--</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">PEAK HOURLY</div>
+                            <div id="peakHourlyThreats" style="font-size: 1.5em; font-weight: 700; color: #C62828; font-family: var(--font-primary);">--</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: #999; font-size: 0.85em; font-family: var(--font-primary);">AVG PER HOUR</div>
+                            <div id="avgHourlyThreats" style="font-size: 1.5em; font-weight: 700; color: #B71C1C; font-family: var(--font-primary);">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multi-Metric Comparison Dashboard (6 Mini-Charts) -->
+                <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #673AB7; margin-bottom: 25px;">
+                    <h2 style="color: #333; margin: 0 0 25px 0; font-size: 1.4em; font-family: var(--font-primary);">Metric Correlation Dashboard</h2>
+
+                    <!-- Grid of 6 mini-charts (2 rows x 3 columns) -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+
+                        <!-- Chart 1: Throughput vs Sessions -->
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 10px; padding: 20px; border: 2px solid #FA582D;">
+                            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; font-family: var(--font-primary); text-align: center;">Throughput vs Sessions</h3>
+                            <div style="position: relative; height: 200px;">
+                                <canvas id="comparisonChart1"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 2: CPU vs Memory -->
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 10px; padding: 20px; border: 2px solid #E04F26;">
+                            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; font-family: var(--font-primary); text-align: center;">CPU vs Memory</h3>
+                            <div style="position: relative; height: 200px;">
+                                <canvas id="comparisonChart2"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 3: TCP vs UDP Sessions -->
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 10px; padding: 20px; border: 2px solid #2196F3;">
+                            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; font-family: var(--font-primary); text-align: center;">TCP vs UDP Sessions</h3>
+                            <div style="position: relative; height: 200px;">
+                                <canvas id="comparisonChart3"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 4: Internal vs Internet Traffic -->
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 10px; padding: 20px; border: 2px solid #4CAF50;">
+                            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; font-family: var(--font-primary); text-align: center;">Internal vs Internet</h3>
+                            <div style="position: relative; height: 200px;">
+                                <canvas id="comparisonChart4"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 5: Threats vs Sessions -->
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 10px; padding: 20px; border: 2px solid #D32F2F;">
+                            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; font-family: var(--font-primary); text-align: center;">Threats vs Sessions</h3>
+                            <div style="position: relative; height: 200px;">
+                                <canvas id="comparisonChart5"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 6: Interface Errors vs Throughput -->
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 10px; padding: 20px; border: 2px solid #FF9800;">
+                            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; font-family: var(--font-primary); text-align: center;">Errors vs Throughput</h3>
+                            <div style="position: relative; height: 200px;">
+                                <canvas id="comparisonChart6"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Top Bandwidth Clients Section -->
+                <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #FA582D; margin-bottom: 25px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="color: #333; margin: 0; font-size: 1.4em; font-family: var(--font-primary);">Top Bandwidth Clients</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="clientFilterType" onchange="loadTopClients()" style="padding: 8px 12px; border: 2px solid #FA582D; border-radius: 6px; font-family: var(--font-secondary); cursor: pointer;">
+                                <option value="all">All Traffic</option>
+                                <option value="internal">Internal Only</option>
+                                <option value="internet">Internet Only</option>
+                            </select>
+                            <button onclick="refreshTopClients()" style="padding: 8px 16px; background: linear-gradient(135deg, #17a2b8 0%, #20c9e0 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">
+                                🔄 Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div id="topClientsTable" style="overflow-x: auto;">
+                        <div style="text-align: center; padding: 40px; color: #999; font-family: var(--font-secondary);">Loading top clients...</div>
+                    </div>
+                </div>
+
+                <!-- Log Search Section -->
+                <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #E04F26; margin-bottom: 25px;">
+                    <h2 style="color: #333; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Log Search</h2>
+                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 15px; margin-bottom: 20px;">
+                        <input type="text" id="logSearchInput" placeholder="Search logs by keyword, IP, threat name..." style="padding: 12px 15px; border: 2px solid #ddd; border-radius: 6px; font-size: 1em; font-family: var(--font-secondary);" onkeyup="if(event.key === 'Enter') searchLogs()">
+                        <select id="logSearchType" style="padding: 12px 15px; border: 2px solid #ddd; border-radius: 6px; font-family: var(--font-secondary);">
+                            <option value="all">All Logs</option>
+                            <option value="system">System Logs</option>
+                            <option value="traffic">Traffic Logs</option>
+                            <option value="threat">Threat Logs</option>
+                        </select>
+                        <button onclick="searchLogs()" style="padding: 12px 25px; background: linear-gradient(135deg, #E8491D 0%, #FA582D 100%); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">
+                            🔍 Search
+                        </button>
+                    </div>
+                    <div id="logSearchResults" style="font-family: var(--font-secondary); max-height: 400px; overflow-y: auto;">
+                        <div style="color: #999; text-align: center; padding: 40px;">Enter a search term and click Search to find logs</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3266,23 +3532,207 @@
         </div>
     </div>
 
+    <!-- Enhanced Insights Modal (v1.13.0) -->
+    <div id="enhancedInsightsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: center;">
+        <div style="background: white; border-radius: 16px; width: 90%; max-width: 1400px; max-height: 90vh; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
+            <!-- Modal Header -->
+            <div style="background: linear-gradient(135deg, #FA582D 0%, #E04F26 100%); color: white; padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 16px; border-top-right-radius: 16px;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.8em; font-family: var(--font-primary); font-weight: 700;">⚡ Enhanced Insights</h2>
+                    <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 0.9em; font-family: var(--font-secondary);">Advanced System Metrics & Performance Data</p>
+                </div>
+                <button onclick="closeEnhancedInsightsModal()" style="background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5); color: white; font-size: 1.5em; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-family: var(--font-primary); display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                    ×
+                </button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div style="background: #f8f9fa; border-bottom: 2px solid #e9ecef; padding: 0 30px;">
+                <div class="enhanced-insights-tabs" style="display: flex; gap: 5px;">
+                    <button class="ei-tab active" data-tab="overview" onclick="switchEnhancedInsightsTab('overview')" style="padding: 15px 25px; background: none; border: none; border-bottom: 3px solid #FA582D; color: #FA582D; font-weight: 600; cursor: pointer; font-family: var(--font-primary); font-size: 1em; transition: all 0.3s;">
+                        📊 Overview
+                    </button>
+                    <button class="ei-tab" data-tab="system-health" onclick="switchEnhancedInsightsTab('system-health')" style="padding: 15px 25px; background: none; border: none; border-bottom: 3px solid transparent; color: #666; font-weight: 600; cursor: pointer; font-family: var(--font-primary); font-size: 1em; transition: all 0.3s;">
+                        💚 System Health
+                    </button>
+                    <button class="ei-tab" data-tab="network" onclick="switchEnhancedInsightsTab('network')" style="padding: 15px 25px; background: none; border: none; border-bottom: 3px solid transparent; color: #666; font-weight: 600; cursor: pointer; font-family: var(--font-primary); font-size: 1em; transition: all 0.3s;">
+                        🌐 Network
+                    </button>
+                    <button class="ei-tab" data-tab="security" onclick="switchEnhancedInsightsTab('security')" style="padding: 15px 25px; background: none; border: none; border-bottom: 3px solid transparent; color: #666; font-weight: 600; cursor: pointer; font-family: var(--font-primary); font-size: 1em; transition: all 0.3s;">
+                        🔒 Security
+                    </button>
+                    <button class="ei-tab" data-tab="databases" onclick="switchEnhancedInsightsTab('databases')" style="padding: 15px 25px; background: none; border: none; border-bottom: 3px solid transparent; color: #666; font-weight: 600; cursor: pointer; font-family: var(--font-primary); font-size: 1em; transition: all 0.3s;">
+                        💾 Databases
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content Container -->
+            <div style="flex: 1; overflow-y: auto; padding: 30px;">
+                <!-- Overview Tab -->
+                <div id="ei-tab-overview" class="ei-tab-content" style="display: block;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                        <!-- Disk Usage Card -->
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 25px; color: white; box-shadow: 0 4px 15px rgba(102,126,234,0.3);">
+                            <h3 style="margin: 0 0 15px 0; font-size: 0.9em; opacity: 0.9; font-family: var(--font-primary);">💽 DISK USAGE</h3>
+                            <div id="ei-disk-root" style="font-size: 2.5em; font-weight: 700; margin-bottom: 10px; font-family: var(--font-primary);">--</div>
+                            <div style="font-size: 0.85em; opacity: 0.9; font-family: var(--font-secondary);">
+                                <div>Logs: <span id="ei-disk-logs">--</span></div>
+                                <div>Var: <span id="ei-disk-var">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Session Utilization Card -->
+                        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; padding: 25px; color: white; box-shadow: 0 4px 15px rgba(245,87,108,0.3);">
+                            <h3 style="margin: 0 0 15px 0; font-size: 0.9em; opacity: 0.9; font-family: var(--font-primary);">🔄 SESSION UTILIZATION</h3>
+                            <div id="ei-session-util" style="font-size: 2.5em; font-weight: 700; margin-bottom: 10px; font-family: var(--font-primary);">--</div>
+                            <div style="font-size: 0.85em; opacity: 0.9; font-family: var(--font-secondary);">
+                                <div>Active: <span id="ei-session-active">--</span></div>
+                                <div>Max Capacity: <span id="ei-session-max">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Database Versions Card -->
+                        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border-radius: 12px; padding: 25px; color: white; box-shadow: 0 4px 15px rgba(79,172,254,0.3);">
+                            <h3 style="margin: 0 0 15px 0; font-size: 0.9em; opacity: 0.9; font-family: var(--font-primary);">💾 THREAT DB</h3>
+                            <div id="ei-threat-version" style="font-size: 1.5em; font-weight: 700; margin-bottom: 10px; font-family: var(--font-primary);">--</div>
+                            <div style="font-size: 0.85em; opacity: 0.9; font-family: var(--font-secondary);">
+                                <div>App: <span id="ei-app-version">--</span></div>
+                                <div>WildFire: <span id="ei-wildfire-version">--</span></div>
+                            </div>
+                        </div>
+
+                        <!-- System Status Card -->
+                        <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); border-radius: 12px; padding: 25px; color: white; box-shadow: 0 4px 15px rgba(67,233,123,0.3);">
+                            <h3 style="margin: 0 0 15px 0; font-size: 0.9em; opacity: 0.9; font-family: var(--font-primary);">✅ SYSTEM STATUS</h3>
+                            <div id="ei-system-status" style="font-size: 1.8em; font-weight: 700; margin-bottom: 10px; font-family: var(--font-primary);">Healthy</div>
+                            <div style="font-size: 0.85em; opacity: 0.9; font-family: var(--font-secondary);">
+                                <div>Last Check: <span id="ei-last-check">--</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Stats Grid -->
+                    <div style="background: #f8f9fa; border-radius: 12px; padding: 25px; margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 20px 0; color: #333; font-family: var(--font-primary);">📈 Current Metrics</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div style="background: white; border-radius: 8px; padding: 15px; border-left: 4px solid #FA582D;">
+                                <div style="color: #666; font-size: 0.85em; margin-bottom: 5px; font-family: var(--font-secondary);">CPU Data Plane</div>
+                                <div id="ei-cpu-dp" style="font-size: 1.5em; font-weight: 700; color: #FA582D; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 15px; border-left: 4px solid #E04F26;">
+                                <div style="color: #666; font-size: 0.85em; margin-bottom: 5px; font-family: var(--font-secondary);">Memory Usage</div>
+                                <div id="ei-memory" style="font-size: 1.5em; font-weight: 700; color: #E04F26; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 15px; border-left: 4px solid #B8541E;">
+                                <div style="color: #666; font-size: 0.85em; margin-bottom: 5px; font-family: var(--font-secondary);">Active Sessions</div>
+                                <div id="ei-sessions" style="font-size: 1.5em; font-weight: 700; color: #B8541E; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 15px; border-left: 4px solid #8C3D16;">
+                                <div style="color: #666; font-size: 0.85em; margin-bottom: 5px; font-family: var(--font-secondary);">Throughput</div>
+                                <div id="ei-throughput" style="font-size: 1.5em; font-weight: 700; color: #8C3D16; font-family: var(--font-primary);">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Health Tab -->
+                <div id="ei-tab-system-health" class="ei-tab-content" style="display: none;">
+                    <h3 style="margin: 0 0 20px 0; color: #333; font-family: var(--font-primary);">💚 System Health Monitoring</h3>
+
+                    <!-- Disk Usage Charts -->
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 15px 0; color: #666; font-family: var(--font-primary);">💽 Disk Usage Over Time</h4>
+                        <canvas id="ei-disk-chart" style="max-height: 300px;"></canvas>
+                    </div>
+
+                    <!-- Session Utilization Chart -->
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <h4 style="margin: 0 0 15px 0; color: #666; font-family: var(--font-primary);">🔄 Session Utilization Trend</h4>
+                        <canvas id="ei-session-chart" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+
+                <!-- Network Tab -->
+                <div id="ei-tab-network" class="ei-tab-content" style="display: none;">
+                    <h3 style="margin: 0 0 20px 0; color: #333; font-family: var(--font-primary);">🌐 Network Performance</h3>
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <p style="color: #666; font-family: var(--font-secondary);">Network performance metrics from resource monitor data will be displayed here.</p>
+                        <div id="ei-network-content"></div>
+                    </div>
+                </div>
+
+                <!-- Security Tab -->
+                <div id="ei-tab-security" class="ei-tab-content" style="display: none;">
+                    <h3 style="margin: 0 0 20px 0; color: #333; font-family: var(--font-primary);">🔒 Security Metrics</h3>
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <p style="color: #666; font-family: var(--font-secondary);">Security metrics and threat detection data will be displayed here.</p>
+                        <div id="ei-security-content"></div>
+                    </div>
+                </div>
+
+                <!-- Databases Tab -->
+                <div id="ei-tab-databases" class="ei-tab-content" style="display: none;">
+                    <h3 style="margin: 0 0 20px 0; color: #333; font-family: var(--font-primary);">💾 Database Versions</h3>
+                    <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                            <div style="border-left: 4px solid #4facfe; padding-left: 15px;">
+                                <h4 style="margin: 0 0 10px 0; color: #666; font-family: var(--font-primary);">Application Database</h4>
+                                <div id="ei-db-app-version" style="font-size: 1.3em; font-weight: 700; color: #4facfe; font-family: var(--font-primary); margin-bottom: 5px;">--</div>
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-secondary);">App identification & categorization</div>
+                            </div>
+                            <div style="border-left: 4px solid #f093fb; padding-left: 15px;">
+                                <h4 style="margin: 0 0 10px 0; color: #666; font-family: var(--font-primary);">Threat Database</h4>
+                                <div id="ei-db-threat-version" style="font-size: 1.3em; font-weight: 700; color: #f093fb; font-family: var(--font-primary); margin-bottom: 5px;">--</div>
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-secondary);">Antivirus & vulnerability signatures</div>
+                            </div>
+                            <div style="border-left: 4px solid #FA582D; padding-left: 15px;">
+                                <h4 style="margin: 0 0 10px 0; color: #666; font-family: var(--font-primary);">WildFire Database</h4>
+                                <div id="ei-db-wildfire-version" style="font-size: 1.3em; font-weight: 700; color: #FA582D; font-family: var(--font-primary); margin-bottom: 5px;">--</div>
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-secondary);">Cloud-based malware analysis</div>
+                            </div>
+                            <div style="border-left: 4px solid #43e97b; padding-left: 15px;">
+                                <h4 style="margin: 0 0 10px 0; color: #666; font-family: var(--font-primary);">URL Filtering Database</h4>
+                                <div id="ei-db-url-version" style="font-size: 1.3em; font-weight: 700; color: #43e97b; font-family: var(--font-primary); margin-bottom: 5px;">--</div>
+                                <div style="color: #999; font-size: 0.85em; font-family: var(--font-secondary);">Web categorization & filtering</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 25px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <p style="margin: 0; color: #666; font-size: 0.9em; font-family: var(--font-secondary);">
+                                <strong>Last Updated:</strong> <span id="ei-db-last-updated">--</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Load JavaScript modules in order -->
-    <script src="/static/logs.js"></script>
-    <script src="/static/pages.js?v=1.10.10"></script>
+    <!-- Load data services FIRST - provides enterprise-grade data layer (v2.1.0) -->
+    <script defer src="/static/services/throughput-data-service.js?v=1732067200"></script>
+    <!-- Load app.js SECOND - provides window.apiClient and init() for other modules -->
+    <!-- defer ensures scripts execute in order AFTER DOM is ready and prevents race conditions -->
+    <script defer src="/static/app-v2.js?v=1732117249"></script>
+    <script defer src="/static/logs.js"></script>
+    <script defer src="/static/pages.js?v=1.10.10"></script>
+
     <!-- Connected Devices modules (Phase 6 refactoring - v1.8.2) - Load in order: core, metadata, export -->
-    <script src="/static/pages-connected-devices-core.js"></script>
-    <script src="/static/pages-connected-devices-metadata.js"></script>
-    <script src="/static/pages-connected-devices-export.js"></script>
-    <!-- Nmap Network Scanning module (v1.10.14) -->
-    <script src="/static/pages-nmap-scan.js"></script>
-    <script src="/static/pages-applications.js"></script>
-    <script src="/static/pages-panos-upgrade.js"></script>
-    <script src="/static/pages-content-updates.js"></script>
-    <script src="/static/pages-backup-restore.js"></script>
-    <script src="/static/pages-alerts.js?v=1.10.2"></script>
-    <script src="/static/pages-security.js"></script>
-    <script src="/static/settings.js?v=1.9.0"></script>
-    <script src="/static/devices.js?v=1.8.4"></script>
-    <script src="/static/app.js?v=1.10.7"></script>
+    <script defer src="/static/pages-connected-devices-core.js"></script>
+    <script defer src="/static/pages-connected-devices-metadata.js"></script>
+    <script defer src="/static/pages-connected-devices-export.js"></script>
+
+    <!-- Page-specific modules (depend on app.js) -->
+    <script defer src="/static/devices.js?v=1.8.4"></script>
+    <script defer src="/static/settings.js?v=1.9.0"></script>
+    <script defer src="/static/pages-nmap-scan.js"></script>
+    <script defer src="/static/pages-applications.js"></script>
+    <script defer src="/static/pages-panos-upgrade.js"></script>
+    <script defer src="/static/pages-content-updates.js"></script>
+    <script defer src="/static/pages-backup-restore.js"></script>
+    <script defer src="/static/pages-alerts.js?v=1.10.2"></script>
+    <script defer src="/static/pages-analytics.js"></script>
+    <script defer src="/static/pages-enhanced-insights.js"></script>
 </body>
 </html>

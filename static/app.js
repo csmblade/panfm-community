@@ -1,3 +1,5 @@
+console.log('[APP.JS] ===== FILE LOADING STARTED =====');
+
 // Configuration (will be loaded from settings)
 let UPDATE_INTERVAL = 60000; // Update every 60 seconds (Phase 2: database-first architecture)
 const MAX_DATA_POINTS = 30; // Show last 30 data points
@@ -42,9 +44,76 @@ let historicalData = {
 
 // Storage for modal data (global so pages.js can access them)
 window.currentCriticalLogs = [];
+window.currentHighLogs = [];
 window.currentMediumLogs = [];
 window.currentBlockedUrlLogs = [];
 window.currentTopApps = [];
+
+// Enterprise Threat Configuration (v1.10.14)
+// Reusable, scalable configuration for threat severity tiles
+// Supports critical, high, medium, blocked URLs - easy to extend for future severities
+const THREAT_CONFIG = {
+    critical: {
+        title: 'CRITICAL THREATS',
+        dataKey: 'critical_count',
+        logsKey: 'critical_logs',
+        lastSeenKey: 'critical_last_seen',
+        color: '#FA582D',
+        gradient: 'linear-gradient(135deg, #FA582D 0%, #FF7A55 100%)',
+        elementIds: {
+            value: 'criticalValue',
+            latest: 'criticalLatest',
+            lastSeen: 'criticalLastSeen'
+        },
+        modalFunction: 'showCriticalThreatsModal',
+        globalLogsVar: 'currentCriticalLogs'
+    },
+    high: {
+        title: 'HIGH THREATS',
+        dataKey: 'high_count',
+        logsKey: 'high_logs',
+        lastSeenKey: 'high_last_seen',
+        color: '#E04F26',
+        gradient: 'linear-gradient(135deg, #E04F26 0%, #FF6B3D 100%)',
+        elementIds: {
+            value: 'highValue',
+            latest: 'highLatest',
+            lastSeen: 'highLastSeen'
+        },
+        modalFunction: 'showHighThreatsModal',
+        globalLogsVar: 'currentHighLogs'
+    },
+    medium: {
+        title: 'MEDIUM THREATS',
+        dataKey: 'medium_count',
+        logsKey: 'medium_logs',
+        lastSeenKey: 'medium_last_seen',
+        color: '#C64620',
+        gradient: 'linear-gradient(135deg, #C64620 0%, #E85A31 100%)',
+        elementIds: {
+            value: 'mediumValue',
+            latest: 'mediumLatest',
+            lastSeen: 'mediumLastSeen'
+        },
+        modalFunction: 'showMediumThreatsModal',
+        globalLogsVar: 'currentMediumLogs'
+    },
+    blocked: {
+        title: 'BLOCKED URLS',
+        dataKey: 'url_blocked',
+        logsKey: 'blocked_url_logs',
+        lastSeenKey: 'blocked_url_last_seen',
+        color: '#AD3D1A',
+        gradient: 'linear-gradient(135deg, #AD3D1A 0%, #D14925 100%)',
+        elementIds: {
+            value: 'blockedUrlValue',
+            latest: 'blockedUrlLatest',
+            lastSeen: 'blockedUrlLastSeen'
+        },
+        modalFunction: 'showBlockedUrlsModal',
+        globalLogsVar: 'currentBlockedUrlLogs'
+    }
+};
 
 // Global metadata cache for device enrichment (dashboard use)
 window.deviceMetadataCache = {};
@@ -54,6 +123,207 @@ let sessionChart = null;
 let tcpChart = null;
 let udpChart = null;
 let ppsChart = null;
+
+/**
+ * Centralized API Client (v1.14.0 - Phase 2: API Standardization)
+ *
+ * Handles all API requests with:
+ * - Automatic CSRF token injection
+ * - Retry logic for failed requests
+ * - Consistent error handling
+ * - Request/response logging
+ * - Waiting state detection
+ */
+class ApiClient {
+    constructor() {
+        this.baseUrl = '';  // Same origin
+        this.defaultTimeout = 30000;  // 30 seconds
+        this.maxRetries = 3;
+        this.retryDelay = 1000;  // 1 second base delay
+    }
+
+    /**
+     * Get CSRF token from meta tag
+     */
+    getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    /**
+     * Main request method with retry logic and error handling
+     */
+    async request(endpoint, options = {}) {
+        const {
+            method = 'GET',
+            body = null,
+            headers = {},
+            params = null,
+            timeout = this.defaultTimeout,
+            retries = this.maxRetries,
+            skipRetry = false
+        } = options;
+
+        // Build headers
+        const requestHeaders = {
+            'Content-Type': 'application/json',
+            ...headers
+        };
+
+        // Add CSRF token for mutating requests
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase())) {
+            requestHeaders['X-CSRFToken'] = this.getCsrfToken();
+        }
+
+        // Build URL with query parameters
+        let url = `${this.baseUrl}${endpoint}`;
+        if (params && Object.keys(params).length > 0) {
+            const queryString = new URLSearchParams(params).toString();
+            url = `${url}?${queryString}`;
+            console.log(`[ApiClient] QUERY PARAMS DETECTED:`, params);
+            console.log(`[ApiClient] QUERY STRING BUILT: ?${queryString}`);
+        } else {
+            console.log(`[ApiClient] NO QUERY PARAMS (params is ${params})`);
+        }
+        console.log(`[ApiClient] FINAL URL: ${url}`);
+
+        // Build request config
+        const config = {
+            method,
+            headers: requestHeaders,
+            credentials: 'same-origin'
+        };
+
+        if (body) {
+            config.body = typeof body === 'string' ? body : JSON.stringify(body);
+        }
+
+        // Execute request with timeout and retry logic
+        let lastError = null;
+
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                console.log(`[ApiClient] ${method} ${url} (attempt ${attempt + 1}/${retries + 1})`);
+
+                const response = await this._fetchWithTimeout(url, config, timeout);
+
+                // Check HTTP status
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                // Parse JSON response
+                const data = await response.json();
+
+                // Check for waiting status
+                if (data.status === 'waiting') {
+                    console.log(`[ApiClient] Waiting state detected: ${data.message}`);
+                    return {
+                        ok: true,
+                        data: data,
+                        status: 'waiting'
+                    };
+                }
+
+                // Check for error status
+                if (data.status === 'error') {
+                    console.error(`[ApiClient] API error: ${data.message}`);
+                    return {
+                        ok: false,
+                        data: data,
+                        status: 'error'
+                    };
+                }
+
+                // Success
+                return {
+                    ok: true,
+                    data: data,
+                    status: 'success'
+                };
+
+            } catch (error) {
+                lastError = error;
+                console.error(`[ApiClient] Request failed (attempt ${attempt + 1}): ${error.message}`);
+
+                // Don't retry on rate limit errors (HTTP 429) or client errors (4xx)
+                // Rate limit retries make the problem worse by consuming more quota
+                if (error.message && error.message.includes('HTTP 429')) {
+                    console.warn(`[ApiClient] Rate limit exceeded - not retrying`);
+                    return {
+                        ok: false,
+                        error: error,
+                        status: 'rate_limit'
+                    };
+                }
+
+                // Don't retry on other client errors (400-499 except 429 already handled)
+                if (error.message && /HTTP 4\d\d/.test(error.message)) {
+                    console.warn(`[ApiClient] Client error - not retrying`);
+                    return {
+                        ok: false,
+                        error: error,
+                        status: 'client_error'
+                    };
+                }
+
+                // Don't retry on last attempt or if skipRetry is true
+                if (attempt < retries && !skipRetry) {
+                    await this._sleep(this.retryDelay * (attempt + 1));  // Exponential backoff
+                }
+            }
+        }
+
+        // All retries failed
+        console.error(`[ApiClient] All ${retries + 1} attempts failed for ${endpoint}`);
+        return {
+            ok: false,
+            error: lastError,
+            status: 'network_error'
+        };
+    }
+
+    /**
+     * Fetch with timeout wrapper
+     */
+    _fetchWithTimeout(url, config, timeout) {
+        return Promise.race([
+            fetch(url, config),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timeout')), timeout)
+            )
+        ]);
+    }
+
+    /**
+     * Sleep helper for retry delays
+     */
+    _sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Convenience methods for common HTTP verbs
+    get(endpoint, options = {}) {
+        return this.request(endpoint, { ...options, method: 'GET' });
+    }
+
+    post(endpoint, body, options = {}) {
+        return this.request(endpoint, { ...options, method: 'POST', body });
+    }
+
+    put(endpoint, body, options = {}) {
+        return this.request(endpoint, { ...options, method: 'PUT', body });
+    }
+
+    delete(endpoint, options = {}) {
+        return this.request(endpoint, { ...options, method: 'DELETE' });
+    }
+}
+
+// Create global API client instance (v1.14.0)
+window.apiClient = new ApiClient();
+console.log('[ApiClient] Centralized API client initialized (v1.14.0)');
 
 // Initialize Chart.js
 const ctx = document.getElementById('throughputChart').getContext('2d');
@@ -207,6 +477,8 @@ function calculateAverage(dataArray) {
 
 // Update the chart with new data
 function updateChart(data) {
+    console.log('[updateChart] Called with timestamp:', data.timestamp);
+
     // Validate timestamp exists
     if (!data.timestamp) {
         console.warn('No timestamp in data, skipping chart update');
@@ -462,52 +734,60 @@ function updateStats(data) {
             historicalData.urlFiltering.shift();
         }
 
-        // Store threat logs for modals FIRST (v1.10.13 - calculate unique counts)
+        // Store threat logs for modals FIRST (v1.10.14 - configuration-driven)
         window.currentCriticalLogs = data.threats.critical_logs || [];
+        window.currentHighLogs = data.threats.high_logs || [];
         window.currentMediumLogs = data.threats.medium_logs || [];
         window.currentBlockedUrlLogs = data.threats.blocked_url_logs || [];
 
-        // v1.10.13 FIX: Calculate unique counts for dashboard tiles (match modal logic)
-        // Critical threats - unique by threat name
-        const uniqueCritical = new Set();
-        window.currentCriticalLogs.forEach(log => {
-            const threat = log.threat || 'Unknown';
-            uniqueCritical.add(threat);
+        // v1.10.14: Enterprise configuration-driven threat tile updates
+        // Iterate through all configured threat severities
+        Object.keys(THREAT_CONFIG).forEach(severity => {
+            const config = THREAT_CONFIG[severity];
+            const logs = data.threats[config.logsKey] || [];
+
+            // Store logs in global variable for modal access
+            window[config.globalLogsVar] = logs;
+
+            // Calculate unique counts (critical/high/medium by threat name, blocked URLs by URL)
+            const uniqueItems = new Set();
+            logs.forEach(log => {
+                if (severity === 'blocked') {
+                    // Blocked URLs - use URL field
+                    const url = log.url || log.threat || 'Unknown';
+                    uniqueItems.add(url);
+                } else {
+                    // Threats - use threat name
+                    const threat = log.threat || 'Unknown';
+                    uniqueItems.add(threat);
+                }
+            });
+
+            // Update count value on tile
+            const valueElement = document.getElementById(config.elementIds.value);
+            if (valueElement) {
+                valueElement.innerHTML = uniqueItems.size.toLocaleString();
+            }
+
+            // Update latest threat/URL name on tile
+            const latestElement = document.getElementById(config.elementIds.latest);
+            if (latestElement && logs.length > 0) {
+                const latestLog = logs[0];
+                if (severity === 'blocked') {
+                    latestElement.textContent = latestLog.url || latestLog.threat || 'No recent blocks';
+                } else {
+                    latestElement.textContent = latestLog.threat || 'No recent threats';
+                }
+            } else if (latestElement) {
+                latestElement.textContent = '-';
+            }
+
+            // Update "Last seen" timestamp
+            const lastSeenElement = document.getElementById(config.elementIds.lastSeen);
+            if (lastSeenElement && data.threats[config.lastSeenKey]) {
+                lastSeenElement.textContent = formatDaysAgo(data.threats[config.lastSeenKey]);
+            }
         });
-
-        // Medium threats - unique by threat name
-        const uniqueMedium = new Set();
-        window.currentMediumLogs.forEach(log => {
-            const threat = log.threat || 'Unknown';
-            uniqueMedium.add(threat);
-        });
-
-        // Blocked URLs - unique by URL
-        const uniqueBlockedUrls = new Set();
-        window.currentBlockedUrlLogs.forEach(log => {
-            const url = log.url || log.threat || 'Unknown';
-            uniqueBlockedUrls.add(url);
-        });
-
-        // Display unique counts on dashboard tiles
-        document.getElementById('criticalValue').innerHTML = uniqueCritical.size.toLocaleString();
-        document.getElementById('mediumValue').innerHTML = uniqueMedium.size.toLocaleString();
-        document.getElementById('blockedUrlValue').innerHTML = uniqueBlockedUrls.size.toLocaleString();
-
-        // Update last seen stats in tiles
-        const criticalLastSeen = document.getElementById('criticalLastSeen');
-        const mediumLastSeen = document.getElementById('mediumLastSeen');
-        const blockedUrlLastSeen = document.getElementById('blockedUrlLastSeen');
-
-        if (criticalLastSeen) {
-            criticalLastSeen.textContent = formatDaysAgo(data.threats.critical_last_seen);
-        }
-        if (mediumLastSeen) {
-            mediumLastSeen.textContent = formatDaysAgo(data.threats.medium_last_seen);
-        }
-        if (blockedUrlLastSeen) {
-            blockedUrlLastSeen.textContent = formatDaysAgo(data.threats.blocked_url_last_seen);
-        }
     }
 
     // System logs are now on their own page, no need to update here
@@ -714,46 +994,56 @@ function showError(message) {
     }, 5000);
 }
 
+// Show info message (for non-error informational messages during startup)
+function showInfo(message) {
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.textContent = `Info: ${message}`;
+    errorDiv.style.display = 'block';
+    // Change background color to info blue instead of error red
+    errorDiv.style.background = 'linear-gradient(135deg, #5bc0de 0%, #7dd3f0 100%)';
+
+    setTimeout(() => {
+        errorDiv.style.display = 'none';
+        // Reset to error red for future error messages
+        errorDiv.style.background = '';
+    }, 5000);
+}
+
 // Fetch data from API
 async function fetchThroughputData() {
     try {
-        // Build URL with time range parameter if in historical mode
-        let url = '/api/throughput';
-        if (window.currentTimeRange && window.currentTimeRange !== 'realtime') {
-            url += `?range=${window.currentTimeRange}`;
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const params = {};
+        if (window.currentTimeRange) {
+            params.range = window.currentTimeRange;
         }
 
-        const response = await fetch(url);
+        const response = await window.apiClient.get('/api/throughput', { params });
 
-        // Handle authentication errors
-        if (response.status === 401) {
-            console.log('Session expired, redirecting to login...');
-            window.location.href = '/login';
-            return;
-        }
-
-        // Handle rate limiting
-        if (response.status === 429) {
-            console.warn('Rate limit exceeded');
+        // ApiClient handles auth/rate limiting/errors automatically
+        // Just check response status
+        if (!response.ok) {
+            console.error('Failed to fetch throughput data');
             updateStatus(false);
-            showError('Rate limit exceeded. Please wait before trying again.');
+            showError('Failed to fetch throughput data. System may be initializing.');
             return;
         }
 
-        // Check if response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('Expected JSON response but got ' + contentType);
-        }
-
-        const data = await response.json();
+        const data = response.data;
 
         if (data.status === 'success') {
             updateStats(data);
             updateChart(data);
             updateStatus(true);
 
+        } else if (data.status === 'no_data') {
+            // Not an error - system is initializing and waiting for first data collection
+            console.log('No recent data available - system initializing');
+            updateStatus(false);
+            showInfo('Waiting for first data collection. Charts will appear in ~60 seconds.');
+
         } else {
+            // Actual error case (status: 'error')
             updateStatus(false);
             showError(data.message || 'Failed to fetch data');
         }
@@ -789,15 +1079,30 @@ async function preloadChartData() {
     try {
         console.log('Preloading recent historical data for charts...');
 
-        const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
+        const deviceId = window.currentDeviceId;
         if (!deviceId) {
             console.warn('No device selected for preload, skipping...');
             return;
         }
 
-        // Query last 30 minutes of data (should give us MAX_DATA_POINTS worth)
-        const response = await fetch(`/api/throughput/history?device_id=${deviceId}&range=30m`);
-        const data = await response.json();
+        // Query data for current time range (Fixed v1.14.1 - was hardcoded to 30m)
+        // CRITICAL: Only use main dashboard time ranges (5m, 15m, 30m, 60m)
+        // If currentTimeRange is from Insights dashboard (1h, 6h, 24h, etc.), default to 30m
+        const mainDashboardRanges = ['5m', '15m', '30m', '60m'];
+        let timeRange = window.currentTimeRange || '30m';
+        if (!mainDashboardRanges.includes(timeRange)) {
+            console.warn(`Time range '${timeRange}' not valid for main dashboard, using '30m'`);
+            timeRange = '30m';
+        }
+        console.log(`Preloading chart data for time range: ${timeRange}`);
+        const response = await window.apiClient.get('/api/throughput/history', {
+            params: { device_id: deviceId, range: timeRange }
+        });
+        if (!response.ok) {
+            console.error('Failed to preload chart data');
+            return;
+        }
+        const data = response.data;
 
         if (data.status === 'success' && data.samples && data.samples.length > 0) {
             console.log(`Preloaded ${data.samples.length} historical samples`);
@@ -882,14 +1187,16 @@ async function preloadChartData() {
 async function loadDeviceMetadataCache() {
     try {
         console.log('Loading device metadata cache for dashboard...');
-        const response = await fetch('/api/device-metadata');
+
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/device-metadata');
 
         if (!response.ok) {
             console.warn('Failed to load device metadata:', response.status);
             return;
         }
 
-        const data = await response.json();
+        const data = response.data;
 
         if (data.status === 'success' && data.metadata) {
             // Store metadata in global cache, keyed by MAC address (normalized to lowercase)
@@ -930,6 +1237,9 @@ async function init() {
     // Load device metadata cache for dashboard use
     await loadDeviceMetadataCache();
 
+    // Initialize page navigation (menu clicks)
+    initPageNavigation();
+
     // Initialize mini charts (destroy existing ones first to avoid "Canvas already in use" error)
     if (sessionChart) sessionChart.destroy();
     if (tcpChart) tcpChart.destroy();
@@ -959,43 +1269,211 @@ async function init() {
         // Set initial value based on saved time range
         timeRangeSelect.value = window.currentTimeRange;
 
+        // CRITICAL FIX (v1.14.1): If localStorage has invalid value (e.g., '1h' but dropdown only has '60m'),
+        // the dropdown.value assignment fails silently. We must detect this and sync to dropdown's actual value.
+        if (timeRangeSelect.value !== window.currentTimeRange) {
+            console.warn(`Time range mismatch: localStorage='${window.currentTimeRange}' but dropdown='${timeRangeSelect.value}'`);
+            console.warn(`Syncing to dropdown value: ${timeRangeSelect.value}`);
+            window.currentTimeRange = timeRangeSelect.value;
+            localStorage.setItem('timeRange', timeRangeSelect.value);
+        }
+
         // Handle dropdown change
         timeRangeSelect.addEventListener('change', () => {
             handleTimeRangeChange(timeRangeSelect.value);
         });
     }
 
-    // If not in realtime mode on load, load the saved historical view
-    if (window.currentTimeRange !== 'realtime') {
+    // ============================================================
+    // ENTERPRISE DATA SERVICE INITIALIZATION (v2.1.0)
+    // ============================================================
+
+    try {
+        // Initialize ThroughputDataService with current device
+        const deviceId = window.currentDeviceId;
+        if (deviceId && window.throughputService) {
+            console.log('[INIT] Initializing ThroughputDataService...');
+
+            // Subscribe BEFORE initialization so we catch the first snapshot update
+            window.throughputService.subscribe('snapshot:update', (data) => {
+                console.log('[SERVICE] Received snapshot update, updating dashboard tiles');
+                console.log('[SERVICE] Snapshot data:', data);
+                updateCyberHealth(data);
+                // Do NOT update chart - chart uses historical data only
+            });
+
+            // Subscribe to device changes (clear old data)
+            window.throughputService.subscribe('device:change', ({ newDeviceId }) => {
+                console.log(`[SERVICE] Device changed to: ${newDeviceId}`);
+                // Chart will be refreshed by loadHistoricalThroughput
+            });
+
+            // Subscribe to waiting state
+            window.throughputService.subscribe('waiting', (data) => {
+                console.log('[SERVICE] Waiting for data collection:', data.message);
+            });
+
+            // Subscribe to errors
+            window.throughputService.subscribe('error', ({ type, error }) => {
+                console.error(`[SERVICE] Data service error (${type}):`, error);
+            });
+
+            // Now initialize (this will fetch first snapshot and emit to subscribers)
+            // Settings can be passed later when needed (refresh_interval, etc.)
+            await window.throughputService.initialize(deviceId, {});
+            console.log('[INIT] ThroughputDataService initialized');
+
+            // Explicitly fetch snapshot to ensure tiles are populated
+            console.log('[INIT] Fetching initial snapshot for dashboard tiles...');
+            const initialSnapshot = await window.throughputService.getSnapshot();
+            if (initialSnapshot && initialSnapshot.status === 'success') {
+                console.log('[INIT] Initial snapshot received, updating tiles');
+                updateCyberHealth(initialSnapshot);
+            } else {
+                console.warn('[INIT] Initial snapshot not ready:', initialSnapshot);
+            }
+        }
+
+        // Load historical data for the selected time range on initialization
+        console.log(`[INIT] Loading historical data for time range: ${window.currentTimeRange}`);
         await loadHistoricalThroughput(window.currentTimeRange);
-    } else {
-        // Preload recent historical data to populate chart for realtime mode
-        await preloadChartData();
+
+        // Service auto-refresh is already running (updates tiles every 60s)
+        // Chart stays static with historical data
+        console.log('✓ Historical data loaded - dashboard in historical mode');
+    } catch (error) {
+        console.error('[INIT] Error initializing ThroughputDataService:', error);
     }
-
-    // Initial fetch
-    fetchThroughputData();
-
-    // Set up polling with the loaded UPDATE_INTERVAL
-    updateIntervalId = setInterval(fetchThroughputData, UPDATE_INTERVAL);
 }
 
-// Start the app when DOM is ready
-document.addEventListener('DOMContentLoaded', init);
+/**
+ * Initialize current device ID from settings (Enterprise Fix v1.12.0)
+ * Ensures window.currentDeviceId is set before any page loads
+ * This prevents blank device_id errors in Analytics and other pages
+ */
+async function initializeCurrentDevice() {
+    console.log('[Global] Initializing current device...');
+
+    // Check if already initialized
+    if (window.currentDeviceId && window.currentDeviceId.trim() !== '') {
+        console.log('[Global] Device already initialized:', window.currentDeviceId);
+        return window.currentDeviceId;
+    }
+
+    // Fetch current selected device from settings API (source of truth)
+    try {
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/settings');
+
+        if (!response.ok) {
+            throw new Error(`Failed to load settings: ${response.status}`);
+        }
+
+        const data = response.data;
+
+        if (data.status === 'success' && data.settings) {
+            const deviceId = data.settings.selected_device_id || '';
+            window.currentDeviceId = deviceId;
+
+            if (deviceId && deviceId.trim() !== '') {
+                console.log('[Global] Loaded device from settings:', deviceId);
+                return deviceId;
+            } else {
+                console.warn('[Global] No device selected in settings');
+            }
+        }
+    } catch (error) {
+        console.error('[Global] Failed to fetch settings:', error);
+    }
+
+    // If no device selected, try to auto-select first enabled device
+    try {
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const devicesResponse = await window.apiClient.get('/api/devices');
+
+        if (!devicesResponse.ok) {
+            throw new Error(`Failed to load devices: ${devicesResponse.status}`);
+        }
+
+        const devicesData = devicesResponse.data;
+
+        if (devicesData.devices && devicesData.devices.length > 0) {
+            // Find first enabled device
+            const firstEnabledDevice = devicesData.devices.find(d => d.enabled !== false);
+
+            if (firstEnabledDevice) {
+                window.currentDeviceId = firstEnabledDevice.id;
+                console.log('[Global] Auto-selected first enabled device:', firstEnabledDevice.name);
+
+                // Persist selection to settings using ApiClient (CSRF token auto-injected)
+                try {
+                    await window.apiClient.post('/api/settings', {
+                        selected_device_id: firstEnabledDevice.id
+                    });
+                    console.log('[Global] Persisted device selection to settings');
+                } catch (error) {
+                    console.warn('[Global] Failed to persist device selection:', error);
+                }
+
+                return firstEnabledDevice.id;
+            } else {
+                console.warn('[Global] No enabled devices found');
+            }
+        } else {
+            console.warn('[Global] No devices configured');
+        }
+    } catch (error) {
+        console.error('[Global] Failed to fetch devices:', error);
+    }
+
+    // No device available
+    window.currentDeviceId = '';
+    console.warn('[Global] No device initialized - user must select one');
+    return '';
+}
+
+// Export for use by other modules
+window.initializeCurrentDevice = initializeCurrentDevice;
+
+// Start the app when DOM is ready (initialize device first!)
+console.log('[APP.JS] Script loaded - DOMContentLoaded listener registered');
+
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('[APP.JS] DOMContentLoaded fired - starting initialization...');
+
+    // Initialize device first (critical for all pages)
+    await initializeCurrentDevice();
+
+    // Then run normal initialization
+    await init();  // Fixed: await the async function
+
+    console.log('[APP.JS] Initialization complete');
+});
 
 // ============================================================================
 // Historical Throughput Functionality
 // ============================================================================
 
 // Current time range - global so modals can check if in historical mode
-// Load from localStorage if available, otherwise default to 'realtime'
-window.currentTimeRange = localStorage.getItem('timeRange') || 'realtime';
+// Load from localStorage if available, otherwise default to '30m'
+// CRITICAL FIX (v1.14.1): Validate that loaded value is in allowed list
+const validTimeRanges = ['5m', '15m', '30m', '60m', '1h', '6h', '24h', '7d', '30d', '90d'];
+const storedTimeRange = localStorage.getItem('timeRange');
+if (storedTimeRange && validTimeRanges.includes(storedTimeRange)) {
+    window.currentTimeRange = storedTimeRange;
+} else {
+    console.warn(`Invalid time range in localStorage: '${storedTimeRange}', defaulting to '30m'`);
+    window.currentTimeRange = '30m';
+    localStorage.setItem('timeRange', '30m');
+}
 
 /**
  * Handle time range dropdown change
  */
 async function handleTimeRangeChange(range) {
-    console.log('Time range changed to:', range);
+    console.log('=== TIME RANGE CHANGED (v1.14.1 FIX ACTIVE) ===');
+    console.log('New time range:', range);
+    console.log('This should load ONLY', range, 'of data, not 24 hours');
     window.currentTimeRange = range;
 
     // Save to localStorage for site-wide persistence
@@ -1007,32 +1485,95 @@ async function handleTimeRangeChange(range) {
         timeRangeSelect.value = range;
     }
 
-    if (range === 'realtime') {
-        // Resume real-time updates
-        if (!updateIntervalId) {
-            updateIntervalId = setInterval(fetchThroughputData, UPDATE_INTERVAL);
+    // Always load historical data for the selected time range
+    // Stop real-time updates
+    if (updateIntervalId) {
+        clearInterval(updateIntervalId);
+        updateIntervalId = null;
+    }
+
+    // Load historical data for the selected range
+    await loadHistoricalThroughput(range);
+}
+
+/**
+ * Fetch threat/URL data for a specific time range without updating the chart
+ * This updates threat tiles (Critical, Medium, Blocked URLs) for the selected time range
+ * Fixed v1.14.1: Separated from fetchThroughputData() to avoid chart contamination
+ */
+async function fetchThreatDataForTimeRange(range) {
+    try {
+        const deviceId = window.currentDeviceId;
+        if (!deviceId) {
+            console.warn('No device selected for threat data');
+            return;
         }
 
-        // Preload recent historical data to avoid empty chart
-        // This will populate the chart with last 30 minutes of data
-        await preloadChartData();
+        console.log(`Fetching threat data for time range: ${range}`);
 
-        // Fetch latest real-time data point
-        fetchThroughputData();
+        // Call /api/throughput with range parameter to get aggregated threat data
+        // This endpoint aggregates threats/URLs for the specified time range
+        const response = await window.apiClient.get('/api/throughput', {
+            params: { range: range }
+        });
 
-        // Hide historical stats elements in real-time mode
-        document.getElementById('totalMinMax').style.display = 'none';
-        document.getElementById('inboundMinMax').style.display = 'none';
-        document.getElementById('outboundMinMax').style.display = 'none';
-        document.getElementById('sampleCountDisplay').style.display = 'none';
-    } else {
-        // Stop real-time updates
-        if (updateIntervalId) {
-            clearInterval(updateIntervalId);
-            updateIntervalId = null;
+        if (!response.ok || response.data.status !== 'success') {
+            console.warn('Failed to fetch threat data for time range');
+            return;
         }
-        // Load historical data
-        await loadHistoricalThroughput(range);
+
+        const data = response.data;
+
+        // Update ONLY threat statistics (do NOT call updateChart!)
+        if (data.threats) {
+            // Store threat logs for modals
+            window.currentCriticalLogs = data.threats.critical_logs || [];
+            window.currentMediumLogs = data.threats.medium_logs || [];
+            window.currentBlockedUrlLogs = data.threats.blocked_url_logs || [];
+
+            // Calculate unique counts for dashboard tiles
+            const uniqueCritical = new Set();
+            window.currentCriticalLogs.forEach(log => {
+                const threat = log.threat || 'Unknown';
+                uniqueCritical.add(threat);
+            });
+
+            const uniqueMedium = new Set();
+            window.currentMediumLogs.forEach(log => {
+                const threat = log.threat || 'Unknown';
+                uniqueMedium.add(threat);
+            });
+
+            const uniqueBlockedUrls = new Set();
+            window.currentBlockedUrlLogs.forEach(log => {
+                const url = log.url || log.threat || 'Unknown';
+                uniqueBlockedUrls.add(url);
+            });
+
+            // Update threat tiles
+            document.getElementById('criticalValue').innerHTML = uniqueCritical.size.toLocaleString();
+            document.getElementById('mediumValue').innerHTML = uniqueMedium.size.toLocaleString();
+            document.getElementById('blockedUrlValue').innerHTML = uniqueBlockedUrls.size.toLocaleString();
+
+            // Update last seen stats
+            const criticalLastSeen = document.getElementById('criticalLastSeen');
+            const mediumLastSeen = document.getElementById('mediumLastSeen');
+            const blockedUrlLastSeen = document.getElementById('blockedUrlLastSeen');
+
+            if (criticalLastSeen) {
+                criticalLastSeen.textContent = formatDaysAgo(data.threats.critical_last_seen);
+            }
+            if (mediumLastSeen) {
+                mediumLastSeen.textContent = formatDaysAgo(data.threats.medium_last_seen);
+            }
+            if (blockedUrlLastSeen) {
+                blockedUrlLastSeen.textContent = formatDaysAgo(data.threats.blocked_url_last_seen);
+            }
+
+            console.log(`Updated threat tiles: ${uniqueCritical.size} critical, ${uniqueMedium.size} medium, ${uniqueBlockedUrls.size} blocked URLs`);
+        }
+    } catch (error) {
+        console.error('Error fetching threat data for time range:', error);
     }
 }
 
@@ -1043,60 +1584,104 @@ async function loadHistoricalThroughput(range) {
     try {
         console.log('Loading historical data for range:', range);
 
-        const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
+        const deviceId = window.currentDeviceId;
         if (!deviceId) {
             console.warn('No device selected');
             return;
         }
 
-        const response = await fetch(`/api/throughput/history?device_id=${deviceId}&range=${range}`);
-        const data = await response.json();
+        // ============================================================
+        // ENTERPRISE DATA SERVICE (v2.1.0)
+        // Use ThroughputDataService for cached, deduplicated data
+        // ============================================================
 
-        if (data.status === 'success' && data.samples) {
-            console.log(`Loaded ${data.samples.length} historical samples (${data.resolution} resolution)`);
+        let samples = [];
 
-            // Clear both chartData and chart datasets
-            window.chartData.timestamps = [];
-            window.chartData.labels = [];
-            window.chartData.inbound = [];
-            window.chartData.outbound = [];
-            window.chartData.total = [];
-
-            // Get user's timezone preference (default to UTC if not set)
-            const userTz = window.userTimezone || 'UTC';
-
-            // Add historical data to chartData object
-            data.samples.forEach(sample => {
-                const timestamp = new Date(sample.timestamp);
-                const timeLabel = timestamp.toLocaleTimeString('en-US', {
-                    timeZone: userTz,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                });
-                window.chartData.timestamps.push(sample.timestamp);
-                window.chartData.labels.push(timeLabel);
-                window.chartData.inbound.push(sample.inbound_mbps || 0);
-                window.chartData.outbound.push(sample.outbound_mbps || 0);
-                window.chartData.total.push(sample.total_mbps || 0);
+        if (window.throughputService) {
+            // Use service (with smart caching)
+            console.log('[SERVICE] Fetching historical data via ThroughputDataService');
+            samples = await window.throughputService.getHistorical(range);
+        } else {
+            // Fallback to direct API call (backward compatibility)
+            console.warn('[FALLBACK] ThroughputDataService not available, using direct API call');
+            const response = await window.apiClient.get('/api/throughput/history', {
+                params: { device_id: deviceId, range: range }
             });
 
-            // Update chart from chartData
-            window.chart.data.labels = window.chartData.labels.slice();
-            window.chart.data.datasets[0].data = window.chartData.inbound.slice();
-            window.chart.data.datasets[1].data = window.chartData.outbound.slice();
-            window.chart.data.datasets[2].data = window.chartData.total.slice();
-            window.chart.update();
+            if (response.status === 'waiting') {
+                console.log('⏳ Historical data not ready yet, waiting...');
+                console.log(response.data.message || 'Waiting for first data collection');
+                return;
+            }
 
-            // Auto-load statistics and display them inline
-            loadHistoricalStats(range);
+            if (response.status === 'error' || !response.ok) {
+                console.error('Failed to load historical data:', response.data?.message || 'Unknown error');
+                return;
+            }
 
-            // Fetch threat/URL data for the selected time range
-            await fetchThroughputData();
-        } else {
-            console.error('Failed to load historical data:', data.message);
+            samples = response.data.samples || [];
         }
+
+        // Handle empty samples
+        if (!samples || samples.length === 0) {
+            console.log('No historical samples available yet');
+            return;
+        }
+
+        console.log(`Loaded ${samples.length} historical samples for range: ${range}`);
+        console.log(`First sample timestamp: ${samples[0].timestamp}`);
+        console.log(`Last sample timestamp: ${samples[samples.length - 1].timestamp}`);
+
+        // Clear both chartData and chart datasets
+        window.chartData.timestamps = [];
+        window.chartData.labels = [];
+        window.chartData.inbound = [];
+        window.chartData.outbound = [];
+        window.chartData.total = [];
+
+        // Get user's timezone preference (default to UTC if not set)
+        const userTz = window.userTimezone || 'UTC';
+
+        // Add historical data to chartData object
+        samples.forEach(sample => {
+            const timestamp = new Date(sample.timestamp);
+            const timeLabel = timestamp.toLocaleTimeString('en-US', {
+                timeZone: userTz,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            window.chartData.timestamps.push(sample.timestamp);
+            window.chartData.labels.push(timeLabel);
+            window.chartData.inbound.push(sample.inbound_mbps || 0);
+            window.chartData.outbound.push(sample.outbound_mbps || 0);
+            window.chartData.total.push(sample.total_mbps || 0);
+        });
+
+        // Update chart from chartData
+        window.chart.data.labels = window.chartData.labels.slice();
+        window.chart.data.datasets[0].data = window.chartData.inbound.slice();
+        window.chart.data.datasets[1].data = window.chartData.outbound.slice();
+        window.chart.data.datasets[2].data = window.chartData.total.slice();
+
+        console.log(`[CHART] Updating chart with ${window.chartData.labels.length} data points`);
+        console.log(`[CHART] First label: ${window.chartData.labels[0]}, Last label: ${window.chartData.labels[window.chartData.labels.length - 1]}`);
+        console.log(`[CHART] Inbound range: ${Math.min(...window.chartData.inbound).toFixed(2)} - ${Math.max(...window.chartData.inbound).toFixed(2)} Mbps`);
+        console.log(`[CHART] Outbound range: ${Math.min(...window.chartData.outbound).toFixed(2)} - ${Math.max(...window.chartData.outbound).toFixed(2)} Mbps`);
+
+        window.chart.update();
+
+        // Auto-load statistics and display them inline
+        loadHistoricalStats(range);
+
+        // Fixed v1.14.1: DO NOT call fetchThroughputData() here - it returns a single latest sample
+        // which gets appended to the historical chart, contaminating it with the wrong data point.
+        // The historical data is already loaded above. fetchThroughputData() should only be used
+        // for real-time auto-refresh mode (via setInterval), not for historical viewing mode.
+
+        // Instead, fetch threat/URL data separately without updating the chart
+        await fetchThreatDataForTimeRange(range);
     } catch (error) {
         console.error('Error loading historical data:', error);
     }
@@ -1107,11 +1692,17 @@ async function loadHistoricalThroughput(range) {
  */
 async function loadHistoricalStats(range) {
     try {
-        const deviceId = selectedDeviceId || currentSettings?.selected_device_id;
+        const deviceId = window.currentDeviceId;
         if (!deviceId) return;
 
-        const response = await fetch(`/api/throughput/history/stats?device_id=${deviceId}&range=${range}`);
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/throughput/history/stats', {
+            params: { device_id: deviceId, range: range }
+        });
+        if (!response.ok) {
+            console.error('Failed to load historical stats');
+            return;
+        }
+        const data = response.data;
 
         if (data.status === 'success' && data.stats) {
             // Update average values (already displayed)
@@ -1152,17 +1743,8 @@ async function loadHistoricalStats(range) {
  */
 async function handleLogout() {
     try {
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-        // Call logout API
-        const response = await fetch('/api/logout', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            }
-        });
+        // Call logout API using ApiClient (v1.14.0 - CSRF token auto-injected)
+        const response = await window.apiClient.post('/api/logout');
 
         // Redirect to login page regardless of response
         // This ensures user is logged out even if API call fails
@@ -1220,7 +1802,7 @@ function initPageNavigation() {
         'device-info': document.getElementById('device-info-content'),
         'logs': document.getElementById('logs-content'),
         'alerts': document.getElementById('alerts-content'),
-        'security': document.getElementById('security-content'),
+        'analytics': document.getElementById('analytics-content'),
         'devices': document.getElementById('devices-content'),
         'settings': document.getElementById('settings-content')
     };
@@ -1260,9 +1842,9 @@ function initPageNavigation() {
                         if (typeof loadQuickStartScenarios === 'function') {
                             loadQuickStartScenarios();
                         }
-                    } else if (pageKey === 'security') {
-                        // Load security monitoring page
-                        initSecurityPage();
+                    } else if (pageKey === 'analytics') {
+                        // Load analytics dashboard page
+                        initAnalyticsPage();
                     } else if (pageKey === 'devices') {
                         loadDevices();
                     } else if (pageKey === 'settings') {
@@ -1451,16 +2033,14 @@ function initPageNavigation() {
  * IMPORTANT: When adding new data displays to the dashboard or any page,
  * you MUST update this function to clear/reset those values.
  */
-function refreshAllDataForDevice() {
+async function refreshAllDataForDevice() {
     console.log('=== refreshAllDataForDevice called ===');
 
     // ========================================================================
-    // 0. RESET TIME RANGE TO REAL-TIME
+    // 0. PRESERVE USER'S TIME RANGE SELECTION (Fixed v1.14.1)
     // ========================================================================
-    if (currentTimeRange !== 'realtime') {
-        console.log('Resetting time range to real-time on device change');
-        handleTimeRangeChange('realtime');
-    }
+    // Removed forced reset to '1m' - user's selection should persist across device changes
+    console.log('Preserving user time range selection:', currentTimeRange);
 
     // ========================================================================
     // 1. CLEAR MAIN CHART DATA
@@ -1551,26 +2131,28 @@ function refreshAllDataForDevice() {
         icmpValue.innerHTML = '<span style="font-size: 0.7em;">Loading...</span>';
     }
 
-    // Threat stats
-    const criticalValue = document.getElementById('criticalValue');
-    if (criticalValue) {
-        criticalValue.innerHTML = '<span style="font-size: 0.7em;">Loading...</span>';
-    }
+    // Threat stats (v1.10.14 - configuration-driven reset)
+    Object.keys(THREAT_CONFIG).forEach(severity => {
+        const config = THREAT_CONFIG[severity];
 
-    const mediumValue = document.getElementById('mediumValue');
-    if (mediumValue) {
-        mediumValue.innerHTML = '<span style="font-size: 0.7em;">Loading...</span>';
-    }
+        // Reset count value
+        const valueElement = document.getElementById(config.elementIds.value);
+        if (valueElement) {
+            valueElement.innerHTML = '<span style="font-size: 0.7em;">Loading...</span>';
+        }
 
-    const blockedUrlValue = document.getElementById('blockedUrlValue');
-    if (blockedUrlValue) {
-        blockedUrlValue.innerHTML = '<span style="font-size: 0.7em;">Loading...</span>';
-    }
+        // Reset latest threat/URL name
+        const latestElement = document.getElementById(config.elementIds.latest);
+        if (latestElement) {
+            latestElement.textContent = '-';
+        }
 
-    const topAppsValue = document.getElementById('topAppsValue');
-    if (topAppsValue) {
-        topAppsValue.innerHTML = '<span style="font-size: 0.7em;">Loading...</span>';
-    }
+        // Reset last seen timestamp
+        const lastSeenElement = document.getElementById(config.elementIds.lastSeen);
+        if (lastSeenElement) {
+            lastSeenElement.textContent = '-';
+        }
+    });
 
     // Interface errors
     const interfaceErrorsElement = document.getElementById('interfaceErrorsValue');
@@ -1709,11 +2291,14 @@ function refreshAllDataForDevice() {
     }
 
     // Preload historical data for charts before starting real-time updates
-    preloadChartData();
+    await preloadChartData();
 
-    fetchThroughputData();
+    // Fixed v1.14.1: Don't immediately call fetchThroughputData after preload
+    // This was adding a single latest sample to the historical chart, contaminating it
+    // Just start the interval, the first call will happen after UPDATE_INTERVAL
+    console.log(`Starting auto-refresh with ${UPDATE_INTERVAL}ms interval...`);
     updateIntervalId = setInterval(fetchThroughputData, UPDATE_INTERVAL);
-    console.log(`Update interval restarted: ${UPDATE_INTERVAL}ms`);
+    console.log(`✓ Auto-refresh interval started (first update in ${UPDATE_INTERVAL/1000}s)`);
 
     // OPTIMIZATION: Only refresh the currently visible page (not all pages)
     // This reduces device switch from 8+ API calls to 1-2 calls
@@ -1962,14 +2547,12 @@ function updateActiveAlertsCount() {
         return;
     }
 
-    fetch('/api/alerts/stats')
+    window.apiClient.get('/api/alerts/stats')
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error('Failed to fetch alert stats');
             }
-            return response.json();
-        })
-        .then(data => {
+            const data = response.data;
             console.log('updateActiveAlertsCount: Received response', data);
 
             // API returns data.data (not data.stats)

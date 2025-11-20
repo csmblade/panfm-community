@@ -19,10 +19,46 @@ VENDOR_DB_FILE = os.path.join(os.path.dirname(__file__), 'mac_vendor_db.json')
 SERVICE_PORT_DB_FILE = os.path.join(os.path.dirname(__file__), 'service_port_db.json')
 AUTH_FILE = os.path.join(os.path.dirname(__file__), 'auth.json')
 METADATA_FILE = os.path.join(os.path.dirname(__file__), 'device_metadata.json')
-SECURITY_LOG_FILE = os.path.join(os.path.dirname(__file__), 'security.log')
-THROUGHPUT_DB_FILE = os.path.join(os.path.dirname(__file__), 'throughput_history.db')
-ALERTS_DB_FILE = os.path.join(os.path.dirname(__file__), 'alerts.db')
-NMAP_SCANS_DB_FILE = os.path.join(os.path.dirname(__file__), 'nmap_scans.db')
+ALERTS_DB_FILE = os.path.join(os.path.dirname(__file__), 'alerts.db')  # Still uses SQLite
+# Note: throughput_history.db removed in v2.0.0 (replaced by TimescaleDB)
+
+# =========================================
+# TimescaleDB Configuration (v2.0.0)
+# =========================================
+# Enterprise-grade time-series database for throughput metrics
+# Replaces SQLite with PostgreSQL + TimescaleDB extension
+
+# Connection settings (from environment variables or defaults)
+TIMESCALE_HOST = os.getenv('TIMESCALE_HOST', 'localhost')
+TIMESCALE_PORT = int(os.getenv('TIMESCALE_PORT', 5432))
+TIMESCALE_USER = os.getenv('TIMESCALE_USER', 'panfm')
+TIMESCALE_PASSWORD = os.getenv('TIMESCALE_PASSWORD', 'panfm_secure_password')
+TIMESCALE_DB = os.getenv('TIMESCALE_DB', 'panfm_db')
+
+# Connection pool settings
+TIMESCALE_MIN_CONNECTIONS = int(os.getenv('TIMESCALE_MIN_CONNECTIONS', 2))
+TIMESCALE_MAX_CONNECTIONS = int(os.getenv('TIMESCALE_MAX_CONNECTIONS', 10))
+TIMESCALE_CONNECTION_TIMEOUT = int(os.getenv('TIMESCALE_CONNECTION_TIMEOUT', 30))
+
+# Build PostgreSQL DSN (connection string)
+TIMESCALE_DSN = f"postgresql://{TIMESCALE_USER}:{TIMESCALE_PASSWORD}@{TIMESCALE_HOST}:{TIMESCALE_PORT}/{TIMESCALE_DB}"
+
+# PANfm v2.0.0: TimescaleDB is the only option (SQLite support removed)
+# This constant is kept for backwards compatibility but always True
+USE_TIMESCALE = True  # Hardcoded - SQLite support removed
+
+# =========================================
+# Elasticsearch Configuration (v2.0.0 - Phase 2)
+# =========================================
+# Log storage and full-text search
+# TODO: Add in Phase 2 of migration
+
+ELASTICSEARCH_HOST = os.getenv('ELASTICSEARCH_HOST', 'localhost')
+ELASTICSEARCH_PORT = int(os.getenv('ELASTICSEARCH_PORT', 9200))
+ELASTICSEARCH_USE_SSL = os.getenv('ELASTICSEARCH_USE_SSL', 'false').lower() in ('true', '1', 'yes')
+
+# Feature flag: Use Elasticsearch vs file-based logs
+USE_ELASTICSEARCH = os.getenv('USE_ELASTICSEARCH', 'false').lower() in ('true', '1', 'yes')
 
 # Global caches for vendor and service port databases
 _vendor_db_cache = None

@@ -8,7 +8,7 @@ import json
 import shutil
 import base64
 from datetime import datetime
-from config import load_settings, save_settings, SETTINGS_FILE, THROUGHPUT_DB_FILE
+from config import load_settings, save_settings, SETTINGS_FILE
 from device_manager import device_manager
 from device_metadata import load_metadata, save_metadata, check_migration_needed, migrate_global_to_per_device
 from logger import debug, info, warning, error, exception
@@ -69,30 +69,18 @@ def create_full_backup():
         encryption_key_b64 = base64.b64encode(encryption_key).decode('utf-8')
         debug("Included encryption key in backup for restore compatibility")
 
-        # Load throughput database (NEW in v1.6.0)
-        throughput_db_b64 = None
-        if os.path.exists(THROUGHPUT_DB_FILE):
-            try:
-                with open(THROUGHPUT_DB_FILE, 'rb') as f:
-                    throughput_db_bytes = f.read()
-                throughput_db_b64 = base64.b64encode(throughput_db_bytes).decode('utf-8')
-                db_size_mb = len(throughput_db_bytes) / (1024 * 1024)
-                debug(f"Included throughput database in backup ({db_size_mb:.2f} MB)")
-            except Exception as e:
-                warning(f"Failed to include throughput database in backup: {str(e)}")
-                # Continue without throughput DB - not critical
-        else:
-            debug("Throughput database not found, skipping")
+        # NOTE: throughput_db removed in v2.0.0 (TimescaleDB replaces SQLite)
+        # TimescaleDB data is backed up via pg_dump or Docker volume backups
 
         # Create backup structure
         backup = {
-            'version': '1.6.0',
+            'version': '2.0.0',
             'timestamp': datetime.utcnow().isoformat() + 'Z',
             'encryption_key': encryption_key_b64,  # CRITICAL: Required for restore
             'settings': settings,
             'devices': devices_data,
-            'metadata': metadata,
-            'throughput_db': throughput_db_b64  # NEW: Historical throughput data
+            'metadata': metadata
+            # throughput_db removed - use TimescaleDB backups (pg_dump)
         }
 
         info("Successfully created full backup")
@@ -102,7 +90,7 @@ def create_full_backup():
         return None
 
 
-def restore_from_backup(backup_data, restore_settings=True, restore_devices=True, restore_metadata=True, restore_throughput_db=True):
+def restore_from_backup(backup_data, restore_settings=True, restore_devices=True, restore_metadata=True, restore_throughput_db=False):
     """
     Restore site configuration from backup.
 
@@ -111,17 +99,19 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
         restore_settings (bool): Whether to restore settings
         restore_devices (bool): Whether to restore devices
         restore_metadata (bool): Whether to restore metadata
-        restore_throughput_db (bool): Whether to restore throughput database (NEW in v1.6.0)
+        restore_throughput_db (bool): DEPRECATED (v2.0.0) - TimescaleDB not restored via this function
 
     Returns:
         dict: Result with structure:
               {
                   'success': bool,
-                  'restored': ['settings', 'devices', 'metadata', 'throughput_db'],
+                  'restored': ['settings', 'devices', 'metadata'],
                   'errors': ['error messages if any']
               }
+
+    NOTE: In v2.0.0, throughput data is stored in TimescaleDB and must be backed up via pg_dump
     """
-    debug(f"Starting restore (settings={restore_settings}, devices={restore_devices}, metadata={restore_metadata}, throughput_db={restore_throughput_db})")
+    debug(f"Starting restore (settings={restore_settings}, devices={restore_devices}, metadata={restore_metadata})")
 
     result = {
         'success': True,
@@ -190,11 +180,34 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
         # Restore devices
         if restore_devices and 'devices' in backup_data:
             try:
+                from device_manager import generate_deterministic_device_id
+
                 devices_data = backup_data['devices']
                 # save_devices expects just the list, but we need to restore full structure with groups
                 devices_list = devices_data.get('devices', []) if isinstance(devices_data, dict) else devices_data
 
-                # Save devices list
+                # ENTERPRISE FIX (v1.12.0): Regenerate deterministic device_ids from IP addresses
+                # This ensures device_ids remain stable across restores and prevents orphaned data
+                device_id_mapping = {}  # old_id → new_id for updating references
+                for device in devices_list:
+                    old_id = device.get('id')
+                    ip = device.get('ip')
+                    name = device.get('name')
+
+                    if ip:
+                        # Generate deterministic device_id from IP
+                        new_id = generate_deterministic_device_id(ip, name)
+
+                        if old_id != new_id:
+                            debug(f"Regenerating device_id for {name} ({ip}): {old_id} → {new_id}")
+                            device['id'] = new_id
+                            device_id_mapping[old_id] = new_id
+                        else:
+                            debug(f"Device {name} ({ip}) already has deterministic ID: {new_id}")
+                    else:
+                        warning(f"Device {old_id} has no IP address - keeping original ID")
+
+                # Save devices list with corrected device_ids
                 if device_manager.save_devices(devices_list):
                     # Also restore groups if present in backup
                     if isinstance(devices_data, dict) and 'groups' in devices_data:
@@ -205,10 +218,20 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
                             json.dump(full_data, f, indent=2)
 
                     # After restoring devices, ensure settings has a valid selected_device_id
-                    # If settings were not restored or selected_device_id is empty, select first device
+                    # Update selected_device_id if it was mapped to a new deterministic ID
                     current_settings = load_settings()
-                    if not current_settings.get('selected_device_id') and devices_list:
-                        # Set first device as selected
+                    old_selected_id = current_settings.get('selected_device_id', '')
+
+                    # If the old selected_device_id was changed during restore, update settings
+                    if old_selected_id and old_selected_id in device_id_mapping:
+                        new_selected_id = device_id_mapping[old_selected_id]
+                        current_settings['selected_device_id'] = new_selected_id
+                        save_settings(current_settings)
+                        info(f"Updated selected_device_id: {old_selected_id} → {new_selected_id}")
+
+                    # If settings were not restored or selected_device_id is empty, select first device
+                    elif not current_settings.get('selected_device_id') and devices_list:
+                        # Set first device as selected (use new deterministic ID)
                         current_settings['selected_device_id'] = devices_list[0].get('id')
                         save_settings(current_settings)
                         info(f"Auto-selected first device after restore: {devices_list[0].get('name')}")
@@ -234,22 +257,10 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
                 result['errors'].append(f"Metadata restore error: {str(e)}")
                 exception(f"Failed to restore metadata: {str(e)}")
 
-        # Restore throughput database (NEW in v1.6.0)
-        if restore_throughput_db and 'throughput_db' in backup_data and backup_data['throughput_db']:
-            try:
-                # Decode base64 database file
-                throughput_db_bytes = base64.b64decode(backup_data['throughput_db'])
-
-                # Write to file
-                with open(THROUGHPUT_DB_FILE, 'wb') as f:
-                    f.write(throughput_db_bytes)
-
-                db_size_mb = len(throughput_db_bytes) / (1024 * 1024)
-                result['restored'].append('throughput_db')
-                info(f"Successfully restored throughput database ({db_size_mb:.2f} MB)")
-            except Exception as e:
-                result['errors'].append(f"Throughput database restore error: {str(e)}")
-                exception(f"Failed to restore throughput database: {str(e)}")
+        # NOTE: Throughput database restore removed in v2.0.0 (TimescaleDB replacement)
+        # Use pg_dump to backup/restore TimescaleDB data
+        if restore_throughput_db:
+            warning("throughput_db restore is deprecated in v2.0.0 - use pg_dump for TimescaleDB backups")
 
         # Overall success if no errors
         if result['errors']:
@@ -368,17 +379,13 @@ def get_backup_info(backup_data):
             'has_settings': 'settings' in backup_data,
             'has_devices': 'devices' in backup_data,
             'has_metadata': 'metadata' in backup_data,
-            'has_throughput_db': 'throughput_db' in backup_data and backup_data['throughput_db'],
+            'has_throughput_db': False,  # v2.0.0: TimescaleDB not backed up here
             'device_count': 0,
             'metadata_count': 0,
-            'throughput_db_size_mb': 0.0
+            'throughput_db_size_mb': 0.0  # v2.0.0: TimescaleDB not backed up here
         }
 
-        # Calculate throughput database size
-        if info_dict['has_throughput_db']:
-            throughput_db_b64 = backup_data['throughput_db']
-            db_bytes = base64.b64decode(throughput_db_b64)
-            info_dict['throughput_db_size_mb'] = round(len(db_bytes) / (1024 * 1024), 2)
+        # NOTE: throughput_db calculations removed in v2.0.0 (TimescaleDB)
 
         # Count devices
         if 'devices' in backup_data and isinstance(backup_data['devices'], dict):

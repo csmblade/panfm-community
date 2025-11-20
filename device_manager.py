@@ -12,6 +12,43 @@ from logger import debug, error, exception, warning
 # Only import what we need: encrypt_string and decrypt_string for API keys only
 from encryption import encrypt_string, decrypt_string
 
+
+def generate_deterministic_device_id(ip, name=None):
+    """
+    Generate deterministic device ID from IP address (and optionally name).
+
+    This ensures device_ids remain consistent across backups, restores, and reinstalls.
+    The same IP address will ALWAYS generate the same device_id.
+
+    Format: UUID v5 (SHA-1 namespace-based UUID)
+    Namespace: Custom PANfm namespace UUID
+
+    Args:
+        ip: Device IP address (e.g., "192.168.1.1")
+        name: Optional device name for disambiguation (not currently used)
+
+    Returns:
+        Deterministic UUID string that will always be the same for this IP
+
+    Example:
+        >>> generate_deterministic_device_id("192.168.1.1")
+        '550e8400-e29b-41d4-a716-446655440000'  # Always the same for this IP
+        >>> generate_deterministic_device_id("192.168.1.1")
+        '550e8400-e29b-41d4-a716-446655440000'  # Identical to above
+    """
+    # Use UUID namespace for PANfm (custom namespace for this application)
+    # This is a standard UUID v5 namespace UUID
+    PANFM_NAMESPACE = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+
+    # Generate deterministic UUID from IP address
+    # We use ONLY the IP for now (name could be changed by user)
+    unique_string = ip
+
+    device_id = str(uuid.uuid5(PANFM_NAMESPACE, unique_string))
+
+    debug(f"Generated deterministic device_id for IP {ip}: {device_id}")
+    return device_id
+
 class DeviceManager:
     """Manages multiple firewall devices"""
 
@@ -121,12 +158,36 @@ class DeviceManager:
         return None
 
     def add_device(self, name, ip, api_key, group="Default", description="", monitored_interface="ethernet1/12", wan_interface=""):
-        """Add a new device"""
+        """
+        Add a new device with deterministic device_id based on IP address.
+
+        The device_id is generated deterministically from the IP address, ensuring:
+        - Same IP = same device_id (consistent across restores)
+        - Historical data correlation preserved
+        - Duplicate detection possible (same IP = duplicate device)
+        """
         # Load devices WITH decryption so save_devices can re-encrypt all consistently
         devices = self.load_devices(decrypt_api_keys=True)
 
+        # Generate deterministic device_id from IP address
+        deterministic_id = generate_deterministic_device_id(ip, name)
+
+        # Check for duplicate IP (same device_id = same IP)
+        existing_device = self.get_device(deterministic_id)
+        if existing_device:
+            warning(f"Device with IP {ip} already exists (id: {deterministic_id}). Updating instead of creating.")
+            # Update existing device instead of creating duplicate
+            return self.update_device(deterministic_id, {
+                'name': name,
+                'api_key': api_key,
+                'group': group,
+                'description': description,
+                'monitored_interface': monitored_interface,
+                'wan_interface': wan_interface
+            })
+
         new_device = {
-            "id": str(uuid.uuid4()),
+            "id": deterministic_id,  # ✅ DETERMINISTIC - based on IP address
             "name": name,
             "ip": ip,
             "api_key": api_key,
@@ -141,6 +202,7 @@ class DeviceManager:
 
         devices.append(new_device)
         self.save_devices(devices)
+        debug(f"Added new device '{name}' with deterministic ID: {deterministic_id}")
         return new_device
 
     def update_device(self, device_id, updates):

@@ -160,8 +160,11 @@ async function loadDhcpLeases() {
     errorDiv.style.display = 'none';
 
     try {
-        const response = await fetch('/api/dhcp-leases');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/dhcp-leases');
+        if (!response.ok) {
+            throw new Error('Failed to load DHCP leases');
+        }
+        const data = response.data;
 
         // Hide loading animation
         loadingDiv.style.display = 'none';
@@ -437,8 +440,11 @@ async function loadSoftwareUpdates() {
     errorDiv.style.display = 'none';
 
     try {
-        const response = await fetch('/api/software-updates');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/software-updates');
+        if (!response.ok) {
+            throw new Error('Failed to load software updates');
+        }
+        const data = response.data;
 
         // Show components table
         componentsTableDiv.style.display = 'block';
@@ -585,14 +591,32 @@ window.showCriticalThreatsModal = function showCriticalThreatsModal() {
     // Safety check: ensure currentCriticalLogs exists
     const logs = window.currentCriticalLogs || [];
 
-    // Show last 5 entries without grouping
-    const recentLogs = logs.slice(0, 5);
+    // v1.10.14: Group by threat name and count occurrences
+    const threatCounts = new Map();
+    const threatDetails = new Map();
 
-    // Update count to show total threats
-    countElement.textContent = logs.length;
+    // Count occurrences and store most recent log for each threat
+    for (const log of logs) {
+        const threatName = log.threat || 'Unknown';
+
+        if (!threatCounts.has(threatName)) {
+            threatCounts.set(threatName, 1);
+            threatDetails.set(threatName, log); // Store most recent (first in sorted list)
+        } else {
+            threatCounts.set(threatName, threatCounts.get(threatName) + 1);
+        }
+    }
+
+    // Convert to array and sort by count (descending)
+    const sortedThreats = Array.from(threatCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10); // Show top 10
+
+    // Update count to show total UNIQUE threats
+    countElement.textContent = threatCounts.size;
 
     // Build table
-    if (recentLogs.length === 0) {
+    if (sortedThreats.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No critical threats detected</div>';
     } else{
         let tableHtml = `
@@ -607,18 +631,28 @@ window.showCriticalThreatsModal = function showCriticalThreatsModal() {
                 <tbody>
         `;
 
-        recentLogs.forEach((log, index) => {
+        sortedThreats.forEach(([threatName, count], index) => {
+            const log = threatDetails.get(threatName);
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
-            const threat = log.threat || 'Unknown';
+            const threat = threatName;
             const action = log.action || 'N/A';
-            const datetime = log.last_time ? new Date(log.last_time) : null;
+            // v1.11.1 FIX: Database returns 'time' field, not 'last_time'
+            const datetime = log.time ? new Date(log.time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
+            const src = log.source_ip || log.src || 'N/A';
+            const dst = log.destination_ip || log.dst || 'N/A';
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
-                    <td style="padding: 12px; color: #333; font-weight: 600;">${threat}</td>
+                    <td style="padding: 12px; color: #333; font-weight: 600;">
+                        ${threat}
+                        <span style="font-size: 0.75em; font-weight: 400; opacity: 0.6; margin-left: 8px;">(${count} occurrence${count > 1 ? 's' : ''})</span>
+                    </td>
                     <td style="padding: 12px; color: #FA582D; font-weight: 600;">${action}</td>
-                    <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
+                    <td style="padding: 12px; color: #999; font-size: 0.9em;">
+                        ${time}<br>
+                        <span style="font-size: 0.85em; color: #999;">${src} → ${dst}</span>
+                    </td>
                 </tr>
             `;
         });
@@ -637,6 +671,95 @@ function closeCriticalThreatsModal() {
     document.getElementById('criticalThreatsModal').style.display = 'none';
 }
 
+// High Threats Modal (NEW v1.10.14)
+window.showHighThreatsModal = function showHighThreatsModal() {
+    const modal = document.getElementById('highThreatsModal');
+    const container = document.getElementById('highThreatsTableContainer');
+    const countElement = document.getElementById('highModalCount');
+
+    // Phase 4: Logs now available from database in all modes (real-time and historical)
+    // Safety check: ensure currentHighLogs exists
+    const logs = window.currentHighLogs || [];
+
+    // v1.10.14: Group by threat name and count occurrences
+    const threatCounts = new Map();
+    const threatDetails = new Map();
+
+    // Count occurrences and store most recent log for each threat
+    for (const log of logs) {
+        const threatName = log.threat || 'Unknown';
+
+        if (!threatCounts.has(threatName)) {
+            threatCounts.set(threatName, 1);
+            threatDetails.set(threatName, log); // Store most recent (first in sorted list)
+        } else {
+            threatCounts.set(threatName, threatCounts.get(threatName) + 1);
+        }
+    }
+
+    // Convert to array and sort by count (descending)
+    const sortedThreats = Array.from(threatCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10); // Show top 10
+
+    // Update count to show total UNIQUE threats
+    countElement.textContent = threatCounts.size;
+
+    // Build table
+    if (sortedThreats.length === 0) {
+        container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No high threats detected</div>';
+    } else {
+        let tableHtml = `
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #E04F26 0%, #FF6B3D 100%); color: white;">
+                        <th style="padding: 12px; text-align: left;">Threat</th>
+                        <th style="padding: 12px; text-align: left;">Action</th>
+                        <th style="padding: 12px; text-align: left;">Last Seen</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        sortedThreats.forEach(([threatName, count], index) => {
+            const log = threatDetails.get(threatName);
+            const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
+            const threat = threatName;
+            const action = log.action || 'N/A';
+            const datetime = log.time ? new Date(log.time) : null;
+            const time = datetime ? datetime.toLocaleString() : 'N/A';
+            const src = log.source_ip || log.src || 'N/A';
+            const dst = log.destination_ip || log.dst || 'N/A';
+
+            tableHtml += `
+                <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 12px; color: #333; font-weight: 600;">
+                        ${threat}
+                        <span style="font-size: 0.75em; font-weight: 400; opacity: 0.6; margin-left: 8px;">(${count} occurrence${count > 1 ? 's' : ''})</span>
+                    </td>
+                    <td style="padding: 12px; color: #E04F26; font-weight: 600;">${action}</td>
+                    <td style="padding: 12px; color: #999; font-size: 0.9em;">
+                        ${time}<br>
+                        <span style="font-size: 0.85em; color: #999;">${src} → ${dst}</span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tableHtml += `
+                </tbody>
+            </table>
+        `;
+        container.innerHTML = tableHtml;
+    }
+
+    modal.style.display = 'block';
+};
+
+function closeHighThreatsModal() {
+    document.getElementById('highThreatsModal').style.display = 'none';
+}
+
 // Medium Threats Modal
 window.showMediumThreatsModal = function showMediumThreatsModal() {
     const modal = document.getElementById('mediumThreatsModal');
@@ -647,25 +770,32 @@ window.showMediumThreatsModal = function showMediumThreatsModal() {
     // Safety check: ensure currentMediumLogs exists
     const logs = window.currentMediumLogs || [];
 
-    // v1.10.10: Group by threat name and show last 5 UNIQUE threats
-    const uniqueThreats = [];
-    const seenThreats = new Set();
+    // v1.10.14: Group by threat name and count occurrences
+    const threatCounts = new Map();
+    const threatDetails = new Map();
 
+    // Count occurrences and store most recent log for each threat
     for (const log of logs) {
         const threatName = log.threat || 'Unknown';
-        if (!seenThreats.has(threatName) && uniqueThreats.length < 5) {
-            uniqueThreats.push(log);
-            seenThreats.add(threatName);
+
+        if (!threatCounts.has(threatName)) {
+            threatCounts.set(threatName, 1);
+            threatDetails.set(threatName, log); // Store most recent (first in sorted list)
+        } else {
+            threatCounts.set(threatName, threatCounts.get(threatName) + 1);
         }
     }
 
-    const recentLogs = uniqueThreats;
+    // Convert to array and sort by count (descending)
+    const sortedThreats = Array.from(threatCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10); // Show top 10
 
-    // Update count to show unique threats (out of total logs)
-    countElement.textContent = recentLogs.length;
+    // Update count to show total UNIQUE threats
+    countElement.textContent = threatCounts.size;
 
     // Build table
-    if (recentLogs.length === 0) {
+    if (sortedThreats.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No medium threats detected</div>';
     } else {
         let tableHtml = `
@@ -680,19 +810,28 @@ window.showMediumThreatsModal = function showMediumThreatsModal() {
                 <tbody>
         `;
 
-        recentLogs.forEach((log, index) => {
+        sortedThreats.forEach(([threatName, count], index) => {
+            const log = threatDetails.get(threatName);
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
-            const threat = log.threat || 'Unknown';
+            const threat = threatName;
             const action = log.action || 'N/A';
             // v1.10.10 FIX: Database returns 'time' field, not 'last_time'
             const datetime = log.time ? new Date(log.time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
+            const src = log.source_ip || log.src || 'N/A';
+            const dst = log.destination_ip || log.dst || 'N/A';
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
-                    <td style="padding: 12px; color: #333; font-weight: 600;">${threat}</td>
+                    <td style="padding: 12px; color: #333; font-weight: 600;">
+                        ${threat}
+                        <span style="font-size: 0.75em; font-weight: 400; opacity: 0.6; margin-left: 8px;">(${count} occurrence${count > 1 ? 's' : ''})</span>
+                    </td>
                     <td style="padding: 12px; color: #E04F26; font-weight: 600;">${action}</td>
-                    <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
+                    <td style="padding: 12px; color: #999; font-size: 0.9em;">
+                        ${time}<br>
+                        <span style="font-size: 0.85em; color: #999;">${src} → ${dst}</span>
+                    </td>
                 </tr>
             `;
         });
@@ -721,25 +860,32 @@ window.showBlockedUrlsModal = function showBlockedUrlsModal() {
     // Safety check: ensure currentBlockedUrlLogs exists
     const logs = window.currentBlockedUrlLogs || [];
 
-    // v1.10.10: Group by URL and show last 5 UNIQUE URLs
-    const uniqueUrls = [];
-    const seenUrls = new Set();
+    // v1.10.14: Group by URL and count occurrences
+    const urlCounts = new Map();
+    const urlDetails = new Map();
 
+    // Count occurrences and store most recent log for each URL
     for (const log of logs) {
         const url = log.url || log.threat || 'Unknown';
-        if (!seenUrls.has(url) && uniqueUrls.length < 5) {
-            uniqueUrls.push(log);
-            seenUrls.add(url);
+
+        if (!urlCounts.has(url)) {
+            urlCounts.set(url, 1);
+            urlDetails.set(url, log); // Store most recent (first in sorted list)
+        } else {
+            urlCounts.set(url, urlCounts.get(url) + 1);
         }
     }
 
-    const recentLogs = uniqueUrls;
+    // Convert to array and sort by count (descending)
+    const sortedUrls = Array.from(urlCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10); // Show top 10
 
-    // Update count to show unique URLs (out of total logs)
-    countElement.textContent = recentLogs.length;
+    // Update count to show total UNIQUE URLs
+    countElement.textContent = urlCounts.size;
 
     // Build table
-    if (recentLogs.length === 0) {
+    if (sortedUrls.length === 0) {
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No blocked URLs</div>';
     } else {
         let tableHtml = `
@@ -754,19 +900,27 @@ window.showBlockedUrlsModal = function showBlockedUrlsModal() {
                 <tbody>
         `;
 
-        recentLogs.forEach((log, index) => {
+        sortedUrls.forEach(([url, count], index) => {
+            const log = urlDetails.get(url);
             const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
-            const url = log.url || log.threat || 'Unknown';
             const action = log.action || 'N/A';
             // v1.10.10 FIX: Database returns 'time' field, not 'last_time'
             const datetime = log.time ? new Date(log.time) : null;
             const time = datetime ? datetime.toLocaleString() : 'N/A';
+            const src = log.source_ip || log.src || 'N/A';
+            const dst = log.destination_ip || log.dst || 'N/A';
 
             tableHtml += `
                 <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
-                    <td style="padding: 12px; color: #333; font-weight: 600; word-break: break-all;">${url}</td>
+                    <td style="padding: 12px; color: #333; font-weight: 600; word-break: break-all;">
+                        ${url}
+                        <span style="font-size: 0.75em; font-weight: 400; opacity: 0.6; margin-left: 8px;">(${count} occurrence${count > 1 ? 's' : ''})</span>
+                    </td>
                     <td style="padding: 12px; color: #C64620; font-weight: 600;">${action}</td>
-                    <td style="padding: 12px; color: #999; font-size: 0.9em;">${time}</td>
+                    <td style="padding: 12px; color: #999; font-size: 0.9em;">
+                        ${time}<br>
+                        <span style="font-size: 0.85em; color: #999;">${src} → ${dst}</span>
+                    </td>
                 </tr>
             `;
         });
@@ -890,19 +1044,12 @@ async function generateTechSupport() {
     progressText.textContent = 'Please wait, this may take several minutes.';
 
     try {
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
         // Request tech support file generation
-        const response = await fetch('/api/tech-support/generate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            }
-        });
-
-        const data = await response.json();
+        const response = await window.apiClient.post('/api/tech-support/generate');
+        if (!response.ok) {
+            throw new Error('Failed to generate tech support file');
+        }
+        const data = response.data;
 
         console.log('Tech support generation response:', data);
 
@@ -949,8 +1096,11 @@ async function checkTechSupportStatus() {
     const progressText = document.getElementById('techSupportProgressText');
 
     try {
-        const response = await fetch(`/api/tech-support/status/${techSupportJobId}`);
-        const data = await response.json();
+        const response = await window.apiClient.get(`/api/tech-support/status/${techSupportJobId}`);
+        if (!response.ok) {
+            throw new Error('Failed to check tech support status');
+        }
+        const data = response.data;
 
         if (data.status === 'success') {
             const jobStatus = data.job_status;
@@ -996,8 +1146,11 @@ async function getTechSupportDownloadUrl() {
     const downloadLink = document.getElementById('techSupportDownloadLink');
 
     try {
-        const response = await fetch(`/api/tech-support/download/${techSupportJobId}`);
-        const data = await response.json();
+        const response = await window.apiClient.get(`/api/tech-support/download/${techSupportJobId}`);
+        if (!response.ok) {
+            throw new Error('Failed to get tech support download URL');
+        }
+        const data = response.data;
 
         if (data.status === 'success' && data.download_url) {
             // Hide status, show download
@@ -1056,8 +1209,11 @@ async function loadInterfaces() {
     errorDiv.style.display = 'none';
 
     try {
-        const response = await fetch('/api/interfaces');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/interfaces');
+        if (!response.ok) {
+            throw new Error('Failed to load interfaces');
+        }
+        const data = response.data;
 
         // Hide loading animation
         loadingDiv.style.display = 'none';
@@ -1238,8 +1394,12 @@ function initializeInterfaceTrafficChart(interfaceName) {
  */
 async function updateInterfaceTraffic() {
     try {
-        const response = await fetch('/api/interface-traffic');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/interface-traffic');
+        if (!response.ok) {
+            console.error('Failed to update interface traffic');
+            return;
+        }
+        const data = response.data;
 
         if (data.status === 'success' && data.counters) {
             const currentTime = Date.now();
@@ -1505,22 +1665,15 @@ async function initiateReboot() {
     updateUpgradeProgress('Rebooting', 'Initiating firewall reboot...', 0, false);
 
     try {
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
         // Wait a moment before initiating reboot
         await new Promise(resolve => setTimeout(resolve, 1500));
 
         // Send reboot request
-        const response = await fetch('/api/panos-upgrade/reboot', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            }
-        });
-
-        const data = await response.json();
+        const response = await window.apiClient.post('/api/panos-upgrade/reboot');
+        if (!response.ok) {
+            throw new Error('Failed to initiate reboot');
+        }
+        const data = response.data;
 
         if (data.status === 'success') {
             // Wait a moment to show reboot was initiated

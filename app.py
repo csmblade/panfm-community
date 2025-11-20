@@ -2,7 +2,7 @@
 Main Flask Application for Palo Alto Firewall Dashboard
 Refactored for modularity and maintainability
 """
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -11,6 +11,7 @@ from flask_session import Session
 from datetime import timedelta
 import urllib3
 import os
+from logger import debug, info, warning, error
 
 # Disable SSL warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -92,34 +93,66 @@ init_metadata_file()
 # Pre-load metadata at startup for immediate availability
 load_metadata(use_cache=False)  # Load fresh at startup
 
-# Initialize MAC vendor and service port databases
+# Initialize MAC vendor and service port databases in background thread
+# This eliminates the 9-second startup delay from loading 7.5 MB of JSON
+import threading
 from config import load_vendor_database, load_service_port_database
 from logger import debug
-debug("Initializing MAC vendor database...")
-vendor_db = load_vendor_database(use_cache=False)  # Fresh load at startup, then cached
-debug(f"MAC vendor database loaded with {len(vendor_db)} entries")
-debug("Initializing service port database...")
-service_db = load_service_port_database(use_cache=False)  # Fresh load at startup, then cached
-debug(f"Service port database loaded with {len(service_db)} entries")
+
+def load_databases_async():
+    """Load databases in background thread after startup"""
+    debug("Loading MAC vendor database in background...")
+    vendor_db = load_vendor_database(use_cache=False)
+    debug(f"MAC vendor database loaded with {len(vendor_db)} entries")
+    debug("Loading service port database in background...")
+    service_db = load_service_port_database(use_cache=False)
+    debug(f"Service port database loaded with {len(service_db)} entries")
+
+# Start background thread for database loading (daemon=True means it will exit when main thread exits)
+threading.Thread(target=load_databases_async, daemon=True).start()
+debug("Database loading started in background thread")
 
 # Check and fix encryption key permissions
 from encryption import check_key_permissions
 check_key_permissions()
 
+# CRITICAL: Initialize database schema eagerly at startup (v1.14.0 - Enterprise Reliability)
+# This ensures the database and all tables exist BEFORE any web request arrives.
+# Without this, pages can fail with "Database not initialized" errors during the 30-60 second
+# window between web server start and first clock collection cycle.
+info("PANfm v2.0.0: Using TimescaleDB for throughput storage")
+try:
+    from throughput_storage_timescale import TimescaleStorage
+    from config import TIMESCALE_DSN
+
+    # Create TimescaleStorage instance to initialize schema (hypertables, continuous aggregates, policies)
+    # This is intentionally separate from the collector - we only need the schema, not collection logic
+    schema_init_storage = TimescaleStorage(TIMESCALE_DSN)
+    info("✓ TimescaleDB schema initialized successfully at startup")
+
+except Exception as e:
+    # Log error but don't crash - clock process will retry initialization
+    error(f"Failed to initialize TimescaleDB schema at startup: {e}")
+    warning("Database will be initialized when clock process starts")
+
 # NOTE: Scheduled tasks (throughput collection, database cleanup, alerts) are now handled
 # by the separate clock.py process. This keeps the Flask web server lightweight and
 # follows production best practices for separating web and background task concerns.
 #
-# However, the web server DOES need read-only access to the throughput database
-# to serve historical data via API endpoints.
-from config import THROUGHPUT_DB_FILE, load_settings
-from throughput_collector import init_collector
-settings = load_settings()
-retention_days = settings.get('throughput_retention_days', 90)
-if settings.get('throughput_collection_enabled', True):
-    debug(f"Initializing throughput collector (read-only access for web server)")
-    init_collector(THROUGHPUT_DB_FILE, retention_days)
-    debug("Throughput collector initialized (database access only, no scheduled collection)")
+# The web server needs read-only access to the throughput database to serve historical
+# data via API endpoints. The collector is now lazy-initialized in routes_throughput.py
+# when first accessed. This fixes the Gunicorn forking issue where global variables
+# initialized in the main process are not inherited by worker processes.
+
+# Disable caching for static files (v2.1.0 - fix browser cache issues)
+@app.after_request
+def add_no_cache_headers(response):
+    """Add no-cache headers to prevent browser caching issues"""
+    if '/static/' in request.path:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
 
 # Register all routes
 from routes import register_routes

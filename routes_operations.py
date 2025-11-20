@@ -163,7 +163,6 @@ def register_operations_routes(app, csrf, limiter):
         """
         debug("=== Applications API endpoint called (database-only) ===")
         try:
-            from config import load_settings
             settings = load_settings()
             device_id = settings.get('selected_device_id', '')
 
@@ -188,9 +187,12 @@ def register_operations_routes(app, csrf, limiter):
             collector = get_collector()
 
             if not collector or not collector.storage:
+                # Graceful degradation: Return waiting status instead of error (v1.14.0)
+                # This happens during the 30-60 second window after startup before clock
+                # process completes its first collection cycle
                 return jsonify({
-                    'status': 'error',
-                    'message': 'Database collector not initialized',
+                    'status': 'waiting',
+                    'message': 'Waiting for first data collection (refresh in 30 seconds)',
                     'applications': [],
                     'summary': {
                         'total_applications': 0,
@@ -200,8 +202,9 @@ def register_operations_routes(app, csrf, limiter):
                         'zones_detected': 0
                     },
                     'total': 0,
-                    'source': 'error'
-                })
+                    'source': 'waiting',
+                    'retry_after_seconds': 30
+                }), 200  # Return HTTP 200, not 500!
 
             # Get latest application statistics from database
             applications = collector.storage.get_application_statistics(device_id, limit=500)
@@ -254,7 +257,6 @@ def register_operations_routes(app, csrf, limiter):
         """
         debug("=== Top Category API endpoint called ===")
         try:
-            from config import load_settings
             settings = load_settings()
             device_id = settings.get('selected_device_id', '')
 

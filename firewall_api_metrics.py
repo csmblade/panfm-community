@@ -37,8 +37,8 @@ def get_system_resources(device_id=None):
             debug("No device configured - returning 0 CPU values")
             return {'data_plane_cpu': 0, 'mgmt_plane_cpu': 0, 'uptime': None, 'memory_used_pct': 0, 'memory_used_mb': 0, 'memory_total_mb': 0}
 
-        # Query for dataplane CPU load
-        cmd = "<show><running><resource-monitor></resource-monitor></running></show>"
+        # Query for dataplane CPU load (with hour parameter for more reliable data)
+        cmd = "<show><running><resource-monitor><hour><last>1</last></hour></resource-monitor></running></show>"
         params = {
             'type': 'op',
             'cmd': cmd,
@@ -51,6 +51,14 @@ def get_system_resources(device_id=None):
         debug(f"Status: {response.status_code}")
         if response.status_code == 200:
             debug(f"Response XML (first 1000 chars):\n{response.text[:1000]}")
+
+            # Export the full XML response for analysis
+            try:
+                with open('resource_monitor_output.xml', 'w') as f:
+                    f.write(response.text)
+                debug("Exported resource monitor XML to resource_monitor_output.xml")
+            except Exception as e:
+                debug(f"Error exporting resource monitor XML: {e}")
 
         data_plane_cpu = 0
         mgmt_plane_cpu = 0
@@ -169,8 +177,8 @@ def get_system_resources(device_id=None):
                             except Exception as e:
                                 debug(f"Error parsing CPU line: {e}")
 
-                        # Parse memory information
-                        if 'Mem' in line and 'total' in line:
+                        # Parse memory information (skip Swap line - only parse MiB Mem line)
+                        if 'MiB Mem' in line and 'total' in line:
                             debug(f"Found memory line: {line}")
                             try:
                                 parts = line.split(',')
@@ -389,6 +397,8 @@ def get_session_count(device_id=None):
             - tcp: TCP sessions
             - udp: UDP sessions
             - icmp: ICMP sessions
+            - max: Maximum session capacity
+            - utilization_pct: Session utilization percentage
     """
     debug("get_session_count called (device_id=%s)", device_id)
     try:
@@ -397,7 +407,7 @@ def get_session_count(device_id=None):
         # Check if no device is configured
         if not api_key or not base_url:
             debug("No device configured - returning 0 session counts")
-            return {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0}
+            return {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0, 'max': 0, 'utilization_pct': 0}
 
         cmd = "<show><session><info></info></session></show>"
         params = {
@@ -416,16 +426,112 @@ def get_session_count(device_id=None):
             num_tcp = root.find('.//num-tcp')
             num_udp = root.find('.//num-udp')
             num_icmp = root.find('.//num-icmp')
+            num_max = root.find('.//num-max')
+
+            active = int(num_active.text) if num_active is not None and num_active.text else 0
+            max_sessions = int(num_max.text) if num_max is not None and num_max.text else 0
+
+            # Calculate utilization percentage
+            utilization_pct = round((active / max_sessions * 100), 2) if max_sessions > 0 else 0
 
             return {
-                'active': int(num_active.text) if num_active is not None and num_active.text else 0,
+                'active': active,
                 'tcp': int(num_tcp.text) if num_tcp is not None and num_tcp.text else 0,
                 'udp': int(num_udp.text) if num_udp is not None and num_udp.text else 0,
-                'icmp': int(num_icmp.text) if num_icmp is not None and num_icmp.text else 0
+                'icmp': int(num_icmp.text) if num_icmp is not None and num_icmp.text else 0,
+                'max': max_sessions,
+                'utilization_pct': utilization_pct
             }
         else:
-            return {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0}
+            return {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0, 'max': 0, 'utilization_pct': 0}
 
     except Exception as e:
         exception(f"Session count error: {str(e)}")
-        return {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0}
+        return {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0, 'max': 0, 'utilization_pct': 0}
+
+
+def get_disk_usage(device_id=None):
+    """Fetch disk usage from Palo Alto firewall
+
+    Args:
+        device_id (str, optional): Specific device ID to query. If None, uses selected_device_id from settings.
+
+    Returns:
+        dict: Disk usage metrics including:
+            - root_pct: Root partition usage percentage
+            - logs_pct: Log partition usage percentage
+            - var_pct: Var partition usage percentage
+            - partitions: List of all partitions with details
+    """
+    debug("get_disk_usage called (device_id=%s)", device_id)
+    try:
+        _, api_key, base_url = get_firewall_config(device_id)
+
+        # Check if no device is configured
+        if not api_key or not base_url:
+            debug("No device configured - returning 0 disk usage")
+            return {'root_pct': 0, 'logs_pct': 0, 'var_pct': 0, 'partitions': []}
+
+        cmd = "<show><system><disk-space></disk-space></system></show>"
+        params = {
+            'type': 'op',
+            'cmd': cmd,
+            'key': api_key
+        }
+
+        response = api_request_get(base_url, params=params, verify=False, timeout=10)
+
+        root_pct = 0
+        logs_pct = 0
+        var_pct = 0
+        partitions = []
+
+        if response.status_code == 200:
+            root = ET.fromstring(response.text)
+
+            # The response contains filesystem information in text format
+            result = root.find('.//result')
+            if result is not None and result.text:
+                lines = result.text.strip().split('\n')
+                debug(f"Disk space output:\n{result.text[:500]}")
+
+                # Parse disk usage lines (format: Filesystem Size Used Avail Use% Mounted)
+                for line in lines[1:]:  # Skip header line
+                    parts = line.split()
+                    if len(parts) >= 6:
+                        filesystem = parts[0]
+                        use_pct_str = parts[4]  # e.g., "45%"
+                        mounted = parts[5]
+
+                        try:
+                            use_pct = int(use_pct_str.rstrip('%'))
+
+                            partitions.append({
+                                'filesystem': filesystem,
+                                'mounted': mounted,
+                                'usage_pct': use_pct
+                            })
+
+                            # Map common mount points
+                            if mounted == '/':
+                                root_pct = use_pct
+                            elif 'log' in mounted.lower() or '/opt/pancfg' in mounted:
+                                logs_pct = use_pct
+                            elif '/var' in mounted or '/dev/shm' in mounted:
+                                var_pct = use_pct
+
+                        except (ValueError, IndexError) as e:
+                            debug(f"Error parsing disk line: {line} - {e}")
+
+                debug(f"Parsed disk usage - Root: {root_pct}%, Logs: {logs_pct}%, Var: {var_pct}%")
+
+        return {
+            'root_pct': root_pct,
+            'logs_pct': logs_pct,
+            'var_pct': var_pct,
+            'partitions': partitions
+        }
+
+    except Exception as e:
+        exception(f"Disk usage error: {str(e)}")
+        return {'root_pct': 0, 'logs_pct': 0, 'var_pct': 0, 'partitions': []}

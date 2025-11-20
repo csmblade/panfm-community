@@ -23,6 +23,138 @@ def register_system_routes(app, csrf, limiter):
         """Health check endpoint"""
         return jsonify({'status': 'ok', 'timestamp': datetime.now().isoformat()})
 
+    @app.route('/api/system/health')
+    @limiter.limit("300 per hour")  # Allow polling during startup initialization
+    @login_required
+    def system_health():
+        """
+        Enterprise system health endpoint for startup readiness checks
+        Returns collector status, last collection time, and data availability
+        Used by Analytics page to determine if system is ready
+        """
+        from throughput_collector import get_collector
+        from throughput_storage_timescale import TimescaleStorage
+        from config import TIMESCALE_DSN, load_settings
+        from datetime import datetime, timedelta
+
+        debug("=== System Health Check API endpoint called ===")
+
+        try:
+            collector = get_collector()
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+            refresh_interval = settings.get('refresh_interval', 60)
+
+            # Determine collector status
+            if collector is None:
+                # Collector not initialized - try to get data from storage directly
+                try:
+                    storage = TimescaleStorage(TIMESCALE_DSN)
+                    collector_status = 'not_initialized_with_fallback'
+                except Exception as storage_error:
+                    # Storage initialization failed - database not ready yet
+                    debug(f"Storage initialization failed during health check: {str(storage_error)}")
+                    collector_status = 'database_initializing'
+                    storage = None
+            else:
+                collector_status = 'ready'
+                storage = collector.storage
+
+            # Get last collection time and sample count
+            last_collection = None
+            sample_count = 0
+            oldest_sample = None
+
+            if storage:
+                try:
+                    # Check for recent samples (within 5 minutes)
+                    latest_sample = storage.get_latest_sample(device_id, max_age_seconds=300)
+                    if latest_sample:
+                        last_collection = latest_sample['timestamp']
+
+                    # Get sample count for last hour
+                    now = datetime.now()
+                    one_hour_ago = now - timedelta(hours=1)
+                    samples = storage.query_samples(device_id, one_hour_ago, now, 'raw')
+                    sample_count = len(samples)
+
+                    # Get oldest sample in entire database
+                    all_samples = storage.query_samples(device_id, datetime(2020, 1, 1), now, 'raw')
+                    if all_samples:
+                        oldest_sample = all_samples[0]['timestamp']
+
+                except Exception as e:
+                    debug(f"Error querying storage for health check: {str(e)}")
+
+            # Determine overall readiness
+            # System is ready if:
+            # 1. Database is initialized and accessible (not 'database_initializing'), AND
+            # 2. Either:
+            #    a) We have samples in the database, OR
+            #    b) Storage is accessible and clock process will collect data (enterprise immediate startup)
+            # This allows immediate dashboard access - charts will populate within seconds
+            database_ready = collector_status in ['ready', 'not_initialized_with_fallback']
+            has_data = sample_count > 0
+
+            # Enterprise startup: Consider ready if database initialized, even if no samples yet
+            # Clock process runs immediate collection, so data appears within 5-10 seconds
+            ready = database_ready
+
+            # Calculate time since last collection
+            seconds_since_collection = None
+            if last_collection:
+                try:
+                    last_dt = datetime.fromisoformat(last_collection.replace('Z', '+00:00'))
+                    seconds_since_collection = int((datetime.now() - last_dt).total_seconds())
+                except Exception:
+                    pass
+
+            result = {
+                'status': collector_status,
+                'ready': ready,
+                'last_collection': last_collection,
+                'seconds_since_collection': seconds_since_collection,
+                'sample_count_last_hour': sample_count,
+                'oldest_sample': oldest_sample,
+                'refresh_interval': refresh_interval,
+                'device_id': device_id,
+                'timestamp': datetime.now().isoformat()
+            }
+
+            # Add helpful message for UI
+            if not ready:
+                if collector_status == 'database_initializing':
+                    result['message'] = 'Database initializing. This may take a few moments on first startup...'
+                    result['retry_after'] = 15  # Database schema creation can take time
+                elif collector_status == 'not_initialized':
+                    result['message'] = 'Collector initializing. Please wait...'
+                    result['retry_after'] = 5
+                else:
+                    result['message'] = 'System initializing...'
+                    result['retry_after'] = 10
+            else:
+                # System is ready - provide helpful context about data availability
+                if has_data:
+                    result['message'] = f'System ready ({sample_count} samples available)'
+                else:
+                    result['message'] = 'System ready - initial data collection in progress (charts will populate within seconds)'
+
+            debug(f"Health check: status={collector_status}, ready={ready}, samples={sample_count}, last_collection={last_collection}")
+
+            return jsonify(result)
+
+        except Exception as e:
+            exception(f"System health check failed: {str(e)}")
+            # Return 503 Service Unavailable (not 500) for initialization issues
+            # This is a temporary state, not a server error
+            return jsonify({
+                'status': 'error',
+                'ready': False,
+                'message': f'Service temporarily unavailable: {str(e)}',
+                'retry_after': 30,
+                'error_details': str(e)  # Include detailed error for enterprise debugging
+            }), 503
+
     @app.route('/api/firewall-health')
     @limiter.limit("300 per hour")  # 5/min for 15s polling during reboot monitoring
     @login_required

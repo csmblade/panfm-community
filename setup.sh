@@ -187,76 +187,25 @@ fi
 # Create throughput_history.db if it doesn't exist
 ensure_file_not_directory "throughput_history.db"
 if [ ! -f "throughput_history.db" ]; then
-    echo "Creating throughput_history.db..."
+    echo "Creating throughput_history.db with COMPLETE schema..."
+    echo "  (includes all Phase 1-4 columns + Analytics Dashboard fields)"
 
-    # Create SQLite database with schema using Python
-    python3 -c "
-import sqlite3
-import os
+    # Let the app create it with proper schema via ThroughputStorage
+    # This ensures all migrations run and schema is complete
+    echo "  NOTE: Database will be initialized by ThroughputStorage on first run"
+    echo "        This ensures schema migrations run properly and includes:"
+    echo "        - Phase 1: Base throughput metrics"
+    echo "        - Phase 2: Threats, apps, interfaces, license, WAN"
+    echo "        - Phase 3: Categories support"
+    echo "        - Connected devices table"
+    echo "        - Traffic separation (internal/internet clients)"
+    echo "        - Category split (LAN/Internet)"
+    echo "        - Analytics traffic metrics (internal_mbps, internet_mbps)"
 
-# Create database file
-db_path = 'throughput_history.db'
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
+    # Create empty file so Docker doesn't create a directory
+    touch throughput_history.db
 
-# Create throughput_samples table (matches throughput_storage.py schema)
-# Includes Phase 2 columns for full dashboard data
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS throughput_samples (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        device_id TEXT NOT NULL,
-        timestamp DATETIME NOT NULL,
-        inbound_mbps REAL,
-        outbound_mbps REAL,
-        total_mbps REAL,
-        inbound_pps INTEGER,
-        outbound_pps INTEGER,
-        total_pps INTEGER,
-        sessions_active INTEGER,
-        sessions_tcp INTEGER,
-        sessions_udp INTEGER,
-        sessions_icmp INTEGER,
-        cpu_data_plane INTEGER,
-        cpu_mgmt_plane INTEGER,
-        memory_used_pct INTEGER,
-        critical_threats INTEGER DEFAULT 0,
-        medium_threats INTEGER DEFAULT 0,
-        blocked_urls INTEGER DEFAULT 0,
-        critical_last_seen TEXT,
-        medium_last_seen TEXT,
-        blocked_url_last_seen TEXT,
-        top_apps_json TEXT,
-        interface_errors INTEGER DEFAULT 0,
-        interface_drops INTEGER DEFAULT 0,
-        interface_stats_json TEXT,
-        license_expired INTEGER DEFAULT 0,
-        license_licensed INTEGER DEFAULT 0,
-        wan_ip TEXT,
-        wan_speed TEXT,
-        hostname TEXT,
-        uptime_seconds INTEGER,
-        pan_os_version TEXT
-    )
-''')
-
-# Create indexes for efficient queries
-cursor.execute('''
-    CREATE INDEX IF NOT EXISTS idx_device_timestamp
-    ON throughput_samples(device_id, timestamp)
-''')
-
-cursor.execute('''
-    CREATE INDEX IF NOT EXISTS idx_timestamp
-    ON throughput_samples(timestamp)
-''')
-
-conn.commit()
-conn.close()
-
-print('Created throughput_history.db with schema')
-" 2>/dev/null || touch throughput_history.db
-
-    echo "✓ throughput_history.db created"
+    echo "✓ throughput_history.db placeholder created (app will initialize schema)"
 else
     echo "✓ throughput_history.db already exists"
 fi
@@ -311,108 +260,6 @@ print('Created alerts.db with schema')
     echo "✓ alerts.db created"
 else
     echo "✓ alerts.db already exists"
-fi
-
-# Create nmap_scans.db if it doesn't exist
-ensure_file_not_directory "nmap_scans.db"
-if [ ! -f "nmap_scans.db" ]; then
-    echo "Creating nmap_scans.db..."
-
-    # Create SQLite database with schema using Python
-    python3 -c "
-import sqlite3
-import os
-
-# Create database file
-db_path = 'nmap_scans.db'
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
-
-# Create nmap_scan_history table
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS nmap_scan_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        device_id TEXT NOT NULL,
-        target_ip TEXT NOT NULL,
-        scan_timestamp DATETIME NOT NULL,
-        scan_type TEXT,
-        open_ports TEXT,
-        os_guess TEXT,
-        mac_address TEXT,
-        hostname TEXT,
-        scan_duration_seconds REAL,
-        raw_output TEXT
-    )
-''')
-
-# Create scheduled_scans table
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS scheduled_scans (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        device_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        target_type TEXT NOT NULL,
-        target_value TEXT,
-        scan_type TEXT NOT NULL DEFAULT 'balanced',
-        schedule_type TEXT NOT NULL,
-        schedule_value TEXT NOT NULL,
-        enabled BOOLEAN DEFAULT 1,
-        last_run_timestamp DATETIME,
-        last_run_status TEXT,
-        last_run_error TEXT,
-        next_run_timestamp DATETIME,
-        created_at DATETIME NOT NULL,
-        created_by TEXT,
-        updated_at DATETIME,
-        updated_by TEXT
-    )
-''')
-
-# Create scan_queue table
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS scan_queue (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        schedule_id INTEGER,
-        device_id TEXT NOT NULL,
-        target_ip TEXT NOT NULL,
-        scan_type TEXT NOT NULL,
-        status TEXT NOT NULL,
-        queued_at DATETIME NOT NULL,
-        started_at DATETIME,
-        completed_at DATETIME,
-        scan_id INTEGER,
-        error_message TEXT,
-        FOREIGN KEY (schedule_id) REFERENCES scheduled_scans(id) ON DELETE SET NULL,
-        FOREIGN KEY (scan_id) REFERENCES nmap_scan_history(id) ON DELETE SET NULL
-    )
-''')
-
-# Create indexes
-cursor.execute('''
-    CREATE INDEX IF NOT EXISTS idx_scan_device_target
-    ON nmap_scan_history(device_id, target_ip, scan_timestamp DESC)
-''')
-
-cursor.execute('''
-    CREATE INDEX IF NOT EXISTS idx_scheduled_scans_device_enabled
-    ON scheduled_scans(device_id, enabled)
-''')
-
-cursor.execute('''
-    CREATE INDEX IF NOT EXISTS idx_scan_queue_status
-    ON scan_queue(status, queued_at)
-''')
-
-conn.commit()
-conn.close()
-
-print('Created nmap_scans.db with schema')
-" 2>/dev/null || touch nmap_scans.db
-
-    echo "✓ nmap_scans.db created"
-else
-    echo "✓ nmap_scans.db already exists"
 fi
 
 # Create data directory if it doesn't exist

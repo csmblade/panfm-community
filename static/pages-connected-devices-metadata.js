@@ -318,29 +318,20 @@ function setupLocationAutocomplete() {
  */
 async function saveDeviceMetadata(mac, name, location, comment, tags) {
     try {
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        if (!csrfToken) {
-            alert('CSRF token not found. Please refresh the page.');
+        const response = await window.apiClient.post('/api/device-metadata', {
+            mac: mac,
+            name: name || null,
+            location: location || null,
+            comment: comment || null,
+            tags: tags || []
+        });
+
+        if (!response.ok) {
+            alert('Failed to save metadata: Network error');
             return false;
         }
 
-        const response = await fetch('/api/device-metadata', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({
-                mac: mac,
-                name: name || null,
-                location: location || null,
-                comment: comment || null,
-                tags: tags || []
-            })
-        });
-
-        const data = await response.json();
+        const data = response.data;
 
         if (data.status === 'success') {
             console.log('Metadata saved successfully, updating cache and reloading devices...');
@@ -382,6 +373,8 @@ async function saveDeviceMetadata(mac, name, location, comment, tags) {
  */
 async function exportDeviceMetadata() {
     try {
+        // For file downloads, we need to use raw fetch() to access blob response
+        // ApiClient expects JSON responses
         const response = await fetch('/api/device-metadata/export');
 
         if (!response.ok) {

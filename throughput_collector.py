@@ -16,7 +16,14 @@ from logger import debug, info, warning, error, exception
 from device_manager import device_manager
 from firewall_api import get_throughput_data, get_firewall_config
 from firewall_api_logs import get_system_logs, get_threat_stats, get_traffic_logs
-from throughput_storage import ThroughputStorage
+from firewall_api_metrics import get_disk_usage
+from firewall_api_health import get_database_versions
+from config import TIMESCALE_DSN, USE_TIMESCALE
+
+# PANfm v2.0.0 - TimescaleDB Only (SQLite removed)
+from throughput_storage_timescale import TimescaleStorage as ThroughputStorage
+info("PANfm v2.0.0: Using TimescaleDB for throughput storage")
+
 from alert_manager import alert_manager, format_alert_message
 from notification_manager import notification_manager
 
@@ -35,14 +42,17 @@ class ThroughputCollector:
         Initialize the throughput collector.
 
         Args:
-            storage: ThroughputStorage instance
-            retention_days: Number of days to retain historical data
+            storage: TimescaleStorage instance (TimescaleDB only as of v2.0.0)
+            retention_days: Number of days to retain (ignored - TimescaleDB uses automatic retention policies)
         """
         self.storage = storage
         self.retention_days = retention_days
         self.collection_count = 0
         self.last_cleanup = None
-        debug("ThroughputCollector initialized with %d-day retention", retention_days)
+
+        storage_type = "TimescaleDB" if USE_TIMESCALE else "SQLite"
+        debug("ThroughputCollector initialized with %s storage (retention: %d days)",
+              storage_type, retention_days)
 
     def collect_all_devices(self):
         """
@@ -76,6 +86,29 @@ class ThroughputCollector:
                     # Get throughput data
                     throughput_data = get_throughput_data(device_id)
 
+                    # Enhanced Insights: Collect disk usage metrics
+                    disk_usage = get_disk_usage(device_id)
+                    if disk_usage:
+                        throughput_data['disk_usage'] = disk_usage
+                        debug("Collected disk usage for device %s: root=%d%%, logs=%d%%, var=%d%%",
+                              device_name,
+                              disk_usage.get('root_pct', 0),
+                              disk_usage.get('logs_pct', 0),
+                              disk_usage.get('var_pct', 0))
+
+                    # Enhanced Insights: Collect database versions
+                    db_versions = get_database_versions(device_id)
+                    if db_versions:
+                        throughput_data['database_versions'] = db_versions
+                        debug("Collected database versions for device %s: app=%s, threat=%s, wildfire=%s",
+                              device_name,
+                              db_versions.get('app_version', 'N/A'),
+                              db_versions.get('threat_version', 'N/A'),
+                              db_versions.get('wildfire_version', 'N/A'))
+
+                    # Note: Session utilization is already enhanced in get_throughput_data()
+                    # which calls get_session_count() that now returns max and utilization_pct
+
                     # Compute top bandwidth clients (internal and internet) and add to data
                     top_clients = self._compute_top_bandwidth_client(device_id)
                     if top_clients:
@@ -97,11 +130,29 @@ class ThroughputCollector:
                         # Replace firewall API's session-based top_applications with bandwidth-based data
                         throughput_data['top_applications'] = top_apps
 
+                    # Compute aggregate internal/internet traffic metrics for Analytics Dashboard
+                    traffic_metrics = self._compute_traffic_metrics(device_id)
+                    if traffic_metrics:
+                        # Add internal/internet Mbps metrics to throughput data
+                        throughput_data['internal_mbps'] = traffic_metrics.get('internal_mbps', 0)
+                        throughput_data['internet_mbps'] = traffic_metrics.get('internet_mbps', 0)
+
                     if throughput_data and throughput_data.get('status') == 'success':
                         # Store throughput sample in database
                         if self.storage.insert_sample(device_id, throughput_data):
                             success_count += 1
                             debug("Successfully stored throughput data for device: %s", device_name)
+
+                            # ============================================================
+                            # Analytics Tables: Store application/category/client samples
+                            # v2.0.0 - Migration 004
+                            # ============================================================
+                            timestamp = throughput_data.get('timestamp')
+                            if timestamp:
+                                # Store analytics data in parallel tables (non-blocking, errors logged but not fatal)
+                                self._store_application_samples(device_id, timestamp)
+                                self._store_category_bandwidth(device_id, timestamp)
+                                self._store_client_bandwidth(device_id, timestamp)
 
                             # Check alert thresholds after successful data collection
                             self._check_alert_thresholds(device_id, device_name, throughput_data)
@@ -114,6 +165,9 @@ class ThroughputCollector:
                               device_name, device.get('ip'), error_msg)
 
                     # Phase 3: Collect detailed logs from firewall API
+                    import sys
+                    sys.stderr.write(f"\n[LOG COLLECTION] Calling _collect_logs_for_device for {device_name}\n")
+                    sys.stderr.flush()
                     self._collect_logs_for_device(device_id, device_name)
 
                 except Exception as e:
@@ -490,6 +544,88 @@ class ThroughputCollector:
                 'top_category_internet': {}
             }
 
+    def _compute_traffic_metrics(self, device_id: str) -> Dict:
+        """
+        Compute aggregate internal and internet traffic metrics for Analytics Dashboard.
+
+        Calculates total Mbps for:
+        - internal_mbps: Local-to-local traffic (both IPs are private)
+        - internet_mbps: Traffic to/from public IPs (local<->internet)
+
+        Uses traffic_logs data from the last 60 seconds to match current throughput measurement.
+        Returns metrics in Mbps to match the Analytics Dashboard requirements.
+
+        Args:
+            device_id: Device identifier
+
+        Returns:
+            Dict with 'internal_mbps' and 'internet_mbps' keys
+        """
+        try:
+            debug(f"Computing aggregate traffic metrics (internal/internet) for device {device_id}")
+
+            # Query traffic logs from last 60 seconds (matches throughput measurement window)
+            from datetime import datetime, timedelta
+            import sqlite3
+            end_time = datetime.now()
+            start_time = end_time - timedelta(seconds=60)
+
+            # Get all traffic logs for the time window
+            conn = sqlite3.connect(self.storage.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT source_ip, dest_ip, bytes_sent, bytes_received
+                FROM traffic_logs
+                WHERE device_id = ? AND timestamp BETWEEN ? AND ?
+            ''', (device_id, start_time.isoformat(), end_time.isoformat()))
+
+            rows = cursor.fetchall()
+            conn.close()
+
+            if not rows or len(rows) == 0:
+                debug("No traffic logs found in last 60s, returning zero metrics")
+                return {'internal_mbps': 0, 'internet_mbps': 0}
+
+            # Import helper functions
+            from throughput_storage import is_private_ip, is_internet_traffic
+
+            # Aggregate bytes by traffic type
+            internal_bytes = 0
+            internet_bytes = 0
+
+            for row in rows:
+                src_ip = row[0]
+                dst_ip = row[1]
+                bytes_sent = row[2] or 0
+                bytes_received = row[3] or 0
+                total_bytes = bytes_sent + bytes_received
+
+                # Classify traffic
+                if is_internet_traffic(src_ip, dst_ip):
+                    # One end is private, one is public = internet traffic
+                    internet_bytes += total_bytes
+                elif is_private_ip(src_ip) and is_private_ip(dst_ip):
+                    # Both private = internal traffic
+                    internal_bytes += total_bytes
+                # else: Both public IPs = transit traffic (ignore for now)
+
+            # Convert bytes to Mbps (bytes → bits → megabits, divided by 60 seconds)
+            internal_mbps = (internal_bytes * 8) / (1000000 * 60)
+            internet_mbps = (internet_bytes * 8) / (1000000 * 60)
+
+            debug(f"Traffic metrics: internal={internal_mbps:.2f} Mbps, internet={internet_mbps:.2f} Mbps "
+                  f"(from {len(rows)} traffic log entries)")
+
+            return {
+                'internal_mbps': round(internal_mbps, 2),
+                'internet_mbps': round(internet_mbps, 2)
+            }
+
+        except Exception as e:
+            exception(f"Error computing traffic metrics: {str(e)}")
+            return {'internal_mbps': 0, 'internet_mbps': 0}
+
     def _compute_top_applications(self, device_id: str, top_count: int = 5) -> Dict:
         """
         Compute top applications by bandwidth from application_statistics in database.
@@ -543,6 +679,332 @@ class ThroughputCollector:
             }
 
     # ========================================================================
+    # Analytics Tables: Storage Methods for Application/Category/Client Data
+    # Added: v2.0.0 - Migration 004
+    # ========================================================================
+
+    def _store_application_samples(self, device_id: str, timestamp: str):
+        """
+        Store application samples in application_samples analytics table.
+
+        Reads from application_statistics table (already populated by _collect_application_statistics)
+        and inserts into application_samples for historical trending.
+
+        Args:
+            device_id: Device identifier
+            timestamp: Sample timestamp (ISO format string)
+        """
+        try:
+            debug(f"Storing application samples for device {device_id}")
+
+            # Parse timestamp
+            from datetime import datetime
+            if isinstance(timestamp, str):
+                timestamp = timestamp.replace('Z', '+00:00')
+                timestamp_dt = datetime.fromisoformat(timestamp)
+            elif isinstance(timestamp, datetime):
+                timestamp_dt = timestamp
+            else:
+                warning(f"Invalid timestamp format for analytics storage: {timestamp}")
+                return
+
+            # Get application statistics from database (already collected)
+            app_stats = self.storage.get_application_statistics(device_id, limit=500)
+
+            if not app_stats or len(app_stats) == 0:
+                debug(f"No application statistics available for analytics storage (device {device_id})")
+                return
+
+            # Insert into application_samples table
+            if self.storage.insert_application_samples(device_id, timestamp_dt, app_stats):
+                debug(f"Successfully stored {len(app_stats)} application samples for device {device_id}")
+            else:
+                warning(f"Failed to store application samples for device {device_id}")
+
+        except Exception as e:
+            exception(f"Error storing application samples for device {device_id}: {str(e)}")
+
+    def _store_category_bandwidth(self, device_id: str, timestamp: str):
+        """
+        Store category bandwidth samples in category_bandwidth analytics table.
+
+        Aggregates application statistics by category and splits into traffic types:
+        - 'lan': private-ip-addresses category only (local-to-local)
+        - 'internet': All other categories (internet-bound traffic)
+
+        Args:
+            device_id: Device identifier
+            timestamp: Sample timestamp (ISO format string)
+        """
+        try:
+            debug(f"Storing category bandwidth for device {device_id}")
+
+            # Parse timestamp
+            from datetime import datetime
+            if isinstance(timestamp, str):
+                timestamp = timestamp.replace('Z', '+00:00')
+                timestamp_dt = datetime.fromisoformat(timestamp)
+            elif isinstance(timestamp, datetime):
+                timestamp_dt = timestamp
+            else:
+                warning(f"Invalid timestamp format for analytics storage: {timestamp}")
+                return
+
+            # Get application statistics from database (already collected)
+            app_stats = self.storage.get_application_statistics(device_id, limit=500)
+
+            if not app_stats or len(app_stats) == 0:
+                debug(f"No application statistics available for category bandwidth (device {device_id})")
+                return
+
+            # Aggregate by category
+            category_data = {}
+            for app in app_stats:
+                category = app.get('category', 'unknown')
+
+                if category not in category_data:
+                    category_data[category] = {
+                        'bytes': 0,
+                        'bytes_sent': 0,
+                        'bytes_received': 0,
+                        'sessions': 0,
+                        'applications': {}  # Track bytes per app in this category
+                    }
+
+                # Accumulate stats
+                category_data[category]['bytes'] += app.get('bytes', 0)
+                category_data[category]['bytes_sent'] += app.get('bytes_sent', 0)
+                category_data[category]['bytes_received'] += app.get('bytes_received', 0)
+                category_data[category]['sessions'] += app.get('sessions', 0)
+
+                # Track top application in this category
+                app_name = app.get('app', 'unknown')
+                app_bytes = app.get('bytes', 0)
+                category_data[category]['applications'][app_name] = app_bytes
+
+            # Prepare category stats for insertion
+            category_stats = []
+
+            # 1. LAN traffic: private-ip-addresses category only
+            if 'private-ip-addresses' in category_data:
+                lan_data = category_data['private-ip-addresses']
+                top_app = max(lan_data['applications'].items(), key=lambda x: x[1]) if lan_data['applications'] else (None, 0)
+
+                category_stats.append({
+                    'category': 'private-ip-addresses',
+                    'traffic_type': 'lan',
+                    'bytes': lan_data['bytes'],
+                    'bytes_sent': lan_data['bytes_sent'],
+                    'bytes_received': lan_data['bytes_received'],
+                    'sessions': lan_data['sessions'],
+                    'top_application': top_app[0],
+                    'top_application_bytes': top_app[1]
+                })
+                debug(f"Category LAN: private-ip-addresses ({lan_data['bytes']/1_000_000:.2f} MB)")
+
+            # 2. Internet traffic: All categories EXCEPT private-ip-addresses
+            internet_categories = {cat: data for cat, data in category_data.items()
+                                 if cat != 'private-ip-addresses'}
+
+            for category, data in internet_categories.items():
+                top_app = max(data['applications'].items(), key=lambda x: x[1]) if data['applications'] else (None, 0)
+
+                category_stats.append({
+                    'category': category,
+                    'traffic_type': 'internet',
+                    'bytes': data['bytes'],
+                    'bytes_sent': data['bytes_sent'],
+                    'bytes_received': data['bytes_received'],
+                    'sessions': data['sessions'],
+                    'top_application': top_app[0],
+                    'top_application_bytes': top_app[1]
+                })
+
+            if internet_categories:
+                debug(f"Category Internet: {len(internet_categories)} categories")
+
+            # Insert into category_bandwidth table
+            if category_stats:
+                if self.storage.insert_category_bandwidth(device_id, timestamp_dt, category_stats):
+                    debug(f"Successfully stored {len(category_stats)} category bandwidth samples for device {device_id}")
+                else:
+                    warning(f"Failed to store category bandwidth for device {device_id}")
+            else:
+                debug(f"No category data to store for device {device_id}")
+
+        except Exception as e:
+            exception(f"Error storing category bandwidth for device {device_id}: {str(e)}")
+
+    def _store_client_bandwidth(self, device_id: str, timestamp: str):
+        """
+        Store per-client bandwidth samples in client_bandwidth analytics table.
+
+        Aggregates traffic logs by client IP and splits into traffic types:
+        - 'internal': Both source and destination are private IPs
+        - 'internet': One end is private, one is public (internet-bound)
+        - 'total': All traffic for this client
+
+        Enriches with custom_name from device_metadata.json (denormalized).
+
+        Args:
+            device_id: Device identifier
+            timestamp: Sample timestamp (ISO format string)
+        """
+        try:
+            debug(f"Storing client bandwidth for device {device_id}")
+
+            # Parse timestamp
+            from datetime import datetime
+            if isinstance(timestamp, str):
+                timestamp = timestamp.replace('Z', '+00:00')
+                timestamp_dt = datetime.fromisoformat(timestamp)
+            elif isinstance(timestamp, datetime):
+                timestamp_dt = timestamp
+            else:
+                warning(f"Invalid timestamp format for analytics storage: {timestamp}")
+                return
+
+            # Load device metadata for custom name enrichment (denormalized approach)
+            from device_metadata import load_metadata
+            metadata = load_metadata(device_id, use_cache=True)  # Per-device metadata
+
+            # Get traffic logs from database (already collected, last 500 logs)
+            traffic_logs = self.storage.get_traffic_logs(device_id, limit=500)
+
+            if not traffic_logs or len(traffic_logs) == 0:
+                debug(f"No traffic logs available for client bandwidth (device {device_id})")
+                return
+
+            # Helper function to check if IP is private
+            def is_private_ip(ip_str):
+                """Check if IP is in private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)"""
+                if not ip_str or ip_str == 'N/A':
+                    return False
+                try:
+                    from ipaddress import ip_address
+                    ip = ip_address(ip_str)
+                    return ip.is_private
+                except:
+                    return False
+
+            # Aggregate by client IP and traffic type
+            client_data = {}
+
+            for log in traffic_logs:
+                src_ip = log.get('src')
+                dst_ip = log.get('dst')
+                bytes_sent = int(log.get('bytes_sent', 0))
+                bytes_received = int(log.get('bytes_received', 0))
+                total_bytes = bytes_sent + bytes_received
+                proto = log.get('proto', '')
+                app = log.get('app', 'unknown')
+
+                # Parse details_json for additional info
+                details = {}
+                if log.get('details_json'):
+                    try:
+                        import json
+                        details = json.loads(log['details_json'])
+                    except:
+                        pass
+
+                # Extract metadata
+                from_zone = details.get('from_zone', '')
+                inbound_if = details.get('inbound_if', '')
+
+                # Determine traffic type
+                is_src_private = is_private_ip(src_ip)
+                is_dst_private = is_private_ip(dst_ip)
+
+                if is_src_private and is_dst_private:
+                    traffic_type = 'internal'
+                elif is_src_private or is_dst_private:
+                    traffic_type = 'internet'
+                else:
+                    traffic_type = 'total'  # Both public (transit)
+
+                # Track client as source IP
+                if src_ip and src_ip != 'N/A':
+                    client_key = f"{src_ip}:{traffic_type}"
+
+                    if client_key not in client_data:
+                        client_data[client_key] = {
+                            'client_ip': src_ip,
+                            'client_mac': None,  # Not available in traffic logs
+                            'hostname': None,  # Not available in traffic logs
+                            'traffic_type': traffic_type,
+                            'bytes': 0,
+                            'bytes_sent': 0,
+                            'bytes_received': 0,
+                            'sessions': 0,
+                            'sessions_tcp': 0,
+                            'sessions_udp': 0,
+                            'interface': inbound_if,
+                            'zone': from_zone,
+                            'vlan': None,  # Not easily available
+                            'applications': {}  # Track bytes per app
+                        }
+
+                    client_data[client_key]['bytes'] += total_bytes
+                    client_data[client_key]['bytes_sent'] += bytes_sent
+                    client_data[client_key]['bytes_received'] += bytes_received
+                    client_data[client_key]['sessions'] += 1
+
+                    if proto == 'tcp':
+                        client_data[client_key]['sessions_tcp'] += 1
+                    elif proto == 'udp':
+                        client_data[client_key]['sessions_udp'] += 1
+
+                    # Track top application for this client
+                    if app not in client_data[client_key]['applications']:
+                        client_data[client_key]['applications'][app] = 0
+                    client_data[client_key]['applications'][app] += total_bytes
+
+            # Enrich with custom_name from metadata (denormalized)
+            # Note: traffic_logs don't have MAC addresses, so we can't enrich here
+            # Custom names will be NULL for now until we correlate with ARP data
+
+            # Prepare client stats for insertion
+            client_stats = []
+            for client in client_data.values():
+                # Find top application
+                top_app = max(client['applications'].items(), key=lambda x: x[1]) if client['applications'] else (None, 0)
+
+                client_stats.append({
+                    'client_ip': client['client_ip'],
+                    'client_mac': client['client_mac'],
+                    'hostname': client['hostname'],
+                    'custom_name': None,  # Will be enriched from ARP/DHCP in future enhancement
+                    'traffic_type': client['traffic_type'],
+                    'bytes': client['bytes'],
+                    'bytes_sent': client['bytes_sent'],
+                    'bytes_received': client['bytes_received'],
+                    'sessions': client['sessions'],
+                    'sessions_tcp': client['sessions_tcp'],
+                    'sessions_udp': client['sessions_udp'],
+                    'interface': client['interface'],
+                    'vlan': client['vlan'],
+                    'zone': client['zone'],
+                    'top_application': top_app[0],
+                    'top_application_bytes': top_app[1]
+                })
+
+            debug(f"Prepared {len(client_stats)} client bandwidth samples ({len([c for c in client_stats if c['traffic_type'] == 'internal'])} internal, "
+                  f"{len([c for c in client_stats if c['traffic_type'] == 'internet'])} internet)")
+
+            # Insert into client_bandwidth table
+            if client_stats:
+                if self.storage.insert_client_bandwidth(device_id, timestamp_dt, client_stats):
+                    debug(f"Successfully stored {len(client_stats)} client bandwidth samples for device {device_id}")
+                else:
+                    warning(f"Failed to store client bandwidth for device {device_id}")
+            else:
+                debug(f"No client data to store for device {device_id}")
+
+        except Exception as e:
+            exception(f"Error storing client bandwidth for device {device_id}: {str(e)}")
+
+    # ========================================================================
     # Phase 3: Detailed Log Collection Methods
     # ========================================================================
 
@@ -589,30 +1051,55 @@ class ThroughputCollector:
             device_name: Device name for logging
             firewall_config: Firewall configuration tuple
         """
+        import sys
+        sys.stderr.write(f"\n[THREAT COLLECTION] Starting threat log collection for device: {device_name}\n")
+        sys.stderr.flush()
+
         try:
             debug("Collecting threat logs for device: %s", device_name)
 
             # Get threat statistics (includes critical_logs, medium_logs, blocked_url_logs)
             threat_data = get_threat_stats(firewall_config, max_logs=50)
 
+            sys.stderr.write(f"[THREAT COLLECTION] get_threat_stats returned type: {type(threat_data)}\n")
+            sys.stderr.write(f"[THREAT COLLECTION] threat_data keys: {threat_data.keys() if isinstance(threat_data, dict) else 'Not a dict'}\n")
+            sys.stderr.write(f"[THREAT COLLECTION] status value: {threat_data.get('status') if isinstance(threat_data, dict) else 'N/A'}\n")
+            sys.stderr.flush()
+
             if threat_data and threat_data.get('status') == 'success':
                 # Store critical threat logs
                 critical_logs = threat_data.get('critical_logs', [])
+                sys.stderr.write(f"[THREAT COLLECTION] Critical logs: {len(critical_logs)}\n")
                 if critical_logs:
-                    self.storage.insert_threat_logs(device_id, critical_logs, 'critical')
+                    result = self.storage.insert_threat_logs(device_id, critical_logs, 'critical')
+                    sys.stderr.write(f"[THREAT COLLECTION] insert_threat_logs(critical) returned: {result}\n")
                     debug("Stored %d critical threat logs for device: %s", len(critical_logs), device_name)
+
+                # Store high threat logs
+                high_logs = threat_data.get('high_logs', [])
+                sys.stderr.write(f"[THREAT COLLECTION] High logs: {len(high_logs)}\n")
+                if high_logs:
+                    result = self.storage.insert_threat_logs(device_id, high_logs, 'high')
+                    sys.stderr.write(f"[THREAT COLLECTION] insert_threat_logs(high) returned: {result}\n")
+                    debug("Stored %d high threat logs for device: %s", len(high_logs), device_name)
 
                 # Store medium threat logs
                 medium_logs = threat_data.get('medium_logs', [])
+                sys.stderr.write(f"[THREAT COLLECTION] Medium logs: {len(medium_logs)}\n")
                 if medium_logs:
-                    self.storage.insert_threat_logs(device_id, medium_logs, 'medium')
+                    result = self.storage.insert_threat_logs(device_id, medium_logs, 'medium')
+                    sys.stderr.write(f"[THREAT COLLECTION] insert_threat_logs(medium) returned: {result}\n")
                     debug("Stored %d medium threat logs for device: %s", len(medium_logs), device_name)
 
                 # Store URL filtering logs
                 url_logs = threat_data.get('blocked_url_logs', [])
+                sys.stderr.write(f"[THREAT COLLECTION] URL logs: {len(url_logs)}\n")
                 if url_logs:
-                    self.storage.insert_url_filtering_logs(device_id, url_logs)
+                    result = self.storage.insert_url_filtering_logs(device_id, url_logs)
+                    sys.stderr.write(f"[THREAT COLLECTION] insert_url_filtering_logs returned: {result}\n")
                     debug("Stored %d URL filtering logs for device: %s", len(url_logs), device_name)
+
+                sys.stderr.flush()
             else:
                 debug("No threat data available for device: %s", device_name)
 
@@ -874,25 +1361,30 @@ class ThroughputCollector:
 collector = None
 
 
-def init_collector(db_path: str, retention_days: int = 90) -> ThroughputCollector:
+def init_collector(db_path: str = None, retention_days: int = 90) -> ThroughputCollector:
     """
     Initialize the global throughput collector.
 
+    PANfm v2.0.0: TimescaleDB only - SQLite support removed.
+
     Args:
-        db_path: Path to SQLite database file
-        retention_days: Number of days to retain historical data
+        db_path: Deprecated (was SQLite path, now ignored)
+        retention_days: Deprecated (TimescaleDB uses automatic retention policies)
 
     Returns:
         ThroughputCollector instance
     """
     global collector
 
-    debug("Initializing global throughput collector (retention: %d days)", retention_days)
+    debug("Initializing throughput collector with TimescaleDB")
+    info("TimescaleDB retention policies: 7d raw → 90d hourly → 1y daily (automatic)")
 
-    storage = ThroughputStorage(db_path)
+    # Initialize TimescaleDB storage with connection string from config
+    storage = ThroughputStorage(TIMESCALE_DSN)
     collector = ThroughputCollector(storage, retention_days)
 
-    info("Throughput collector initialized successfully")
+    info("TimescaleDB throughput collector initialized successfully")
+
     return collector
 
 

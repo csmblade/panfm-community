@@ -459,9 +459,18 @@ function displayScanHistoryModal(ipAddress, scans) {
         document.body.removeChild(modal);
     };
 
+    // v1.11.1 FIX: Set innerHTML first, THEN append close button to preserve onclick handler
+    modalContent.innerHTML = html;
     modalContent.appendChild(closeButton);
-    modalContent.innerHTML += html;
     modal.appendChild(modalContent);
+
+    // Also close when clicking outside the modal content
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+        }
+    };
+
     document.body.appendChild(modal);
 }
 

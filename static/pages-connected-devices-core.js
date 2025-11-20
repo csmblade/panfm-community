@@ -43,8 +43,13 @@ let allLocationsCache = []; // Cache all unique locations for autocomplete
 async function loadDeviceMetadata() {
     console.log('Loading device metadata...');
     try {
-        const response = await fetch('/api/device-metadata');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/device-metadata');
+        if (!response.ok) {
+            console.warn('Failed to load device metadata');
+            deviceMetadataCache = {};
+            return;
+        }
+        const data = response.data;
 
         if (data.status === 'success' && data.metadata) {
             // Normalize MAC addresses to lowercase for consistent lookup
@@ -69,8 +74,13 @@ async function loadDeviceMetadata() {
 async function loadAllTags() {
     console.log('Loading all tags for autocomplete...');
     try {
-        const response = await fetch('/api/device-metadata/tags');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/device-metadata/tags');
+        if (!response.ok) {
+            console.warn('Failed to load tags');
+            allTagsCache = [];
+            return;
+        }
+        const data = response.data;
 
         if (data.status === 'success' && Array.isArray(data.tags)) {
             allTagsCache = data.tags;
@@ -91,8 +101,13 @@ async function loadAllTags() {
 async function loadAllLocations() {
     console.log('Loading all locations for autocomplete...');
     try {
-        const response = await fetch('/api/device-metadata/locations');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/device-metadata/locations');
+        if (!response.ok) {
+            console.warn('Failed to load locations');
+            allLocationsCache = [];
+            return;
+        }
+        const data = response.data;
 
         if (data.status === 'success' && Array.isArray(data.locations)) {
             allLocationsCache = data.locations;
@@ -117,16 +132,20 @@ async function loadConnectedDevices() {
         // Load metadata, tags, and locations in parallel with devices
         // v1.10.11: Request bandwidth data for Total Volume column
         const [devicesResponse, metadataResponse, tagsResponse, locationsResponse] = await Promise.all([
-            fetch('/api/connected-devices?include_bandwidth=true'),
-            fetch('/api/device-metadata'),
-            fetch('/api/device-metadata/tags'),
-            fetch('/api/device-metadata/locations')
+            window.apiClient.get('/api/connected-devices', { params: { include_bandwidth: true } }),
+            window.apiClient.get('/api/device-metadata'),
+            window.apiClient.get('/api/device-metadata/tags'),
+            window.apiClient.get('/api/device-metadata/locations')
         ]);
 
-        const data = await devicesResponse.json();
-        const metadataData = await metadataResponse.json();
-        const tagsData = await tagsResponse.json();
-        const locationsData = await locationsResponse.json();
+        if (!devicesResponse.ok) {
+            throw new Error('Failed to load connected devices');
+        }
+
+        const data = devicesResponse.data;
+        const metadataData = metadataResponse.ok ? metadataResponse.data : { status: 'error' };
+        const tagsData = tagsResponse.ok ? tagsResponse.data : { status: 'error' };
+        const locationsData = locationsResponse.ok ? locationsResponse.data : { status: 'error' };
 
         // Cache metadata
         if (metadataData.status === 'success' && metadataData.metadata) {

@@ -104,11 +104,11 @@ def get_threat_stats(firewall_config, max_logs=5):
         debug(f"=== get_threat_stats called ===")
         debug(f"Fetching threat stats from device: {firewall_ip}")
 
-        # Query for threat logs using log query API
+        # Query for threat logs using log query API (1000 logs for scalable TimescaleDB)
         params = {
             'type': 'log',
             'log-type': 'threat',
-            'nlogs': '500',
+            'nlogs': '1000',
             'key': api_key
         }
 
@@ -119,11 +119,13 @@ def get_threat_stats(firewall_config, max_logs=5):
             sys.stderr.write(f"Response XML (first 1000 chars):\n{response.text[:1000]}...\n")
         sys.stderr.flush()
 
-        medium_count = 0
         critical_count = 0
+        high_count = 0
+        medium_count = 0
         url_blocked = 0
 
         critical_logs = []
+        high_logs = []
         medium_logs = []
         blocked_url_logs = []
 
@@ -156,6 +158,9 @@ def get_threat_stats(firewall_config, max_logs=5):
             sys.stderr.write(f"Total threat entries found: {len(entries)}\n")
             sys.stderr.flush()
 
+            # DEBUG: Count all severity types
+            severity_counts = {}
+
             # Count threats by severity and collect details
             for entry in root.findall('.//entry'):
                 severity = entry.find('.//severity')
@@ -171,6 +176,11 @@ def get_threat_stats(firewall_config, max_logs=5):
                 category = entry.find('.//category')
                 url_field = entry.find('.//url') or entry.find('.//misc')
                 app = entry.find('.//app')
+
+                # DEBUG: Count severity distribution
+                if severity is not None and severity.text:
+                    sev_text = severity.text.lower()
+                    severity_counts[sev_text] = severity_counts.get(sev_text, 0) + 1
 
                 # Try to find threat information from various fields
                 threat_display = 'Unknown'
@@ -193,24 +203,36 @@ def get_threat_stats(firewall_config, max_logs=5):
                     'severity': severity.text if severity is not None and severity.text else 'N/A'
                 }
 
-                # Check severity (try different common severity values)
+                # Check severity - Enterprise scalable structure
+                # Supports: critical, high, medium (easy to extend for low, informational)
                 if severity is not None and severity.text:
                     sev_lower = severity.text.lower()
 
-                    if sev_lower in ['medium', 'med']:
-                        medium_count += 1
-                        if len(medium_logs) < max_logs:
-                            medium_logs.append(log_entry)
-                    elif sev_lower in ['critical', 'high', 'crit']:
+                    if sev_lower in ['critical', 'crit']:
                         critical_count += 1
                         if len(critical_logs) < max_logs:
                             critical_logs.append(log_entry)
+                    elif sev_lower in ['high']:
+                        high_count += 1
+                        if len(high_logs) < max_logs:
+                            high_logs.append(log_entry)
+                    elif sev_lower in ['medium', 'med']:
+                        medium_count += 1
+                        if len(medium_logs) < max_logs:
+                            medium_logs.append(log_entry)
 
-            # Query URL filtering logs for blocked URLs
+            # DEBUG: Print severity distribution
+            sys.stderr.write(f"\n=== SEVERITY DISTRIBUTION ===\n")
+            for sev, count in sorted(severity_counts.items()):
+                sys.stderr.write(f"  {sev}: {count}\n")
+            sys.stderr.write(f"Collected: critical={len(critical_logs)}, high={len(high_logs)}, medium={len(medium_logs)}\n")
+            sys.stderr.flush()
+
+            # Query URL filtering logs for blocked URLs (1000 logs for scalable TimescaleDB)
             url_params = {
                 'type': 'log',
                 'log-type': 'url',
-                'nlogs': '500',
+                'nlogs': '1000',
                 'key': api_key
             }
 
@@ -305,8 +327,9 @@ def get_threat_stats(firewall_config, max_logs=5):
                     url_filtering_total = len(all_url_entries)
                     debug(f"Total URL filtering events: {url_filtering_total}")
 
-            # Calculate days since last critical threat and blocked URL
+            # Calculate days since last threat and blocked URL (v1.10.14 - added high severity)
             critical_last_seen = None
+            high_last_seen = None
             medium_last_seen = None
             blocked_url_last_seen = None
 
@@ -315,6 +338,12 @@ def get_threat_stats(firewall_config, max_logs=5):
                 latest_critical = critical_logs[0]
                 if latest_critical.get('time'):
                     critical_last_seen = latest_critical['time']
+
+            if high_logs:
+                # Get the most recent high threat time
+                latest_high = high_logs[0]
+                if latest_high.get('time'):
+                    high_last_seen = latest_high['time']
 
             if medium_logs:
                 # Get the most recent medium threat time
@@ -330,42 +359,53 @@ def get_threat_stats(firewall_config, max_logs=5):
 
             return {
                 'status': 'success',
-                'medium_threats': medium_count,
                 'critical_threats': critical_count,
+                'high_threats': high_count,
+                'medium_threats': medium_count,
                 'blocked_urls': url_blocked,
                 'url_filtering_total': url_filtering_total,
                 'critical_logs': critical_logs,
+                'high_logs': high_logs,
                 'medium_logs': medium_logs,
                 'blocked_url_logs': blocked_url_logs,
                 'critical_last_seen': critical_last_seen,
+                'high_last_seen': high_last_seen,
                 'medium_last_seen': medium_last_seen,
                 'blocked_url_last_seen': blocked_url_last_seen
             }
         else:
             return {
                 'status': 'error',
-                'medium_threats': 0,
                 'critical_threats': 0,
+                'high_threats': 0,
+                'medium_threats': 0,
                 'blocked_urls': 0,
                 'url_filtering_total': 0,
                 'critical_logs': [],
+                'high_logs': [],
                 'medium_logs': [],
                 'blocked_url_logs': [],
                 'critical_last_seen': None,
+                'high_last_seen': None,
+                'medium_last_seen': None,
                 'blocked_url_last_seen': None
             }
 
     except Exception as e:
         return {
             'status': 'error',
-            'medium_threats': 0,
             'critical_threats': 0,
+            'high_threats': 0,
+            'medium_threats': 0,
             'blocked_urls': 0,
             'url_filtering_total': 0,
             'critical_logs': [],
+            'high_logs': [],
             'medium_logs': [],
             'blocked_url_logs': [],
             'critical_last_seen': None,
+            'high_last_seen': None,
+            'medium_last_seen': None,
             'blocked_url_last_seen': None
         }
 

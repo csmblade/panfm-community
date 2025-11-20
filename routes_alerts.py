@@ -40,7 +40,7 @@ def register_alert_routes(app, csrf, limiter):
             device_id = request.args.get('device_id')
             enabled_only = request.args.get('enabled_only', 'false').lower() == 'true'
 
-            configs = alert_manager.get_alert_configs(
+            configs = alert_manager.get_all_alert_configs(
                 device_id=device_id,
                 enabled_only=enabled_only
             )
@@ -499,7 +499,7 @@ def register_alert_routes(app, csrf, limiter):
             device_id = request.args.get('device_id')
 
             # Get all configs and history
-            configs = alert_manager.get_alert_configs(device_id=device_id)
+            configs = alert_manager.get_all_alert_configs(device_id=device_id)
             history = alert_manager.get_alert_history(device_id=device_id, limit=1000)
 
             # Calculate statistics

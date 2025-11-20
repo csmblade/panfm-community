@@ -13,8 +13,15 @@
 // Settings functionality
 async function loadSettings() {
     try {
-        const response = await fetch('/api/settings');
-        const data = await response.json();
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/settings');
+
+        if (!response.ok) {
+            console.error('Failed to load settings');
+            return;
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             document.getElementById('refreshInterval').value = data.settings.refresh_interval;
@@ -87,7 +94,8 @@ async function saveSettingsData() {
         const timezone = document.getElementById('timezone').value;
 
         // Get current settings to preserve selected_device_id and monitored_interface
-        const currentSettings = await fetch('/api/settings').then(r => r.json());
+        const currentSettingsResponse = await window.apiClient.get('/api/settings');
+
         const settingsToSave = {
             refresh_interval: refreshInterval,
             debug_logging: debugLogging,
@@ -96,28 +104,23 @@ async function saveSettingsData() {
         };
 
         // Preserve selected_device_id and monitored_interface from current settings
-        if (currentSettings.status === 'success') {
-            if (currentSettings.settings.selected_device_id) {
-                settingsToSave.selected_device_id = currentSettings.settings.selected_device_id;
+        if (currentSettingsResponse.ok && currentSettingsResponse.data.status === 'success') {
+            if (currentSettingsResponse.data.settings.selected_device_id) {
+                settingsToSave.selected_device_id = currentSettingsResponse.data.settings.selected_device_id;
             }
-            if (currentSettings.settings.monitored_interface) {
-                settingsToSave.monitored_interface = currentSettings.settings.monitored_interface;
+            if (currentSettingsResponse.data.settings.monitored_interface) {
+                settingsToSave.monitored_interface = currentSettingsResponse.data.settings.monitored_interface;
             }
         }
 
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
+        const response = await window.apiClient.post('/api/settings', settingsToSave);
 
-        const response = await fetch('/api/settings', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify(settingsToSave)
-        });
+        if (!response.ok) {
+            throw new Error('Failed to save settings');
+        }
 
-        const data = await response.json();
+        const data = response.data;
 
         if (data.status === 'success') {
             // Update local variables
@@ -169,11 +172,21 @@ function resetSettingsData() {
 async function initSettings() {
     // Load settings on startup
     try {
-        const response = await fetch('/api/settings');
-        const data = await response.json();
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/settings');
+
+        if (!response.ok) {
+            console.error('Failed to load settings on init');
+            return;
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             UPDATE_INTERVAL = data.settings.refresh_interval * 1000;
+
+            // Store settings globally for use by ThroughputDataService and other modules
+            window.appSettings = data.settings;
 
             // Store timezone globally for use in time formatting functions
             window.userTimezone = data.settings.timezone || 'UTC';
@@ -265,8 +278,14 @@ function initSettingsTabs() {
 async function loadVendorDbInfo() {
     console.log('Loading vendor database info...');
     try {
-        const response = await fetch('/api/vendor-db/info');
-        const data = await response.json();
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/vendor-db/info');
+
+        if (!response.ok) {
+            throw new Error('Failed to load vendor DB info');
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             const info = data.info;
@@ -404,8 +423,14 @@ function initVendorDbControls() {
 async function loadServicePortDbInfo() {
     console.log('Loading service port database info...');
     try {
-        const response = await fetch('/api/service-port-db/info');
-        const data = await response.json();
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/service-port-db/info');
+
+        if (!response.ok) {
+            throw new Error('Failed to load service port DB info');
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             const info = data.info;
@@ -627,22 +652,17 @@ async function handlePasswordChange() {
     changeBtn.textContent = 'Changing Password...';
 
     try {
-        // Get CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-        const response = await fetch('/api/change-password', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({
-                old_password: currentPassword,
-                new_password: newPassword
-            })
+        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
+        const response = await window.apiClient.post('/api/change-password', {
+            old_password: currentPassword,
+            new_password: newPassword
         });
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error('Failed to change password');
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             showPasswordMessage(data.message || 'Password changed successfully!', 'success');
@@ -700,19 +720,9 @@ function showPasswordMessage(message, type) {
 }
 
 // Start when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        init();
-        initSidebarResize();
-        initPageNavigation();
-        initDeviceSelector();
-    });
-} else {
-    init();
-    initSidebarResize();
-    initPageNavigation();
-    initDeviceSelector();
-}
+// Initialization is handled by app.js DOMContentLoaded listener
+// This script just provides the settings functionality
+// No need to call init() here - app.js handles it
 
 /**
  * Initialize or update Tony Mode session keepalive
@@ -734,10 +744,13 @@ function initializeTonyMode(enabled) {
 
         window.sessionKeepaliveIntervalId = setInterval(async () => {
             try {
-                await fetch('/api/session-keepalive');
+                // Use centralized ApiClient (v1.14.0 - fire-and-forget with retry)
+                window.apiClient.post('/api/session-keepalive').catch(err => {
+                    console.warn('Tony Mode: Session keepalive failed:', err);
+                });
                 console.log('Tony Mode: Session keepalive ping sent');
             } catch (error) {
-                console.error('Tony Mode: Session keepalive failed:', error);
+                console.error('Tony Mode: Session keepalive error:', error);
             }
         }, KEEPALIVE_INTERVAL);
 
@@ -752,23 +765,19 @@ function initializeTonyMode(enabled) {
 async function refreshServicesStatus() {
     console.log('[DEBUG] refreshServicesStatus() called');
     try {
-        // Fetch both endpoints in parallel for comprehensive data
+        // Fetch both endpoints in parallel for comprehensive data (use ApiClient v1.14.0)
         console.log('[DEBUG] Fetching /api/services/status and /api/collector/status');
         const [servicesResponse, collectorResponse] = await Promise.all([
-            fetch('/api/services/status', {
-                headers: { 'Content-Type': 'application/json' }
-            }),
-            fetch('/api/collector/status', {
-                headers: { 'Content-Type': 'application/json' }
-            })
+            window.apiClient.get('/api/services/status'),
+            window.apiClient.get('/api/collector/status')
         ]);
 
         if (!servicesResponse.ok || !collectorResponse.ok) {
-            throw new Error(`HTTP ${servicesResponse.status || collectorResponse.status}`);
+            throw new Error('Failed to fetch services status');
         }
 
-        const servicesData = await servicesResponse.json();
-        const collectorData = await collectorResponse.json();
+        const servicesData = servicesResponse.data;
+        const collectorData = collectorResponse.data;
 
         console.log('[DEBUG] servicesData:', servicesData);
         console.log('[DEBUG] collectorData:', collectorData);
@@ -1110,15 +1119,14 @@ async function clearDatabase() {
     }
 
     try {
-        const response = await fetch('/api/database/clear', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        });
+        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
+        const response = await window.apiClient.post('/api/database/clear');
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error('Failed to clear database');
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             alert(`✅ Database cleared successfully!\n\nDeleted ${data.deleted_count} samples from the database.`);
@@ -1141,8 +1149,15 @@ async function clearDatabase() {
  */
 async function loadNotificationChannels() {
     try {
-        const response = await fetch('/api/settings/notifications');
-        const data = await response.json();
+        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        const response = await window.apiClient.get('/api/settings/notifications');
+
+        if (!response.ok) {
+            console.error('Failed to load notification channels');
+            return;
+        }
+
+        const data = response.data;
 
         if (data.status === 'success' && data.channels) {
             const channels = data.channels;
@@ -1235,17 +1250,14 @@ async function saveNotificationChannel(channel) {
             };
         }
 
-        // Save via API
-        const response = await fetch('/api/settings/notifications/' + channel, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify(config)
-        });
+        // Save via API (use ApiClient v1.14.0 - CSRF token auto-injected)
+        const response = await window.apiClient.post('/api/settings/notifications/' + channel, config);
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error('Failed to save notification settings');
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             const channelCap = channel.charAt(0).toUpperCase() + channel.slice(1);
@@ -1273,15 +1285,14 @@ async function testNotificationChannel(channel) {
             return;
         }
 
-        const response = await fetch('/api/settings/notifications/test/' + channel, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        });
+        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
+        const response = await window.apiClient.post('/api/settings/notifications/test/' + channel);
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error('Failed to send test notification');
+        }
+
+        const data = response.data;
 
         if (data.status === 'success') {
             alert('Test ' + channelCap + ' notification sent successfully!\n\nCheck your ' + channelCap + ' to verify receipt.');

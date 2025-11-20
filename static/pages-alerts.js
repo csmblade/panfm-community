@@ -494,11 +494,10 @@ function refreshOpenModals() {
 
     if (infoModal && infoModal.style.display === 'flex') {
         // Refresh INFO alerts modal
-        fetch('/api/alerts/history?unresolved=true&severity=info')
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    renderAlertsInTable(data.data, 'infoAlertsTable', 'No info alerts at this time.');
+        window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'info' } })
+            .then(response => {
+                if (response.ok && response.data.status === 'success') {
+                    renderAlertsInTable(response.data.data, 'infoAlertsTable', 'No info alerts at this time.');
                 }
             })
             .catch(error => console.error('Error refreshing info alerts modal:', error));
@@ -506,11 +505,10 @@ function refreshOpenModals() {
 
     if (warningModal && warningModal.style.display === 'flex') {
         // Refresh WARNING alerts modal
-        fetch('/api/alerts/history?unresolved=true&severity=warning')
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    renderAlertsInTable(data.data, 'warningAlertsTable', 'No warning alerts at this time.');
+        window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'warning' } })
+            .then(response => {
+                if (response.ok && response.data.status === 'success') {
+                    renderAlertsInTable(response.data.data, 'warningAlertsTable', 'No warning alerts at this time.');
                 }
             })
             .catch(error => console.error('Error refreshing warning alerts modal:', error));
@@ -518,11 +516,10 @@ function refreshOpenModals() {
 
     if (criticalModal && criticalModal.style.display === 'flex') {
         // Refresh CRITICAL alerts modal
-        fetch('/api/alerts/history?unresolved=true&severity=critical')
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    renderAlertsInTable(data.data, 'criticalAlertsTable', 'No critical alerts at this time.');
+        window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'critical' } })
+            .then(response => {
+                if (response.ok && response.data.status === 'success') {
+                    renderAlertsInTable(response.data.data, 'criticalAlertsTable', 'No critical alerts at this time.');
                 }
             })
             .catch(error => console.error('Error refreshing critical alerts modal:', error));
@@ -532,11 +529,10 @@ function refreshOpenModals() {
 // ===== Alert Statistics =====
 
 function loadAlertStats() {
-    fetch('/api/alerts/stats')
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                renderAlertStats(data.data);
+    window.apiClient.get('/api/alerts/stats')
+        .then(response => {
+            if (response.ok && response.data.status === 'success') {
+                renderAlertStats(response.data.data);
                 loadLatestAlertsBySeverity();  // Load latest alerts for cards
             }
         })
@@ -560,21 +556,27 @@ function renderAlertStats(stats) {
 async function loadLatestAlertsBySeverity() {
     try {
         // Fetch latest unacknowledged INFO alert
-        const infoResp = await fetch('/api/alerts/history?unresolved=true&severity=info&limit=100');
-        const infoData = await infoResp.json();
+        const infoResp = await window.apiClient.get('/api/alerts/history', {
+            params: { unresolved: true, severity: 'info', limit: 100 }
+        });
+        const infoData = infoResp.ok ? infoResp.data : { status: 'error' };
         // Filter for unacknowledged (acknowledged_at is null)
         const unackInfo = infoData.status === 'success' ? infoData.data.filter(a => !a.acknowledged_at) : [];
         const latestInfo = unackInfo.length > 0 ? unackInfo[0] : null;
 
         // Fetch latest unacknowledged WARNING alert
-        const warningResp = await fetch('/api/alerts/history?unresolved=true&severity=warning&limit=100');
-        const warningData = await warningResp.json();
+        const warningResp = await window.apiClient.get('/api/alerts/history', {
+            params: { unresolved: true, severity: 'warning', limit: 100 }
+        });
+        const warningData = warningResp.ok ? warningResp.data : { status: 'error' };
         const unackWarning = warningData.status === 'success' ? warningData.data.filter(a => !a.acknowledged_at) : [];
         const latestWarning = unackWarning.length > 0 ? unackWarning[0] : null;
 
         // Fetch latest unacknowledged CRITICAL alert
-        const criticalResp = await fetch('/api/alerts/history?unresolved=true&severity=critical&limit=100');
-        const criticalData = await criticalResp.json();
+        const criticalResp = await window.apiClient.get('/api/alerts/history', {
+            params: { unresolved: true, severity: 'critical', limit: 100 }
+        });
+        const criticalData = criticalResp.ok ? criticalResp.data : { status: 'error' };
         const unackCritical = criticalData.status === 'success' ? criticalData.data.filter(a => !a.acknowledged_at) : [];
         const latestCritical = unackCritical.length > 0 ? unackCritical[0] : null;
 
@@ -605,18 +607,12 @@ function updateLatestAlertOnCard(elementId, alert) {
 function testEmailNotification() {
     console.log('Testing email notification...');
 
-    fetch('/api/alerts/notifications/test/email', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCsrfToken()
-        }
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.status === 'success') {
+    window.apiClient.post('/api/alerts/notifications/test/email')
+    .then(response => {
+        if (response.ok && response.data.status === 'success') {
             showSuccess('Test email sent successfully!');
         } else {
-            showError(result.message || 'Failed to send test email');
+            showError(response.data?.message || 'Failed to send test email');
         }
     })
     .catch(error => {
@@ -628,18 +624,12 @@ function testEmailNotification() {
 function testWebhookNotification() {
     console.log('Testing webhook notification...');
 
-    fetch('/api/alerts/notifications/test/webhook', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCsrfToken()
-        }
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.status === 'success') {
+    window.apiClient.post('/api/alerts/notifications/test/webhook')
+    .then(response => {
+        if (response.ok && response.data.status === 'success') {
             showSuccess('Test webhook sent successfully!');
         } else {
-            showError(result.message || 'Failed to send test webhook');
+            showError(response.data?.message || 'Failed to send test webhook');
         }
     })
     .catch(error => {
@@ -651,18 +641,12 @@ function testWebhookNotification() {
 function testSlackNotification() {
     console.log('Testing Slack notification...');
 
-    fetch('/api/alerts/notifications/test/slack', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCsrfToken()
-        }
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.status === 'success') {
+    window.apiClient.post('/api/alerts/notifications/test/slack')
+    .then(response => {
+        if (response.ok && response.data.status === 'success') {
             showSuccess('Test Slack message sent successfully!');
         } else {
-            showError(result.message || 'Failed to send test Slack message');
+            showError(response.data?.message || 'Failed to send test Slack message');
         }
     })
     .catch(error => {
@@ -735,8 +719,8 @@ async function loadDeviceNamesCache() {
     if (deviceNamesCache) return deviceNamesCache;
 
     try {
-        const response = await fetch('/api/devices');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/devices');
+        const data = response.ok ? response.data : { status: 'error' };
 
         if (data.status === 'success' && data.devices) {
             deviceNamesCache = {};
@@ -762,11 +746,10 @@ function getDeviceNameById(deviceId) {
 function loadAlertTemplates() {
     console.log('Loading alert templates...');
 
-    fetch('/api/alerts/templates')
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                renderAlertTemplates(data.data);
+    window.apiClient.get('/api/alerts/templates')
+        .then(response => {
+            if (response.ok && response.data.status === 'success') {
+                renderAlertTemplates(response.data.data);
             } else {
                 showError('Failed to load alert templates');
             }
@@ -911,11 +894,10 @@ function closeApplyTemplateModal() {
 function loadQuickStartScenarios() {
     console.log('Loading quick start scenarios...');
 
-    fetch('/api/alerts/quick-start')
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                renderQuickStartScenarios(data.data);
+    window.apiClient.get('/api/alerts/quick-start')
+        .then(response => {
+            if (response.ok && response.data.status === 'success') {
+                renderQuickStartScenarios(response.data.data);
             } else {
                 showError('Failed to load quick start scenarios');
             }
@@ -1016,12 +998,10 @@ function loadDevicesIntoDropdown(selectId) {
 
     console.log(`[loadDevicesIntoDropdown] Dropdown element found, fetching devices from /api/devices...`);
 
-    fetch('/api/devices')
+    window.apiClient.get('/api/devices')
         .then(response => {
-            console.log(`[loadDevicesIntoDropdown] API response status: ${response.status}`);
-            return response.json();
-        })
-        .then(data => {
+            console.log(`[loadDevicesIntoDropdown] API response status: ${response.ok ? 'success' : 'error'}`);
+            const data = response.ok ? response.data : { status: 'error' };
             console.log(`[loadDevicesIntoDropdown] API response data:`, data);
 
             if (data.status === 'success') {
@@ -1120,11 +1100,10 @@ function loadTemplatesIntoBrowser() {
     const container = document.getElementById('templatesBrowserContainer');
     if (!container) return;
 
-    fetch('/api/alerts/templates')
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                renderTemplatesInBrowser(data.data);
+    window.apiClient.get('/api/alerts/templates')
+        .then(response => {
+            if (response.ok && response.data.status === 'success') {
+                renderTemplatesInBrowser(response.data.data);
             } else {
                 container.innerHTML = '<p style="color: #dc3545;">Failed to load templates</p>';
             }
@@ -1181,11 +1160,10 @@ function loadQuickStartIntoBrowser() {
     const container = document.getElementById('quickStartBrowserContainer');
     if (!container) return;
 
-    fetch('/api/alerts/quick-start')
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                renderQuickStartInBrowser(data.data);
+    window.apiClient.get('/api/alerts/quick-start')
+        .then(response => {
+            if (response.ok && response.data.status === 'success') {
+                renderQuickStartInBrowser(response.data.data);
             } else {
                 container.innerHTML = '<p style="color: #dc3545;">Failed to load quick start scenarios</p>';
             }
@@ -1329,11 +1307,10 @@ function showActiveAlertsModal() {
     document.getElementById('activeAlertsModal').style.display = 'flex';
 
     // Fetch active alerts (unresolved)
-    fetch('/api/alerts/history?unresolved=true')
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                renderAlertsInTable(data.data, 'activeAlertsTable', 'No active alerts at this time.');
+    window.apiClient.get('/api/alerts/history', { params: { unresolved: true } })
+        .then(response => {
+            if (response.ok && response.data.status === 'success') {
+                renderAlertsInTable(response.data.data, 'activeAlertsTable', 'No active alerts at this time.');
             } else {
                 document.getElementById('activeAlertsTable').innerHTML = '<p style="color: #dc3545;">Error loading active alerts</p>';
             }
@@ -1354,10 +1331,13 @@ function showCriticalAlertsModal() {
 
     // Fetch all unacknowledged + last 5 acknowledged critical alerts
     Promise.all([
-        fetch('/api/alerts/history?unresolved=true&severity=critical&limit=100').then(r => r.json()),
-        fetch('/api/alerts/history?acknowledged=true&severity=critical&limit=5').then(r => r.json())
+        window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'critical', limit: 100 } }),
+        window.apiClient.get('/api/alerts/history', { params: { acknowledged: true, severity: 'critical', limit: 5 } })
     ])
-        .then(([unresolvedData, ackData]) => {
+        .then(([unresolvedResp, ackResp]) => {
+            const unresolvedData = unresolvedResp.ok ? unresolvedResp.data : { status: 'error' };
+            const ackData = ackResp.ok ? ackResp.data : { status: 'error' };
+
             if (unresolvedData.status === 'success' && ackData.status === 'success') {
                 // Filter unresolved to only get unacknowledged (acknowledged_at is null)
                 const unackAlerts = unresolvedData.data.filter(a => !a.acknowledged_at);
@@ -1385,10 +1365,13 @@ function showInfoAlertsModal() {
 
     // Fetch all unacknowledged + last 5 acknowledged info alerts
     Promise.all([
-        fetch('/api/alerts/history?unresolved=true&severity=info&limit=100').then(r => r.json()),
-        fetch('/api/alerts/history?acknowledged=true&severity=info&limit=5').then(r => r.json())
+        window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'info', limit: 100 } }),
+        window.apiClient.get('/api/alerts/history', { params: { acknowledged: true, severity: 'info', limit: 5 } })
     ])
-        .then(([unresolvedData, ackData]) => {
+        .then(([unresolvedResp, ackResp]) => {
+            const unresolvedData = unresolvedResp.ok ? unresolvedResp.data : { status: 'error' };
+            const ackData = ackResp.ok ? ackResp.data : { status: 'error' };
+
             if (unresolvedData.status === 'success' && ackData.status === 'success') {
                 // Filter unresolved to only get unacknowledged (acknowledged_at is null)
                 const unackAlerts = unresolvedData.data.filter(a => !a.acknowledged_at);
@@ -1416,10 +1399,13 @@ function showWarningAlertsModal() {
 
     // Fetch all unacknowledged + last 5 acknowledged warning alerts
     Promise.all([
-        fetch('/api/alerts/history?unresolved=true&severity=warning&limit=100').then(r => r.json()),
-        fetch('/api/alerts/history?acknowledged=true&severity=warning&limit=5').then(r => r.json())
+        window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'warning', limit: 100 } }),
+        window.apiClient.get('/api/alerts/history', { params: { acknowledged: true, severity: 'warning', limit: 5 } })
     ])
-        .then(([unresolvedData, ackData]) => {
+        .then(([unresolvedResp, ackResp]) => {
+            const unresolvedData = unresolvedResp.ok ? unresolvedResp.data : { status: 'error' };
+            const ackData = ackResp.ok ? ackResp.data : { status: 'error' };
+
             if (unresolvedData.status === 'success' && ackData.status === 'success') {
                 // Filter unresolved to only get unacknowledged (acknowledged_at is null)
                 const unackAlerts = unresolvedData.data.filter(a => !a.acknowledged_at);
@@ -1446,11 +1432,10 @@ function showAlertHistoryFullModal() {
     document.getElementById('alertHistoryFullModal').style.display = 'flex';
 
     // Fetch last 50 alerts (both active AND resolved, all severities, sorted newest first)
-    fetch('/api/alerts/history?limit=50')
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                renderAlertHistoryFull(data.data);
+    window.apiClient.get('/api/alerts/history', { params: { limit: 50 } })
+        .then(response => {
+            if (response.ok && response.data.status === 'success') {
+                renderAlertHistoryFull(response.data.data);
             } else {
                 document.getElementById('alertHistoryFullTable').innerHTML = '<p style="color: #dc3545;">Error loading alert history</p>';
             }
@@ -1467,20 +1452,15 @@ function closeAlertHistoryFullModal() {
 
 // Acknowledge All functions for each severity
 function acknowledgeAllInfoAlerts() {
-    fetch('/api/alerts/history?unresolved=true&severity=info')
-        .then(response => response.json())
-        .then(data => {
+    window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'info' } })
+        .then(response => {
+            const data = response.ok ? response.data : { status: 'error' };
             if (data.status === 'success' && data.data.length > 0) {
                 const alertIds = data.data.map(alert => alert.id);
                 // Acknowledge each alert
                 Promise.all(alertIds.map(id =>
-                    fetch(`/api/alerts/history/${id}/acknowledge`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken()
-                        },
-                        body: JSON.stringify({ acknowledged_by: 'admin' })
+                    window.apiClient.post(`/api/alerts/history/${id}/acknowledge`, {
+                        acknowledged_by: 'admin'
                     })
                 )).then(() => {
                     loadAlertStats();
@@ -1492,20 +1472,15 @@ function acknowledgeAllInfoAlerts() {
 }
 
 function acknowledgeAllWarningAlerts() {
-    fetch('/api/alerts/history?unresolved=true&severity=warning')
-        .then(response => response.json())
-        .then(data => {
+    window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'warning' } })
+        .then(response => {
+            const data = response.ok ? response.data : { status: 'error' };
             if (data.status === 'success' && data.data.length > 0) {
                 const alertIds = data.data.map(alert => alert.id);
                 // Acknowledge each alert
                 Promise.all(alertIds.map(id =>
-                    fetch(`/api/alerts/history/${id}/acknowledge`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken()
-                        },
-                        body: JSON.stringify({ acknowledged_by: 'admin' })
+                    window.apiClient.post(`/api/alerts/history/${id}/acknowledge`, {
+                        acknowledged_by: 'admin'
                     })
                 )).then(() => {
                     loadAlertStats();
@@ -1517,20 +1492,15 @@ function acknowledgeAllWarningAlerts() {
 }
 
 function acknowledgeAllCriticalAlerts() {
-    fetch('/api/alerts/history?unresolved=true&severity=critical')
-        .then(response => response.json())
-        .then(data => {
+    window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'critical' } })
+        .then(response => {
+            const data = response.ok ? response.data : { status: 'error' };
             if (data.status === 'success' && data.data.length > 0) {
                 const alertIds = data.data.map(alert => alert.id);
                 // Acknowledge each alert
                 Promise.all(alertIds.map(id =>
-                    fetch(`/api/alerts/history/${id}/acknowledge`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken()
-                        },
-                        body: JSON.stringify({ acknowledged_by: 'admin' })
+                    window.apiClient.post(`/api/alerts/history/${id}/acknowledge`, {
+                        acknowledged_by: 'admin'
                     })
                 )).then(() => {
                     loadAlertStats();
@@ -1606,20 +1576,13 @@ function resolveAllActiveAlerts() {
     }
 
     // Fetch all unresolved alerts
-    fetch('/api/alerts/history?unresolved=true')
-        .then(response => response.json())
-        .then(data => {
+    window.apiClient.get('/api/alerts/history', { params: { unresolved: true } })
+        .then(response => {
+            const data = response.ok ? response.data : { status: 'error' };
             if (data.status === 'success' && data.data.length > 0) {
                 const resolvePromises = data.data.map(alert => {
-                    return fetch(`/api/alerts/history/${alert.id}/resolve`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken()
-                        },
-                        body: JSON.stringify({
-                            resolved_reason: 'Bulk resolved from Active Alerts modal'
-                        })
+                    return window.apiClient.post(`/api/alerts/history/${alert.id}/resolve`, {
+                        resolved_reason: 'Bulk resolved from Active Alerts modal'
                     });
                 });
 
@@ -1629,11 +1592,10 @@ function resolveAllActiveAlerts() {
                         loadAlertHistory();
                         loadAlertStats();
                         // Refresh the active alerts modal
-                        fetch('/api/alerts/history?unresolved=true')
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.status === 'success') {
-                                    renderAlertsInTable(data.data, 'activeAlertsTable', 'No active alerts at this time.');
+                        window.apiClient.get('/api/alerts/history', { params: { unresolved: true } })
+                            .then(refreshResp => {
+                                if (refreshResp.ok && refreshResp.data.status === 'success') {
+                                    renderAlertsInTable(refreshResp.data.data, 'activeAlertsTable', 'No active alerts at this time.');
                                 }
                             });
                     })
@@ -1658,20 +1620,13 @@ function resolveAllCriticalAlerts() {
     }
 
     // Fetch all unresolved critical alerts
-    fetch('/api/alerts/history?unresolved=true&severity=critical')
-        .then(response => response.json())
-        .then(data => {
+    window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'critical' } })
+        .then(response => {
+            const data = response.ok ? response.data : { status: 'error' };
             if (data.status === 'success' && data.data.length > 0) {
                 const resolvePromises = data.data.map(alert => {
-                    return fetch(`/api/alerts/history/${alert.id}/resolve`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken()
-                        },
-                        body: JSON.stringify({
-                            resolved_reason: 'Bulk resolved from Critical Alerts modal'
-                        })
+                    return window.apiClient.post(`/api/alerts/history/${alert.id}/resolve`, {
+                        resolved_reason: 'Bulk resolved from Critical Alerts modal'
                     });
                 });
 
@@ -1681,11 +1636,10 @@ function resolveAllCriticalAlerts() {
                         loadAlertHistory();
                         loadAlertStats();
                         // Refresh the critical alerts modal
-                        fetch('/api/alerts/history?unresolved=true&severity=critical')
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.status === 'success') {
-                                    renderAlertsInTable(data.data, 'criticalAlertsTable', 'No critical alerts at this time.');
+                        window.apiClient.get('/api/alerts/history', { params: { unresolved: true, severity: 'critical' } })
+                            .then(refreshResp => {
+                                if (refreshResp.ok && refreshResp.data.status === 'success') {
+                                    renderAlertsInTable(refreshResp.data.data, 'criticalAlertsTable', 'No critical alerts at this time.');
                                 }
                             });
                     })

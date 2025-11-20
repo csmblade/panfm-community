@@ -24,10 +24,22 @@ async function loadApplications() {
     console.log('=== loadApplications called ===');
     try {
         // OPTIMIZATION: Reduced from 5000 to 1000 logs for faster loading
-        const response = await fetch('/api/applications?max_logs=1000');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/applications', {
+            params: { max_logs: 1000 }
+        });
+        if (!response.ok) {
+            throw new Error('Failed to load applications');
+        }
+        const data = response.data;
 
         console.log('Applications API response:', data);
+
+        // Handle waiting status (v1.14.0 - Enterprise Reliability)
+        if (data.status === 'waiting') {
+            console.log('⏳ Waiting for first data collection...');
+            showApplicationsWaiting(data.message, data.retry_after_seconds || 30);
+            return;
+        }
 
         // Log data source for debugging
         if (data.source) {
@@ -82,13 +94,21 @@ async function loadApplications() {
 async function loadServicePortDatabase() {
     console.log('Loading service port database...');
     try {
-        const response = await fetch('/api/service-port-db/info');
-        const data = await response.json();
+        const response = await window.apiClient.get('/api/service-port-db/info');
+        if (!response.ok) {
+            console.warn('Service port database not available');
+            return;
+        }
+        const data = response.data;
 
         if (data.status === 'success' && data.info.exists) {
             // Database exists, load it
-            const dbResponse = await fetch('/api/service-port-db/data');
-            const dbData = await dbResponse.json();
+            const dbResponse = await window.apiClient.get('/api/service-port-db/data');
+            if (!dbResponse.ok) {
+                console.warn('Failed to load service port database data');
+                return;
+            }
+            const dbData = dbResponse.data;
 
             if (dbData.status === 'success') {
                 servicePortDb = dbData.data || {};
@@ -461,6 +481,46 @@ function showApplicationsError(message) {
     }, 5000);
 }
 
+/**
+ * Show waiting message with auto-retry (v1.14.0 - Enterprise Reliability)
+ * Displays friendly message while waiting for first data collection
+ */
+function showApplicationsWaiting(message, retryAfterSeconds) {
+    const tableBody = document.getElementById('applicationsTableBody');
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="7" style="text-align: center; padding: 60px 20px;">
+                <div style="font-size: 20px; color: #FA582D; margin-bottom: 15px;">
+                    ⏳ System Ready - Initial Data Collection
+                </div>
+                <div style="font-size: 16px; color: #666; font-family: var(--font-secondary); margin-bottom: 20px;">
+                    ${message}
+                </div>
+                <div style="font-size: 14px; color: #999;">
+                    This page will automatically refresh when data is available
+                </div>
+                <div style="margin-top: 20px;">
+                    <div class="loading-spinner" style="margin: 0 auto;"></div>
+                </div>
+            </td>
+        </tr>
+    `;
+
+    // Clear summary tiles
+    document.getElementById('appStatTotalApps').textContent = '--';
+    document.getElementById('appStatTotalVolume').textContent = '--';
+    document.getElementById('appStatVlans').textContent = '--';
+    document.getElementById('appStatZones').textContent = '--';
+    document.getElementById('applicationsCount').textContent = 'Waiting for data...';
+
+    // Auto-retry after specified delay
+    console.log(`Auto-retry scheduled in ${retryAfterSeconds} seconds`);
+    setTimeout(() => {
+        console.log('Auto-retry: reloading applications...');
+        loadApplications();
+    }, retryAfterSeconds * 1000);
+}
+
 function exportApplicationsCSV() {
     // Get filtered applications (same logic as table rendering)
     const searchTerm = document.getElementById('applicationsSearchInput').value.toLowerCase();
@@ -695,23 +755,15 @@ async function showAppDestinations(appIndex) {
                 // Extract IP addresses from destinations
                 const ipAddresses = app.destinations.map(dest => dest.ip);
 
-                // Get CSRF token
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
                 // Call reverse DNS API
-                const response = await fetch('/api/reverse-dns', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({
-                        ip_addresses: ipAddresses,
-                        timeout: 2
-                    })
+                const response = await window.apiClient.post('/api/reverse-dns', {
+                    ip_addresses: ipAddresses,
+                    timeout: 2
                 });
-
-                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error('Failed to perform reverse DNS lookup');
+                }
+                const data = response.data;
                 console.log('Reverse DNS API response:', data);
 
                 if (data.status === 'success') {

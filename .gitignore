@@ -55,8 +55,11 @@ security.log.*
 *.xml
 *_output.xml
 encryption.key
-throughput_history.db
 alerts.db
+
+# TimescaleDB data directory (v2.0.0)
+# Note: throughput_history.db removed in v2.0.0 (replaced by TimescaleDB)
+timescaledb_data/
 
 # Temporary/debug files
 logs.txt
