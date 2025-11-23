@@ -331,6 +331,17 @@ class TimescaleStorage:
             else:
                 sample.pop('top_category_internet_json', None)
 
+            # Reconstruct license object for frontend compatibility
+            # Database stores as 'license_expired' and 'license_active', but frontend expects nested object
+            sample['license'] = {
+                'expired': sample.pop('license_expired', False),
+                'licensed': sample.pop('license_active', True),
+                'active': sample.get('license_active', True)
+            }
+
+            # Add panos_version alias (database stores as 'pan_os_version', frontend expects 'panos_version')
+            sample['panos_version'] = sample.get('pan_os_version')
+
             debug("Retrieved latest sample for device %s at %s", device_id, sample['timestamp'])
             return sample
 
