@@ -427,7 +427,7 @@ const chart = window.chart = window.throughputChart = new Chart(ctx, {
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        backgroundColor: '#F2F0EF',  // Custom background color
+        backgroundColor: '#F7D9BC',  // Custom background color
         interaction: {
             mode: 'index',
             intersect: false,
@@ -2059,7 +2059,15 @@ function initPageNavigation() {
             Object.keys(pages).forEach(pageKey => {
                 if (pageKey === targetPage) {
                     pages[pageKey].style.display = 'block';
-                    if (pageKey === 'device-info') {
+                    if (pageKey === 'homepage') {
+                        // Reload chord diagrams when navigating back to homepage
+                        if (typeof loadChordDiagrams === 'function' && typeof d3 !== 'undefined') {
+                            console.log('[NAV] Navigated to homepage - reloading chord diagrams');
+                            loadChordDiagrams().catch(error => {
+                                console.error('[NAV] Error loading chord diagrams:', error);
+                            });
+                        }
+                    } else if (pageKey === 'device-info') {
                         // Load interfaces by default (first tab)
                         loadInterfaces();
                     } else if (pageKey === 'connected-devices') {
