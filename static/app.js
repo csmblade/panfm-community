@@ -427,6 +427,7 @@ const chart = window.chart = window.throughputChart = new Chart(ctx, {
     options: {
         responsive: true,
         maintainAspectRatio: false,
+        backgroundColor: '#F2F0EF',  // Custom background color
         interaction: {
             mode: 'index',
             intersect: false,
@@ -1470,6 +1471,12 @@ async function init() {
             // Subscribe to waiting state
             window.throughputService.subscribe('waiting', (data) => {
                 console.log('[SERVICE] Waiting for data collection:', data.message);
+            });
+
+            // Subscribe to no_data events (v2.1.1 - collector has no recent data)
+            window.throughputService.subscribe('no_data', (data) => {
+                console.log('[SERVICE] No recent data from collector:', data.message);
+                // Don't try to append to chart - no valid timestamp
             });
 
             // Subscribe to errors
@@ -3423,6 +3430,31 @@ async function loadTagFilterSelection() {
 }
 
 /**
+ * Update the tag filter display at the bottom of the Tagged Traffic section
+ * @param {Array} selectedTags - Array of selected tag names
+ */
+function updateTagFilterDisplay(selectedTags) {
+    const displayElement = document.getElementById('chordTagFiltersList');
+    if (!displayElement) {
+        console.warn('[CHORD-TAG] Tag filters list element not found');
+        return;
+    }
+
+    if (!selectedTags || selectedTags.length === 0) {
+        displayElement.textContent = 'None';
+        displayElement.style.color = 'rgba(255, 255, 255, 0.7)';
+    } else {
+        // Display tags as comma-separated list with badges
+        displayElement.innerHTML = selectedTags.map(tag =>
+            `<span style="display: inline-block; background: rgba(250, 88, 45, 0.2); border: 1px solid rgba(250, 88, 45, 0.5); border-radius: 4px; padding: 2px 8px; margin: 0 4px; font-size: 0.9em;">${escapeHtml(tag)}</span>`
+        ).join('');
+        displayElement.style.color = 'rgba(255, 255, 255, 0.9)';
+    }
+
+    console.log(`[CHORD-TAG] Updated tag display with ${selectedTags.length} tags`);
+}
+
+/**
  * Auto-load saved tag filter on page load
  * Called on page load and when device changes
  * Note: Dropdown removed - now using modal interface (openChordTagFilterModal)
@@ -3433,6 +3465,10 @@ async function populateTagFilterDropdown() {
     try {
         // Restore previously saved tag selection and auto-load diagram
         const savedTags = await loadTagFilterSelection();
+
+        // Update the tag filter display
+        updateTagFilterDisplay(savedTags);
+
         if (savedTags.length > 0) {
             console.log(`[CHORD-TAG] Found ${savedTags.length} saved tag selections`);
 
@@ -3673,6 +3709,9 @@ async function clearChordTagFilter() {
     // Save empty selection
     await saveTagFilterSelection([]);
 
+    // Update the tag filter display (clear it)
+    updateTagFilterDisplay([]);
+
     // Clear the diagram and show empty state
     const svg = d3.select('#chordTagSvg');
     if (!svg.empty()) {
@@ -3714,6 +3753,9 @@ async function applyChordTagFilter() {
 
     // Save selection
     await saveTagFilterSelection(selectedTags);
+
+    // Update the tag filter display
+    updateTagFilterDisplay(selectedTags);
 
     // Close modal
     closeChordTagFilterModal();

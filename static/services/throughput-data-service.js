@@ -205,6 +205,13 @@ class ThroughputDataService {
                 return data;
             }
 
+            // Handle no_data status (v2.1.1 - collector has no recent data)
+            if (data.status === 'no_data') {
+                console.log('[ThroughputDataService] No recent data from collector:', data.message);
+                this.emit('no_data', data);
+                return data;
+            }
+
             // Update cache
             this.latestSnapshot = {
                 data: data,

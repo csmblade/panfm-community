@@ -1,6 +1,8 @@
 """
 Flask route handlers for threat data
 Completely independent from throughput - fetches latest threat logs regardless of time range
+
+v2.1.1 Database-First Pattern: Queries TimescaleDB directly (no collector dependency)
 """
 from flask import jsonify, request
 from auth import login_required
@@ -20,8 +22,9 @@ def register_threat_routes(app, csrf, limiter):
 
         Returns latest threat logs from database storage
         Completely decoupled from throughput graph time range selection
+
+        v2.1.1: Uses database-first pattern - queries TimescaleDB directly
         """
-        from throughput_collector import get_collector
 
         debug("=== Threats API endpoint called (independent) ===")
         settings = load_settings()
@@ -51,30 +54,13 @@ def register_threat_routes(app, csrf, limiter):
         debug(f"Fetching threats for device ID: {device_id}")
 
         try:
-            # Get collector and storage
-            collector = get_collector()
-            if collector is None:
-                debug("Collector not initialized - returning empty threats")
-                return jsonify({
-                    'status': 'waiting',
-                    'message': 'Waiting for first data collection',
-                    'threats': {
-                        'critical_count': 0,
-                        'high_count': 0,
-                        'medium_count': 0,
-                        'url_blocked': 0,
-                        'critical_logs': [],
-                        'high_logs': [],
-                        'medium_logs': [],
-                        'blocked_url_logs': [],
-                        'critical_last_seen': None,
-                        'high_last_seen': None,
-                        'medium_last_seen': None,
-                        'blocked_url_last_seen': None
-                    }
-                }), 200
+            # Database-First Pattern (v2.1.1): Query TimescaleDB directly
+            # Web process has READ-ONLY access - no collector initialization needed
+            # Clock process (clock.py) handles all data writes via initialized collector
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
 
-            storage = collector.storage
+            storage = TimescaleStorage(TIMESCALE_DSN)
 
             # Fetch latest threat logs from database (limit to last 100 for performance)
             # These are stored by the collector from firewall API responses
