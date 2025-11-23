@@ -3625,6 +3625,174 @@ function formatBytes(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
+// ============================================================================
+// Chord Tag Filter Modal Functions
+// ============================================================================
+
+/**
+ * Open the tag filter modal and populate it with available tags
+ */
+async function openChordTagFilterModal() {
+    console.log('[CHORD-TAG-MODAL] Opening tag filter modal');
+
+    const modal = document.getElementById('chordTagFilterModal');
+    const modalSelect = document.getElementById('chordTagFilterModalSelect');
+
+    if (!modal || !modalSelect) {
+        console.error('[CHORD-TAG-MODAL] Modal elements not found in DOM');
+        return;
+    }
+
+    try {
+        // Fetch available tags
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const response = await fetch('/api/device-metadata/tags', {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Clear existing options
+        modalSelect.innerHTML = '';
+
+        if (data.status === 'success' && data.tags && data.tags.length > 0) {
+            // Add tags as options
+            data.tags.forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag;
+                option.textContent = tag;
+                modalSelect.appendChild(option);
+            });
+
+            console.log(`[CHORD-TAG-MODAL] Loaded ${data.tags.length} tags`);
+
+            // Restore previously saved tag selection
+            const savedTags = await loadTagFilterSelection();
+            if (savedTags.length > 0) {
+                Array.from(modalSelect.options).forEach(option => {
+                    if (savedTags.includes(option.value)) {
+                        option.selected = true;
+                    }
+                });
+                console.log(`[CHORD-TAG-MODAL] Restored ${savedTags.length} saved selections`);
+            }
+        } else {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No tags available';
+            option.disabled = true;
+            modalSelect.appendChild(option);
+            console.log('[CHORD-TAG-MODAL] No tags available');
+        }
+
+        // Show modal
+        modal.style.display = 'flex';
+
+    } catch (error) {
+        console.error('[CHORD-TAG-MODAL] Error loading tags:', error);
+        modalSelect.innerHTML = '<option value="" disabled>Error loading tags</option>';
+        // Still show modal to display the error
+        modal.style.display = 'flex';
+    }
+}
+
+/**
+ * Close the tag filter modal
+ */
+function closeChordTagFilterModal() {
+    console.log('[CHORD-TAG-MODAL] Closing tag filter modal');
+    const modal = document.getElementById('chordTagFilterModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Clear all tag selections and refresh the diagram
+ */
+async function clearChordTagFilter() {
+    console.log('[CHORD-TAG-MODAL] Clearing tag filter');
+
+    const modalSelect = document.getElementById('chordTagFilterModalSelect');
+    if (modalSelect) {
+        // Clear all selections
+        modalSelect.selectedIndex = -1;
+        Array.from(modalSelect.options).forEach(option => {
+            option.selected = false;
+        });
+    }
+
+    // Save empty selection
+    await saveTagFilterSelection([]);
+
+    // Clear the diagram and show empty state
+    const svg = d3.select('#chordTagSvg');
+    if (!svg.empty()) {
+        svg.selectAll('*').remove();
+    }
+
+    const loadingElement = document.getElementById('chordTagLoading');
+    if (loadingElement) {
+        loadingElement.style.display = 'block';
+        loadingElement.textContent = 'Click ⚙️ to select tags...';
+        loadingElement.style.color = 'rgba(255,255,255,0.7)';
+    }
+
+    const countElement = document.getElementById('chordTagCount');
+    if (countElement) {
+        countElement.textContent = 'Select tags';
+    }
+
+    console.log('[CHORD-TAG-MODAL] Tag filter cleared');
+}
+
+/**
+ * Apply selected tag filter and refresh the diagram
+ */
+async function applyChordTagFilter() {
+    console.log('[CHORD-TAG-MODAL] Applying tag filter');
+
+    const modalSelect = document.getElementById('chordTagFilterModalSelect');
+    if (!modalSelect) {
+        console.error('[CHORD-TAG-MODAL] Modal select not found');
+        return;
+    }
+
+    // Get selected tags
+    const selectedOptions = Array.from(modalSelect.selectedOptions);
+    const selectedTags = selectedOptions.map(option => option.value).filter(v => v);
+
+    console.log(`[CHORD-TAG-MODAL] Selected tags: ${selectedTags.join(', ')}`);
+
+    // Save selection
+    await saveTagFilterSelection(selectedTags);
+
+    // Close modal
+    closeChordTagFilterModal();
+
+    // Load the filtered diagram
+    if (typeof loadTagFilteredChordDiagram === 'function') {
+        await loadTagFilteredChordDiagram();
+    } else {
+        console.error('[CHORD-TAG-MODAL] loadTagFilteredChordDiagram function not available');
+    }
+}
+
+// Close modal when clicking outside of it
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('chordTagFilterModal');
+    if (modal && event.target === modal) {
+        closeChordTagFilterModal();
+    }
+});
+
 // Note: Modal functions (showCriticalThreatsModal, showMediumThreatsModal, showBlockedUrlsModal, showTopAppsModal)
 // have been moved to pages.js for better code organization
 

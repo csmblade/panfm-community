@@ -848,9 +848,9 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 20px;">
             <!-- Internal Traffic Flow -->
             <div style="background: rgba(255, 180, 150, 0.12); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid #2E7D32;">
-                <div style="text-align: center; margin-bottom: 15px;">
-                    <h3 style="color: white; margin: 0; font-size: 1.2em; font-family: var(--font-primary); margin-bottom: 5px;">Internal Traffic Flow</h3>
-                    <span id="chordInternalCount" style="color: rgba(255, 255, 255, 0.7); font-size: 0.9em; font-family: var(--font-secondary);">Loading...</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="color: white; margin: 0; font-size: 1.2em; font-family: var(--font-primary);">Internal Traffic Flow</h3>
+                    <span id="chordInternalCount" style="color: rgba(255, 255, 255, 0.7); font-size: 0.75em; font-family: var(--font-secondary);">Loading...</span>
                 </div>
                 <div style="position: relative; height: 400px;">
                     <svg id="chordInternalSvg" style="width: 100%; height: 100%;"></svg>
@@ -860,9 +860,9 @@
 
             <!-- Internet Traffic Flow -->
             <div style="background: rgba(255, 180, 150, 0.12); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid #1976D2;">
-                <div style="text-align: center; margin-bottom: 15px;">
-                    <h3 style="color: white; margin: 0; font-size: 1.2em; font-family: var(--font-primary); margin-bottom: 5px;">Internet Traffic Flow</h3>
-                    <span id="chordInternetCount" style="color: rgba(255, 255, 255, 0.7); font-size: 0.9em; font-family: var(--font-secondary);">Loading...</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="color: white; margin: 0; font-size: 1.2em; font-family: var(--font-primary);">Internet Traffic Flow</h3>
+                    <span id="chordInternetCount" style="color: rgba(255, 255, 255, 0.7); font-size: 0.75em; font-family: var(--font-secondary);">Loading...</span>
                 </div>
                 <div style="position: relative; height: 400px;">
                     <svg id="chordInternetSvg" style="width: 100%; height: 100%;"></svg>
@@ -872,18 +872,16 @@
 
             <!-- Tag-Filtered Traffic Flow -->
             <div style="background: rgba(255, 180, 150, 0.12); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid #FA582D;">
-                <div style="text-align: center; margin-bottom: 15px;">
-                    <h3 style="color: white; margin: 0; font-size: 1.2em; font-family: var(--font-primary); margin-bottom: 5px;">Tagged Device Traffic</h3>
-                    <div style="display: flex; justify-content: center; gap: 10px; align-items: center; margin-top: 8px;">
-                        <select id="chordTagFilter" multiple style="padding: 5px 10px; border: 2px solid #FA582D; border-radius: 6px; font-family: var(--font-secondary); max-width: 200px; background: rgba(255, 255, 255, 0.1); color: white;">
-                            <!-- Tags will be populated by JavaScript -->
-                        </select>
-                        <span id="chordTagCount" style="color: rgba(255, 255, 255, 0.7); font-size: 0.9em; font-family: var(--font-secondary);">Select tags</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="color: white; margin: 0; font-size: 1.2em; font-family: var(--font-primary);">Tagged Device Traffic</h3>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="chordTagCount" style="color: rgba(255, 255, 255, 0.7); font-size: 0.75em; font-family: var(--font-secondary);">Select tags</span>
+                        <button onclick="openChordTagFilterModal()" style="background: none; border: none; cursor: pointer; color: rgba(255, 255, 255, 0.9); font-size: 1.2em; padding: 5px; line-height: 1; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255, 255, 255, 0.9)'" title="Filter by tags">⚙️</button>
                     </div>
                 </div>
                 <div style="position: relative; height: 400px;">
                     <svg id="chordTagSvg" style="width: 100%; height: 100%;"></svg>
-                    <div id="chordTagLoading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255, 255, 255, 0.7); font-family: var(--font-secondary);">Select tags to filter...</div>
+                    <div id="chordTagLoading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255, 255, 255, 0.7); font-family: var(--font-secondary);">Click ⚙️ to select tags...</div>
                 </div>
             </div>
         </div>
@@ -3772,6 +3770,27 @@
     <script defer src="/static/devices.js?v=1.8.4"></script>
     <script defer src="/static/settings.js?v=1.9.0"></script>
     <script defer src="/static/pages-nmap-scan.js"></script>
+    <!-- Chord Tag Filter Modal -->
+    <div id="chordTagFilterModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #fff5f0 100%); border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #FA582D;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Filter by Device Tags</h2>
+                <button onclick="closeChordTagFilterModal()" style="background: none; border: none; font-size: 1.5em; color: #999; cursor: pointer; line-height: 1; padding: 0; transition: color 0.2s;" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#999'">×</button>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 10px; color: #333; font-weight: 600; font-family: var(--font-primary);">Select Tags:</label>
+                <select id="chordTagFilterModalSelect" multiple size="8" style="width: 100%; padding: 10px; border: 2px solid #FA582D; border-radius: 6px; font-family: var(--font-secondary); background: white; color: #333;">
+                    <!-- Tags will be populated by JavaScript -->
+                </select>
+                <p style="color: #666; font-size: 0.85em; margin-top: 8px; font-family: var(--font-secondary);">Hold Ctrl/Cmd to select multiple tags</p>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="clearChordTagFilter()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">Clear</button>
+                <button onclick="applyChordTagFilter()" style="padding: 10px 20px; background: #FA582D; color: white; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#E04F26'" onmouseout="this.style.background='#FA582D'">Apply</button>
+            </div>
+        </div>
+    </div>
+
     <script defer src="/static/pages-applications.js"></script>
     <script defer src="/static/pages-panos-upgrade.js"></script>
     <script defer src="/static/pages-content-updates.js"></script>
