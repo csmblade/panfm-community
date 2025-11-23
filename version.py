@@ -76,6 +76,32 @@ def get_short_version():
 # Version history and changelog
 VERSION_HISTORY = [
     {
+        'version': '2.1.2',
+        'codename': 'UI Polish',
+        'date': '2025-11-23',
+        'type': 'patch',
+        'changes': [
+            '✨ UI POLISH: Professional Color Scheme & Clean Interface',
+            '',
+            'CHANGED: Global white text color from multiple values (white, #fff, #ffffff) to #F2F0EF (129 instances)',
+            'CHANGED: Connection status pulsing dot from #40774D to #00cc66 (matches CPU temp indicator)',
+            'UPDATED: Pulse animation box-shadow to use rgba(0, 204, 102, ...) for consistency',
+            'REMOVED: "Firewall Overview" page header (unnecessary clutter)',
+            'REMOVED: "Loading..." placeholder text from device name field',
+            'REMOVED: Dash (-) placeholders from device name and IP address fields',
+            '',
+            'IMPACT:',
+            '- Consistent professional color scheme throughout dashboard',
+            '- Unified green status indicators (#00cc66)',
+            '- Cleaner initial state with smooth data population',
+            '- More screen real estate for actual content',
+            '',
+            'FILES MODIFIED:',
+            '- templates/index.html: Color scheme updates and placeholder removal',
+            '- No backend changes (UI-only improvements)'
+        ]
+    },
+    {
         'version': '2.1.1',
         'codename': 'Database-First Architecture',
         'date': '2025-11-23',

@@ -384,7 +384,7 @@ console.log('[ApiClient] Centralized API client initialized (v1.14.0)');
 // D3.js Line Chart Implementation (replicates Chart.js network throughput graph)
 function initializeD3Chart() {
     const svg = d3.select("#throughputChart");
-    const margin = {top: 20, right: 30, bottom: 50, left: 80};
+    const margin = {top: 10, right: 10, bottom: 35, left: 75};
     const width = svg.node().getBoundingClientRect().width - margin.left - margin.right;
     const height = 300 - margin.top - margin.bottom;
 

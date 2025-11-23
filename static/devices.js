@@ -201,6 +201,16 @@ async function onDeviceChange() {
                     console.log('Updated status bubble with new device name:', device.name);
                 }
 
+                // Update sidebar device name and IP display
+                const deviceNameEl = document.getElementById('deviceName');
+                const deviceIPEl = document.getElementById('deviceIP');
+                if (deviceNameEl) {
+                    deviceNameEl.textContent = device.name || 'Unknown Device';
+                }
+                if (deviceIPEl) {
+                    deviceIPEl.textContent = device.ip || '-';
+                }
+
                 // Update settings with device's interface
                 settings.monitored_interface = deviceInterface;
                 console.log('Saving interface to settings...');
