@@ -637,9 +637,9 @@ function updateStats(data) {
         historicalData.total.shift();
     }
 
-    document.getElementById('inboundValue').innerHTML = inbound.toLocaleString() + calculateTrend(historicalData.inbound);
-    document.getElementById('outboundValue').innerHTML = outbound.toLocaleString() + calculateTrend(historicalData.outbound);
-    document.getElementById('totalValue').innerHTML = total.toLocaleString() + calculateTrend(historicalData.total);
+    document.getElementById('inboundValue').innerHTML = (inbound !== null && inbound !== undefined ? inbound.toLocaleString() : '--') + calculateTrend(historicalData.inbound);
+    document.getElementById('outboundValue').innerHTML = (outbound !== null && outbound !== undefined ? outbound.toLocaleString() : '--') + calculateTrend(historicalData.outbound);
+    document.getElementById('totalValue').innerHTML = (total !== null && total !== undefined ? total.toLocaleString() : '--') + calculateTrend(historicalData.total);
 
     // Calculate 5-minute averages (last 5 samples at 60-second intervals = 300 seconds = 5 minutes)
     const last5Inbound = historicalData.inbound.slice(-5);
@@ -650,9 +650,9 @@ function updateStats(data) {
     const outboundAvg = calculateAverage(last5Outbound);
     const totalAvg = calculateAverage(last5Total);
 
-    document.getElementById('inboundAvg').textContent = inboundAvg.toLocaleString();
-    document.getElementById('outboundAvg').textContent = outboundAvg.toLocaleString();
-    document.getElementById('totalAvg').textContent = totalAvg.toLocaleString();
+    document.getElementById('inboundAvg').textContent = (inboundAvg !== null && inboundAvg !== undefined ? inboundAvg.toLocaleString() : '--');
+    document.getElementById('outboundAvg').textContent = (outboundAvg !== null && outboundAvg !== undefined ? outboundAvg.toLocaleString() : '--');
+    document.getElementById('totalAvg').textContent = (totalAvg !== null && totalAvg !== undefined ? totalAvg.toLocaleString() : '--');
 
     // Update session counts and mini chart
     if (data.sessions) {
@@ -773,10 +773,12 @@ function updateStats(data) {
                 historicalData.interfaceErrors.shift();
             }
 
-            interfaceErrorsElement.innerHTML = totalIssues.toLocaleString() + calculateTrend(historicalData.interfaceErrors);
+            interfaceErrorsElement.innerHTML = (totalIssues !== null && totalIssues !== undefined ? totalIssues.toLocaleString() : '--') + calculateTrend(historicalData.interfaceErrors);
 
             if (interfaceDetailsElement) {
-                interfaceDetailsElement.textContent = `${data.interfaces.total_errors.toLocaleString()} errors, ${data.interfaces.total_drops.toLocaleString()} drops`;
+                const errors = data.interfaces.total_errors !== null && data.interfaces.total_errors !== undefined ? data.interfaces.total_errors.toLocaleString() : '--';
+                const drops = data.interfaces.total_drops !== null && data.interfaces.total_drops !== undefined ? data.interfaces.total_drops.toLocaleString() : '--';
+                interfaceDetailsElement.textContent = `${errors} errors, ${drops} drops`;
             }
         }
     }
@@ -870,10 +872,11 @@ function updateStats(data) {
                 }
             });
 
-            // Update count value on tile
+            // Update count value on tile (null-safe)
             const valueElement = document.getElementById(config.elementIds.value);
             if (valueElement) {
-                valueElement.innerHTML = uniqueItems.size.toLocaleString();
+                const count = uniqueItems.size;
+                valueElement.innerHTML = (count !== null && count !== undefined ? count.toLocaleString() : '0');
             }
 
             // Update latest threat/URL name on tile
@@ -1952,10 +1955,10 @@ async function loadHistoricalStats(range) {
             totalMinMax.textContent = `(min: ${data.stats.total_mbps.min}, max: ${data.stats.total_mbps.max})`;
             totalMinMax.style.display = 'inline';
 
-            // Show sample count
+            // Show sample count (null-safe)
             const sampleCountDisplay = document.getElementById('sampleCountDisplay');
             const sampleCount = document.getElementById('historicalSampleCount');
-            sampleCount.textContent = data.sample_count.toLocaleString();
+            sampleCount.textContent = (data.sample_count !== null && data.sample_count !== undefined ? data.sample_count.toLocaleString() : '--');
             sampleCountDisplay.style.display = 'block';
         }
     } catch (error) {
@@ -2749,16 +2752,16 @@ function updateSidebarInfo(data) {
         }
     }
 
-    // Update License Information
+    // Update License Information (nested object structure)
     const expiredElement = document.getElementById('sidebarLicenseExpired');
     const licensedElement = document.getElementById('sidebarLicenseLicensed');
 
-    if (expiredElement && data.license_expired !== undefined) {
-        expiredElement.textContent = data.license_expired || 0;
+    if (expiredElement && data.license && data.license.expired !== undefined) {
+        expiredElement.textContent = data.license.expired || 0;
     }
 
-    if (licensedElement && data.license_active !== undefined) {
-        licensedElement.textContent = data.license_active || 0;
+    if (licensedElement && data.license && data.license.licensed !== undefined) {
+        licensedElement.textContent = data.license.licensed || 0;
     }
 }
 
@@ -2822,10 +2825,11 @@ function updateThreatTilesOnly(threats) {
             }
         });
 
-        // Update count value on tile (just unique count)
+        // Update count value on tile (just unique count, null-safe)
         const valueElement = document.getElementById(config.elementIds.value);
         if (valueElement) {
-            valueElement.innerHTML = uniqueItems.size.toLocaleString();
+            const count = uniqueItems.size;
+            valueElement.innerHTML = (count !== null && count !== undefined ? count.toLocaleString() : '0');
         }
 
         // Update latest threat/URL name on tile
@@ -2864,16 +2868,20 @@ function updateCyberHealth(data) {
         memoryElement.textContent = data.cpu.memory_used_pct + '%';
     }
 
-    // Tile 3: PPS (Packets Per Second)
+    // Tile 3: PPS (Packets Per Second) - NULL-SAFE
     const ppsElement = document.getElementById('cyberHealthPps');
-    if (ppsElement && data.total_pps !== undefined) {
+    if (ppsElement && data.total_pps !== null && data.total_pps !== undefined) {
         ppsElement.textContent = data.total_pps.toLocaleString();
+    } else if (ppsElement) {
+        ppsElement.textContent = '--';
     }
 
-    // Tile 4: Active Sessions
+    // Tile 4: Active Sessions - NULL-SAFE
     const sessionsElement = document.getElementById('cyberHealthSessions');
-    if (sessionsElement && data.sessions && data.sessions.active !== undefined) {
+    if (sessionsElement && data.sessions && data.sessions.active !== null && data.sessions.active !== undefined) {
         sessionsElement.textContent = data.sessions.active.toLocaleString();
+    } else if (sessionsElement) {
+        sessionsElement.textContent = '--';
     }
 
     // Tile 5: Top Category (Local LAN and Internet split view)

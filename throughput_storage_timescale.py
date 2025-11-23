@@ -270,34 +270,34 @@ class TimescaleStorage:
                 timestamp_str += 'Z'
             sample['timestamp'] = timestamp_str
 
-            # Reconstruct nested objects for backward compatibility
+            # Reconstruct nested objects for backward compatibility (with safe defaults)
             sample['sessions'] = {
-                'active': sample.pop('sessions_active'),
-                'tcp': sample.pop('sessions_tcp'),
-                'udp': sample.pop('sessions_udp'),
-                'icmp': sample.pop('sessions_icmp'),
-                'max_capacity': sample.pop('session_max_capacity'),
-                'max': sample.get('session_max_capacity'),  # Alias for compatibility
-                'utilization_pct': sample.pop('session_utilization_pct')
+                'active': sample.pop('sessions_active', 0),
+                'tcp': sample.pop('sessions_tcp', 0),
+                'udp': sample.pop('sessions_udp', 0),
+                'icmp': sample.pop('sessions_icmp', 0),
+                'max_capacity': sample.pop('session_max_capacity', 0),
+                'max': sample.get('session_max_capacity', 0),  # Alias for compatibility
+                'utilization_pct': sample.pop('session_utilization_pct', 0)
             }
 
             sample['cpu'] = {
-                'data_plane_cpu': sample.pop('cpu_data_plane'),
-                'mgmt_plane_cpu': sample.pop('cpu_mgmt_plane'),
-                'memory_used_pct': sample.pop('memory_used_pct')
+                'data_plane_cpu': sample.pop('cpu_data_plane', 0),
+                'mgmt_plane_cpu': sample.pop('cpu_mgmt_plane', 0),
+                'memory_used_pct': sample.pop('memory_used_pct', 0)
             }
 
             sample['disk_usage'] = {
-                'root_pct': sample.pop('disk_root_pct'),
-                'logs_pct': sample.pop('disk_logs_pct'),
-                'var_pct': sample.pop('disk_var_pct')
+                'root_pct': sample.pop('disk_root_pct', 0),
+                'logs_pct': sample.pop('disk_logs_pct', 0),
+                'var_pct': sample.pop('disk_var_pct', 0)
             }
 
             sample['database_versions'] = {
-                'app_version': sample.pop('app_version'),
-                'threat_version': sample.pop('threat_version'),
-                'wildfire_version': sample.pop('wildfire_version'),
-                'url_version': sample.pop('url_version')
+                'app_version': sample.pop('app_version', None),
+                'threat_version': sample.pop('threat_version', None),
+                'wildfire_version': sample.pop('wildfire_version', None),
+                'url_version': sample.pop('url_version', None)
             }
 
             # Parse JSON fields
@@ -342,6 +342,17 @@ class TimescaleStorage:
 
             # Add panos_version alias (database stores as 'pan_os_version', frontend expects 'panos_version')
             sample['panos_version'] = sample.get('pan_os_version')
+
+            # Ensure top-level numeric fields have defaults (prevent null from causing frontend crashes)
+            numeric_defaults = {
+                'inbound_mbps': 0, 'outbound_mbps': 0, 'total_mbps': 0,
+                'inbound_pps': 0, 'outbound_pps': 0, 'total_pps': 0,
+                'internal_mbps': 0, 'internet_mbps': 0,
+                'wan_speed': 0, 'uptime_seconds': 0
+            }
+            for key, default in numeric_defaults.items():
+                if sample.get(key) is None:
+                    sample[key] = default
 
             debug("Retrieved latest sample for device %s at %s", device_id, sample['timestamp'])
             return sample
