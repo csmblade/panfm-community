@@ -29,6 +29,7 @@ def register_routes(app, csrf, limiter):
     # Now direct 2-level: routes.py → routes_throughput.py
     from routes_auth import register_auth_routes
     from routes_throughput import register_throughput_routes
+    from routes_analytics import register_routes as register_analytics_routes
     from routes_threats import register_threat_routes
     from routes_system import register_system_routes
     from routes_device_management import register_device_management_routes
@@ -45,9 +46,12 @@ def register_routes(app, csrf, limiter):
     register_auth_routes(app, csrf, limiter)
     debug("✓ Authentication routes registered")
 
-    # 2. Monitoring routes (throughput, threats, health checks, services, database)
+    # 2. Monitoring routes (throughput, analytics, threats, health checks, services, database)
     register_throughput_routes(app, csrf, limiter)
     debug("✓ Throughput routes registered")
+
+    register_analytics_routes(app, limiter)
+    debug("✓ Analytics routes registered (categories, applications)")
 
     register_threat_routes(app, csrf, limiter)
     debug("✓ Threat routes registered (independent)")

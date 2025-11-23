@@ -137,6 +137,16 @@ class ThroughputCollector:
                         throughput_data['internal_mbps'] = traffic_metrics.get('internal_mbps', 0)
                         throughput_data['internet_mbps'] = traffic_metrics.get('internet_mbps', 0)
 
+                    # Compute threat count for Analytics Dashboard (Chart 5: Threats vs Sessions)
+                    threats_count = self._compute_threat_count(device_id)
+                    if threats_count is not None:
+                        throughput_data['threats_count'] = threats_count
+
+                    # Compute interface errors for Analytics Dashboard (Chart 6: Errors vs Throughput)
+                    interface_errors = self._compute_interface_errors(device_id)
+                    if interface_errors is not None:
+                        throughput_data['interface_errors'] = interface_errors
+
                     if throughput_data and throughput_data.get('status') == 'success':
                         # Store throughput sample in database
                         if self.storage.insert_sample(device_id, throughput_data):
@@ -153,6 +163,9 @@ class ThroughputCollector:
                                 self._store_application_samples(device_id, timestamp)
                                 self._store_category_bandwidth(device_id, timestamp)
                                 self._store_client_bandwidth(device_id, timestamp)
+
+                                # Collect and store connected devices (for MAC-to-IP mapping and enrichment)
+                                self._store_connected_devices(device_id, timestamp)
 
                             # Check alert thresholds after successful data collection
                             self._check_alert_thresholds(device_id, device_name, throughput_data)
@@ -548,12 +561,15 @@ class ThroughputCollector:
         """
         Compute aggregate internal and internet traffic metrics for Analytics Dashboard.
 
-        Calculates total Mbps for:
-        - internal_mbps: Local-to-local traffic (both IPs are private)
-        - internet_mbps: Traffic to/from public IPs (local<->internet)
+        v2.0.0: Refactored to use TimescaleDB client_bandwidth table instead of SQLite traffic_logs.
 
-        Uses traffic_logs data from the last 60 seconds to match current throughput measurement.
-        Returns metrics in Mbps to match the Analytics Dashboard requirements.
+        Calculates total Mbps for:
+        - internal_mbps: Local-to-local traffic (traffic_type='internal')
+        - internet_mbps: Traffic to/from public IPs (traffic_type='internet')
+
+        Queries client_bandwidth hypertable for the last 3 minutes and uses the most recent data point
+        for each traffic type. The 3-minute window accounts for different collection intervals between
+        throughput_collector (30s) and client_bandwidth updates (variable).
 
         Args:
             device_id: Device identifier
@@ -564,67 +580,179 @@ class ThroughputCollector:
         try:
             debug(f"Computing aggregate traffic metrics (internal/internet) for device {device_id}")
 
-            # Query traffic logs from last 60 seconds (matches throughput measurement window)
+            # Query client_bandwidth hypertable from last 3 minutes to get most recent data
+            # Note: client_bandwidth is collected at different intervals than throughput_collector
             from datetime import datetime, timedelta
-            import sqlite3
-            end_time = datetime.now()
-            start_time = end_time - timedelta(seconds=60)
+            from psycopg2.extras import RealDictCursor
 
-            # Get all traffic logs for the time window
-            conn = sqlite3.connect(self.storage.db_path)
-            cursor = conn.cursor()
+            end_time = datetime.utcnow()
+            start_time = end_time - timedelta(seconds=180)  # 3 minutes to catch most recent collection
 
-            cursor.execute('''
-                SELECT source_ip, dest_ip, bytes_sent, bytes_received
-                FROM traffic_logs
-                WHERE device_id = ? AND timestamp BETWEEN ? AND ?
-            ''', (device_id, start_time.isoformat(), end_time.isoformat()))
+            # Get TimescaleDB connection
+            conn = self.storage._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-            rows = cursor.fetchall()
-            conn.close()
+            try:
+                # Get the most recent timestamp, then sum all bandwidth for that timestamp
+                # Step 1: Find the most recent timestamp with data
+                max_time_query = '''
+                    SELECT MAX(time) as latest_time
+                    FROM client_bandwidth
+                    WHERE device_id = %s
+                      AND time >= %s
+                      AND time <= %s
+                      AND traffic_type IN ('internal', 'internet')
+                '''
 
-            if not rows or len(rows) == 0:
-                debug("No traffic logs found in last 60s, returning zero metrics")
-                return {'internal_mbps': 0, 'internet_mbps': 0}
+                cursor.execute(max_time_query, (device_id, start_time, end_time))
+                max_time_result = cursor.fetchone()
 
-            # Import helper functions
-            from throughput_storage import is_private_ip, is_internet_traffic
+                if not max_time_result or not max_time_result.get('latest_time'):
+                    debug("No client bandwidth data found in last 3 minutes, returning zero metrics")
+                    return {'internal_mbps': 0, 'internet_mbps': 0}
 
-            # Aggregate bytes by traffic type
-            internal_bytes = 0
-            internet_bytes = 0
+                latest_time = max_time_result['latest_time']
+                debug(f"Found client bandwidth data at timestamp {latest_time}")
 
-            for row in rows:
-                src_ip = row[0]
-                dst_ip = row[1]
-                bytes_sent = row[2] or 0
-                bytes_received = row[3] or 0
-                total_bytes = bytes_sent + bytes_received
+                # Step 2: Sum all bytes for each traffic type at that timestamp
+                sum_query = '''
+                    SELECT
+                        traffic_type,
+                        SUM(bytes_total) as total_bytes,
+                        SUM(bandwidth_mbps) as total_mbps
+                    FROM client_bandwidth
+                    WHERE device_id = %s
+                      AND time = %s
+                      AND traffic_type IN ('internal', 'internet')
+                    GROUP BY traffic_type
+                '''
 
-                # Classify traffic
-                if is_internet_traffic(src_ip, dst_ip):
-                    # One end is private, one is public = internet traffic
-                    internet_bytes += total_bytes
-                elif is_private_ip(src_ip) and is_private_ip(dst_ip):
-                    # Both private = internal traffic
-                    internal_bytes += total_bytes
-                # else: Both public IPs = transit traffic (ignore for now)
+                cursor.execute(sum_query, (device_id, latest_time))
+                rows = cursor.fetchall()
 
-            # Convert bytes to Mbps (bytes → bits → megabits, divided by 60 seconds)
-            internal_mbps = (internal_bytes * 8) / (1000000 * 60)
-            internet_mbps = (internet_bytes * 8) / (1000000 * 60)
+                if not rows or len(rows) == 0:
+                    debug("No aggregated bandwidth data found, returning zero metrics")
+                    return {'internal_mbps': 0, 'internet_mbps': 0}
 
-            debug(f"Traffic metrics: internal={internal_mbps:.2f} Mbps, internet={internet_mbps:.2f} Mbps "
-                  f"(from {len(rows)} traffic log entries)")
+                # Get metrics by traffic type from aggregated data
+                internal_mbps = 0
+                internet_mbps = 0
 
-            return {
-                'internal_mbps': round(internal_mbps, 2),
-                'internet_mbps': round(internet_mbps, 2)
-            }
+                for row in rows:
+                    traffic_type = row['traffic_type']
+                    # Use total_mbps if available, otherwise calculate from total_bytes
+                    mbps = row.get('total_mbps', 0)
+                    if not mbps or mbps == 0:
+                        bytes_total = row.get('total_bytes', 0)
+                        mbps = (bytes_total * 8) / (1000000 * 60)  # Convert to Mbps assuming 60s window
+
+                    if traffic_type == 'internal':
+                        internal_mbps = mbps
+                    elif traffic_type == 'internet':
+                        internet_mbps = mbps
+
+                    debug(f"Traffic type '{traffic_type}': {mbps:.2f} Mbps from {row.get('total_bytes', 0):,} bytes at {latest_time}")
+
+                debug(f"Traffic metrics: internal={internal_mbps:.2f} Mbps, "
+                      f"internet={internet_mbps:.2f} Mbps from client_bandwidth table (most recent data)")
+
+                return {
+                    'internal_mbps': round(internal_mbps, 2),
+                    'internet_mbps': round(internet_mbps, 2)
+                }
+
+            finally:
+                cursor.close()
+                self.storage._return_connection(conn)
 
         except Exception as e:
             exception(f"Error computing traffic metrics: {str(e)}")
             return {'internal_mbps': 0, 'internet_mbps': 0}
+
+    def _compute_threat_count(self, device_id: str) -> int:
+        """
+        Compute recent threat count for Analytics Dashboard (Chart 5: Threats vs Sessions).
+
+        v2.0.0: Queries threat_logs hypertable for last 5 minutes to match typical
+        dashboard refresh intervals and provide meaningful threat activity metrics.
+
+        Args:
+            device_id: Device identifier
+
+        Returns:
+            int: Count of threats in the last 5 minutes
+        """
+        try:
+            debug(f"Computing threat count for device {device_id}")
+
+            from datetime import datetime, timedelta
+            from psycopg2.extras import RealDictCursor
+
+            end_time = datetime.utcnow()
+            start_time = end_time - timedelta(minutes=5)  # Last 5 minutes
+
+            # Get TimescaleDB connection
+            conn = self.storage._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            try:
+                # Count threats in the last 5 minutes
+                query = '''
+                    SELECT COUNT(*) as threat_count
+                    FROM threat_logs
+                    WHERE device_id = %s
+                      AND time >= %s
+                      AND time <= %s
+                '''
+
+                cursor.execute(query, (device_id, start_time, end_time))
+                result = cursor.fetchone()
+
+                threat_count = result.get('threat_count', 0) if result else 0
+                debug(f"Threat count (last 5 min): {threat_count} threats")
+
+                return int(threat_count)
+
+            finally:
+                cursor.close()
+                self.storage._return_connection(conn)
+
+        except Exception as e:
+            exception(f"Error computing threat count: {str(e)}")
+            return 0
+
+    def _compute_interface_errors(self, device_id: str) -> int:
+        """
+        Compute total interface errors for Analytics Dashboard (Chart 6: Errors vs Throughput).
+
+        v2.0.0: Calls firewall API to get current interface error counters.
+        Returns the sum of all input and output errors across all interfaces.
+
+        Args:
+            device_id: Device identifier
+
+        Returns:
+            int: Total interface errors (ierrors + oerrors sum across all interfaces)
+        """
+        try:
+            debug(f"Computing interface errors for device {device_id}")
+
+            from firewall_api_metrics import get_interface_stats
+
+            # Get interface statistics from firewall API
+            interface_stats = get_interface_stats(device_id)
+
+            if interface_stats:
+                total_errors = interface_stats.get('total_errors', 0)
+                debug(f"Interface errors: {total_errors} total errors")
+                return int(total_errors)
+            else:
+                debug("No interface stats returned")
+                return 0
+
+        except Exception as e:
+            exception(f"Error computing interface errors: {str(e)}")
+            return 0
 
     def _compute_top_applications(self, device_id: str, top_count: int = 5) -> Dict:
         """
@@ -708,11 +836,24 @@ class ThroughputCollector:
                 warning(f"Invalid timestamp format for analytics storage: {timestamp}")
                 return
 
-            # Get application statistics from database (already collected)
-            app_stats = self.storage.get_application_statistics(device_id, limit=500)
+            # Get application statistics from firewall API
+            from firewall_api import get_firewall_config
+            from firewall_api_applications import get_application_statistics
 
+            firewall_config = get_firewall_config(device_id)
+            if not firewall_config:
+                debug(f"Could not get firewall config for device {device_id}")
+                return
+
+            # Call firewall API to get real-time application statistics
+            app_data = get_application_statistics(firewall_config, max_logs=5000)
+            if not app_data:
+                debug(f"No application statistics available from firewall API (device {device_id})")
+                return
+
+            app_stats = app_data.get('applications', [])
             if not app_stats or len(app_stats) == 0:
-                debug(f"No application statistics available for analytics storage (device {device_id})")
+                debug(f"No applications in statistics (device {device_id})")
                 return
 
             # Insert into application_samples table
@@ -750,11 +891,24 @@ class ThroughputCollector:
                 warning(f"Invalid timestamp format for analytics storage: {timestamp}")
                 return
 
-            # Get application statistics from database (already collected)
-            app_stats = self.storage.get_application_statistics(device_id, limit=500)
+            # Get application statistics from firewall API
+            from firewall_api import get_firewall_config
+            from firewall_api_applications import get_application_statistics
 
+            firewall_config = get_firewall_config(device_id)
+            if not firewall_config:
+                debug(f"Could not get firewall config for device {device_id}")
+                return
+
+            # Call firewall API to get real-time application statistics
+            app_data = get_application_statistics(firewall_config, max_logs=5000)
+            if not app_data:
+                debug(f"No application statistics available from firewall API (device {device_id})")
+                return
+
+            app_stats = app_data.get('applications', [])
             if not app_stats or len(app_stats) == 0:
-                debug(f"No application statistics available for category bandwidth (device {device_id})")
+                debug(f"No applications in statistics for category bandwidth (device {device_id})")
                 return
 
             # Aggregate by category
@@ -868,11 +1022,24 @@ class ThroughputCollector:
             from device_metadata import load_metadata
             metadata = load_metadata(device_id, use_cache=True)  # Per-device metadata
 
-            # Get traffic logs from database (already collected, last 500 logs)
-            traffic_logs = self.storage.get_traffic_logs(device_id, limit=500)
+            # Get traffic logs from firewall API
+            from firewall_api import get_firewall_config
+            from firewall_api_logs import get_traffic_logs
 
+            firewall_config = get_firewall_config(device_id)
+            if not firewall_config:
+                debug(f"Could not get firewall config for device {device_id}")
+                return
+
+            # Call firewall API to get real-time traffic logs
+            logs_data = get_traffic_logs(firewall_config, max_logs=5000)
+            if not logs_data or logs_data.get('status') != 'success':
+                debug(f"No traffic logs available from firewall API (device {device_id})")
+                return
+
+            traffic_logs = logs_data.get('logs', [])
             if not traffic_logs or len(traffic_logs) == 0:
-                debug(f"No traffic logs available for client bandwidth (device {device_id})")
+                debug(f"No traffic logs in response for client bandwidth (device {device_id})")
                 return
 
             # Helper function to check if IP is private
@@ -960,9 +1127,36 @@ class ThroughputCollector:
                         client_data[client_key]['applications'][app] = 0
                     client_data[client_key]['applications'][app] += total_bytes
 
-            # Enrich with custom_name from metadata (denormalized)
-            # Note: traffic_logs don't have MAC addresses, so we can't enrich here
-            # Custom names will be NULL for now until we correlate with ARP data
+            # Enrich with hostname and custom_name from connected_devices table
+            # Query connected_devices to get hostname and custom_name for each IP
+            debug(f"Enriching {len(client_data)} client bandwidth entries with hostname/custom_name from connected_devices")
+
+            try:
+                connected_devices = self.storage.get_connected_devices(device_id, max_age_seconds=300)  # 5 minutes
+
+                # Build IP-to-device mapping for quick lookup
+                ip_to_device = {}
+                if connected_devices:
+                    for device in connected_devices:
+                        ip = device.get('ip')
+                        if ip:
+                            ip_to_device[ip] = {
+                                'hostname': device.get('hostname'),
+                                'custom_name': device.get('custom_name')
+                            }
+                    debug(f"Built mapping for {len(ip_to_device)} connected devices for enrichment")
+
+                # Enrich client_data with hostname and custom_name
+                for client_key, client in client_data.items():
+                    client_ip = client['client_ip']
+                    if client_ip in ip_to_device:
+                        client['hostname'] = ip_to_device[client_ip].get('hostname')
+                        client['custom_name'] = ip_to_device[client_ip].get('custom_name')
+                        debug(f"Enriched {client_ip}: hostname={client['hostname']}, custom_name={client['custom_name']}")
+
+            except Exception as e:
+                warning(f"Failed to enrich client bandwidth with connected devices data: {str(e)}")
+                # Continue without enrichment
 
             # Prepare client stats for insertion
             client_stats = []
@@ -973,8 +1167,8 @@ class ThroughputCollector:
                 client_stats.append({
                     'client_ip': client['client_ip'],
                     'client_mac': client['client_mac'],
-                    'hostname': client['hostname'],
-                    'custom_name': None,  # Will be enriched from ARP/DHCP in future enhancement
+                    'hostname': client.get('hostname'),
+                    'custom_name': client.get('custom_name'),
                     'traffic_type': client['traffic_type'],
                     'bytes': client['bytes'],
                     'bytes_sent': client['bytes_sent'],
@@ -1003,6 +1197,55 @@ class ThroughputCollector:
 
         except Exception as e:
             exception(f"Error storing client bandwidth for device {device_id}: {str(e)}")
+
+    def _store_connected_devices(self, device_id: str, timestamp: str):
+        """
+        Collect and store connected devices from firewall ARP table.
+
+        This provides MAC-to-IP mapping for enriching client_bandwidth data
+        and enables device metadata (custom names, hostnames) to be used in analytics.
+
+        Args:
+            device_id: Device identifier
+            timestamp: Sample timestamp (ISO format string)
+        """
+        try:
+            debug(f"Storing connected devices for device {device_id}")
+
+            # Parse timestamp
+            from datetime import datetime
+            if isinstance(timestamp, str):
+                timestamp = timestamp.replace('Z', '+00:00')
+                timestamp_dt = datetime.fromisoformat(timestamp)
+            elif isinstance(timestamp, datetime):
+                timestamp_dt = timestamp
+            else:
+                warning(f"Invalid timestamp format for connected devices: {timestamp}")
+                return
+
+            # Get connected devices from firewall API
+            from firewall_api import get_firewall_config
+            from firewall_api_devices import get_connected_devices
+
+            firewall_config = get_firewall_config(device_id)
+            if not firewall_config:
+                debug(f"Could not get firewall config for device {device_id}")
+                return
+
+            # Call firewall API to get ARP entries
+            devices = get_connected_devices(firewall_config)
+            if not devices or len(devices) == 0:
+                debug(f"No connected devices available from firewall API (device {device_id})")
+                return
+
+            # Insert into connected_devices table
+            if self.storage.insert_connected_devices(device_id, devices, collection_time=timestamp_dt):
+                debug(f"Successfully stored {len(devices)} connected devices for device {device_id}")
+            else:
+                warning(f"Failed to store connected devices for device {device_id}")
+
+        except Exception as e:
+            exception(f"Error storing connected devices for device {device_id}: {str(e)}")
 
     # ========================================================================
     # Phase 3: Detailed Log Collection Methods

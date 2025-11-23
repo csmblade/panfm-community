@@ -22,8 +22,8 @@ COPY . .
 # Make entrypoint script executable
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Create directories for persistent data and sessions
-RUN mkdir -p /app/data /app/data/flask_session
+# Create directories for persistent data
+RUN mkdir -p /app/data
 
 # Expose port (app runs on 3000)
 EXPOSE 3000

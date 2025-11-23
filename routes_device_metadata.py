@@ -7,24 +7,43 @@ from datetime import datetime
 import json
 from io import BytesIO
 from auth import login_required
-from device_metadata import (
-    load_metadata,
-    get_device_metadata,
-    update_device_metadata,
-    delete_device_metadata,
-    get_all_tags,
-    get_all_locations,
-    import_metadata,
-    check_migration_needed,
-    migrate_global_to_per_device,
-    reload_metadata_cache
-)
+# device_metadata.py imports removed - now using PostgreSQL via TimescaleStorage
 from firewall_api import get_firewall_config
 from utils import reverse_dns_lookup
 from logger import debug, info, error, exception
 from config import load_settings, TIMESCALE_DSN
 from throughput_storage_timescale import TimescaleStorage
 
+
+def _convert_metadata_for_frontend(metadata):
+    """
+    Convert PostgreSQL metadata format to frontend-compatible format.
+    Maps 'custom_name' to 'name' for backward compatibility.
+    """
+    if not metadata:
+        return metadata
+
+    # If it's a dict of MAC -> metadata, convert each entry
+    if isinstance(metadata, dict) and metadata:
+        # Check if this is a dict of dicts (MAC -> metadata)
+        first_value = next(iter(metadata.values()))
+        if isinstance(first_value, dict):
+            # Multiple devices
+            converted = {}
+            for mac, data in metadata.items():
+                converted_data = dict(data)
+                if 'custom_name' in converted_data:
+                    converted_data['name'] = converted_data['custom_name']
+                converted[mac] = converted_data
+            return converted
+        else:
+            # Single device metadata
+            converted = dict(metadata)
+            if 'custom_name' in converted:
+                converted['name'] = converted['custom_name']
+            return converted
+
+    return metadata
 
 def register_device_metadata_routes(app, csrf, limiter):
     """Register device metadata and connected devices routes"""
@@ -455,8 +474,11 @@ def register_device_metadata_routes(app, csrf, limiter):
         """Get all device metadata (for bulk loading on page load)"""
         debug("=== Get all device metadata API endpoint called ===")
         try:
-            metadata = load_metadata()
-            debug(f"Retrieved metadata for {len(metadata)} devices")
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            metadata = storage.get_all_device_metadata()
+            # Convert custom_name -> name for frontend compatibility
+            metadata = _convert_metadata_for_frontend(metadata)
+            debug(f"Retrieved metadata for {len(metadata)} devices from PostgreSQL")
             return jsonify({
                 'status': 'success',
                 'metadata': metadata
@@ -476,7 +498,10 @@ def register_device_metadata_routes(app, csrf, limiter):
         """Get metadata for a specific MAC address"""
         debug(f"=== Get device metadata for MAC: {mac} ===")
         try:
-            metadata = get_device_metadata(mac)
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            metadata = storage.get_device_metadata(mac)
+            # Convert custom_name -> name for frontend compatibility
+            metadata = _convert_metadata_for_frontend(metadata)
             if metadata:
                 return jsonify({
                     'status': 'success',
@@ -511,7 +536,7 @@ def register_device_metadata_routes(app, csrf, limiter):
                 }), 400
 
             mac = data.get('mac')
-            name = data.get('name')
+            custom_name = data.get('name')
             comment = data.get('comment')
             location = data.get('location')
             tags = data.get('tags')
@@ -523,14 +548,25 @@ def register_device_metadata_routes(app, csrf, limiter):
                     'message': 'Tags must be a list'
                 }), 400
 
-            success = update_device_metadata(mac, name=name, comment=comment, location=location, tags=tags)
+            # Get device_id from settings
+            settings = load_settings()
+            device_id = settings.get('selected_device_id')
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            success = storage.upsert_device_metadata(
+                mac=mac,
+                custom_name=custom_name,
+                location=location,
+                comment=comment,
+                tags=tags,
+                device_id=device_id
+            )
 
             if success:
-                # Force reload cache to ensure latest data
-                reload_metadata_cache()
-
                 # Return updated metadata
-                updated_metadata = get_device_metadata(mac)
+                updated_metadata = storage.get_device_metadata(mac)
+                # Convert custom_name -> name for frontend compatibility
+                updated_metadata = _convert_metadata_for_frontend(updated_metadata)
                 return jsonify({
                     'status': 'success',
                     'metadata': updated_metadata,
@@ -555,7 +591,8 @@ def register_device_metadata_routes(app, csrf, limiter):
         """Delete device metadata (requires CSRF token)"""
         debug(f"=== Delete device metadata for MAC: {mac} ===")
         try:
-            success = delete_device_metadata(mac)
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            success = storage.delete_device_metadata(mac)
             if success:
                 return jsonify({
                     'status': 'success',
@@ -580,7 +617,8 @@ def register_device_metadata_routes(app, csrf, limiter):
         """Get all unique tags across all devices"""
         debug("=== Get all device tags API endpoint called ===")
         try:
-            tags = get_all_tags()
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            tags = storage.get_all_tags()
             return jsonify({
                 'status': 'success',
                 'tags': tags
@@ -600,7 +638,8 @@ def register_device_metadata_routes(app, csrf, limiter):
         """Get all unique locations across all devices"""
         debug("=== Get all device locations API endpoint called ===")
         try:
-            locations = get_all_locations()
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            locations = storage.get_all_locations()
             return jsonify({
                 'status': 'success',
                 'locations': locations
@@ -620,13 +659,15 @@ def register_device_metadata_routes(app, csrf, limiter):
         """Export device metadata as JSON backup file"""
         debug("=== Device metadata export endpoint called ===")
         try:
-            # Load decrypted metadata
-            metadata = load_metadata(use_cache=False)  # Force reload to get latest
+            # Load metadata from PostgreSQL
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            metadata = storage.get_all_device_metadata()
 
             # Add export metadata
             export_data = {
                 'export_date': datetime.now().isoformat(),
-                'version': '1.0',
+                'version': '2.0',
+                'source': 'PostgreSQL/TimescaleDB',
                 'total_devices': len(metadata),
                 'metadata': metadata
             }
@@ -713,82 +754,43 @@ def register_device_metadata_routes(app, csrf, limiter):
                     'message': 'Metadata must be a dictionary'
                 }), 400
 
-            # Import metadata (merges with existing)
-            success = import_metadata(metadata_to_import)
+            # Get device_id from settings
+            settings = load_settings()
+            device_id = settings.get('selected_device_id')
 
-            if success:
-                # Reload cache
-                reload_metadata_cache()
+            # Import metadata to PostgreSQL (merges with existing)
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            imported_count = 0
+            failed_count = 0
 
-                info(f"Device metadata imported successfully: {len(metadata_to_import)} devices")
-                return jsonify({
-                    'status': 'success',
-                    'message': f'Metadata imported successfully ({len(metadata_to_import)} devices)',
-                    'devices_imported': len(metadata_to_import)
-                })
-            else:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Failed to import metadata'
-                }), 500
+            for mac, metadata in metadata_to_import.items():
+                try:
+                    success = storage.upsert_device_metadata(
+                        mac=mac,
+                        custom_name=metadata.get('name') or metadata.get('custom_name'),
+                        location=metadata.get('location'),
+                        comment=metadata.get('comment'),
+                        tags=metadata.get('tags', []),
+                        device_id=device_id
+                    )
+                    if success:
+                        imported_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as e:
+                    error(f"Failed to import metadata for {mac}: {str(e)}")
+                    failed_count += 1
 
-        except Exception as e:
-            error(f"Error importing device metadata: {str(e)}")
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 500
-
-    # ============================================================================
-    # Metadata Migration Endpoints
-    # ============================================================================
-
-    @app.route('/api/metadata/migration/check', methods=['GET'])
-    @limiter.limit("100 per hour")
-    @login_required
-    def check_metadata_migration():
-        """Check if metadata needs migration from global to per-device format"""
-        debug("=== Check Metadata Migration API endpoint called ===")
-        try:
-            needs_migration = check_migration_needed()
-
+            info(f"Device metadata imported: {imported_count} successful, {failed_count} failed")
             return jsonify({
                 'status': 'success',
-                'needs_migration': needs_migration
+                'message': f'Metadata imported successfully ({imported_count} devices)',
+                'devices_imported': imported_count,
+                'devices_failed': failed_count
             })
 
         except Exception as e:
-            error(f"Error checking migration status: {str(e)}")
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 500
-
-    @app.route('/api/metadata/migration/migrate', methods=['POST'])
-    @limiter.limit("10 per hour")
-    @login_required
-    def migrate_metadata():
-        """Migrate metadata from global to per-device format"""
-        debug("=== Migrate Metadata API endpoint called ===")
-        try:
-            data = request.get_json() or {}
-            target_device_id = data.get('device_id')
-
-            success = migrate_global_to_per_device(target_device_id)
-
-            if success:
-                return jsonify({
-                    'status': 'success',
-                    'message': 'Metadata migrated successfully'
-                })
-            else:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Migration failed'
-                }), 500
-
-        except Exception as e:
-            error(f"Error migrating metadata: {str(e)}")
+            error(f"Error importing device metadata: {str(e)}")
             return jsonify({
                 'status': 'error',
                 'message': str(e)

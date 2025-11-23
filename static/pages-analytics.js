@@ -577,19 +577,23 @@ function initAnalyticsThreatsChart() {
     }
 
     analyticsThreatsChart = new Chart(ctx.getContext('2d'), {
-        type: 'bar',
+        type: 'line',
         data: {
             labels: [],
             datasets: [{
-                label: 'Threats Detected',
+                label: 'New Threats',
                 data: [],
-                backgroundColor: 'rgba(211, 47, 47, 0.7)',
-                borderColor: '#D32F2F',
+                backgroundColor: 'rgba(211, 47, 47, 0.2)',  // Semi-transparent red fill
+                borderColor: '#D32F2F',  // Solid red line
                 borderWidth: 2,
-                borderRadius: 4,
-                hoverBackgroundColor: 'rgba(211, 47, 47, 0.9)',
-                hoverBorderColor: '#C62828',
-                hoverBorderWidth: 3
+                fill: true,  // Enable area fill
+                tension: 0.4,  // Smooth curve
+                pointRadius: 0,  // Hide points for cleaner look
+                pointHitRadius: 10,  // But make them clickable
+                pointHoverRadius: 4,  // Show on hover
+                pointHoverBackgroundColor: '#D32F2F',
+                pointHoverBorderColor: '#fff',
+                pointHoverBorderWidth: 2
             }]
         },
         options: {
@@ -622,7 +626,14 @@ function initAnalyticsThreatsChart() {
                     displayColors: false,
                     callbacks: {
                         label: function(context) {
-                            return 'Threats: ' + context.parsed.y.toLocaleString();
+                            const count = context.parsed.y;
+                            if (count === 0) {
+                                return 'No new threats';
+                            } else if (count === 1) {
+                                return '1 new threat detected';
+                            } else {
+                                return count.toLocaleString() + ' new threats detected';
+                            }
                         }
                     }
                 }
@@ -662,7 +673,7 @@ function initAnalyticsThreatsChart() {
         }
     });
 
-    console.log('Threats timeline chart initialized (bar chart)');
+    console.log('Threats timeline chart initialized (line chart with area fill)');
 }
 
 /**
@@ -1187,8 +1198,9 @@ function updateThreatsChart(samples) {
 
     const labels = [];
     const threatsData = [];
+    let previousThreats = null;
 
-    samples.forEach(sample => {
+    samples.forEach((sample, index) => {
         const date = new Date(sample.timestamp);
         let label;
 
@@ -1204,14 +1216,32 @@ function updateThreatsChart(samples) {
         }
 
         labels.push(label);
-        threatsData.push(sample.threats || 0);
+
+        // Calculate threat delta (new threats since last sample)
+        const currentThreats = sample.threats || 0;
+        let threatDelta = 0;
+
+        if (index === 0) {
+            // First sample: assume 0 delta (we don't know what came before)
+            threatDelta = 0;
+        } else if (previousThreats !== null && currentThreats >= previousThreats) {
+            // Normal case: calculate delta
+            threatDelta = currentThreats - previousThreats;
+        } else if (currentThreats < previousThreats) {
+            // Counter reset (firewall reboot) - show current count
+            threatDelta = currentThreats;
+        }
+
+        threatsData.push(threatDelta);
+        previousThreats = currentThreats;
     });
 
     analyticsThreatsChart.data.labels = labels;
     analyticsThreatsChart.data.datasets[0].data = threatsData;
     analyticsThreatsChart.update();
 
-    console.log(`Threats chart updated with ${samples.length} data points`);
+    const totalNewThreats = threatsData.reduce((a, b) => a + b, 0);
+    console.log(`Threats chart updated with ${samples.length} data points (${totalNewThreats} new threats detected)`);
 }
 
 /**

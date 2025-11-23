@@ -1,5 +1,28 @@
 services:
   # =========================================
+  # Redis - Session Store (Enterprise Reliability)
+  # =========================================
+  # In-memory data store for Flask sessions with disk persistence
+  # Automatic session expiration and cleanup
+  # Prevents "Loading devices..." hang on container restart
+  redis:
+    image: redis:7-alpine
+    container_name: panfm-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - panfm-network
+
+  # =========================================
   # TimescaleDB - Time-Series Database (v2.0.0)
   # =========================================
   # Enterprise-grade PostgreSQL with TimescaleDB extension
@@ -58,6 +81,9 @@ services:
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=False
+      # Redis connection (Enterprise Reliability - Session Store)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       # TimescaleDB connection (v2.0.0)
       - USE_TIMESCALE=true
       - TIMESCALE_HOST=timescaledb
@@ -74,6 +100,8 @@ services:
       retries: 3
       start_period: 60s  # Allow time for first data collection
     depends_on:
+      redis:
+        condition: service_healthy
       timescaledb:
         condition: service_healthy
     networks:

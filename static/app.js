@@ -1,5 +1,61 @@
 console.log('[APP.JS] ===== FILE LOADING STARTED =====');
 
+// ============================================================================
+// Performance Optimization: Frontend Caching Utility (v2.0.1)
+// ============================================================================
+const CacheUtil = {
+    // Cache storage with TTL (Time To Live)
+    cache: new Map(),
+
+    /**
+     * Set cache entry with optional TTL
+     * @param {string} key - Cache key
+     * @param {*} value - Value to cache
+     * @param {number} ttl - Time to live in milliseconds (default: 5 minutes)
+     */
+    set(key, value, ttl = 5 * 60 * 1000) {
+        this.cache.set(key, {
+            value: value,
+            expires: Date.now() + ttl
+        });
+    },
+
+    /**
+     * Get cached value if not expired
+     * @param {string} key - Cache key
+     * @returns {*} Cached value or null if expired/not found
+     */
+    get(key) {
+        const entry = this.cache.get(key);
+        if (!entry) return null;
+
+        if (Date.now() > entry.expires) {
+            this.cache.delete(key);
+            return null;
+        }
+
+        return entry.value;
+    },
+
+    /**
+     * Invalidate cache entry
+     * @param {string} key - Cache key
+     */
+    invalidate(key) {
+        this.cache.delete(key);
+    },
+
+    /**
+     * Clear all cache
+     */
+    clear() {
+        this.cache.clear();
+    }
+};
+
+// Make CacheUtil globally accessible
+window.CacheUtil = CacheUtil;
+
 // Configuration (will be loaded from settings)
 let UPDATE_INTERVAL = 60000; // Update every 60 seconds (Phase 2: database-first architecture)
 const MAX_DATA_POINTS = 30; // Show last 30 data points
@@ -476,8 +532,25 @@ function calculateAverage(dataArray) {
 }
 
 // Update the chart with new data
-function updateChart(data) {
-    console.log('[updateChart] Called with timestamp:', data.timestamp);
+function updateChart(data, source = 'unknown') {
+    console.log('[updateChart] Called with timestamp:', data.timestamp, 'from source:', source);
+
+    // MODE GUARD: Prevent chart contamination between historical and real-time modes
+    const isHistoricalMode = window.currentTimeRange && window.currentTimeRange !== '60m';
+
+    if (isHistoricalMode) {
+        // In historical mode, ONLY loadHistoricalThroughput can update chart
+        if (source !== 'historical') {
+            console.warn('[updateChart] BLOCKED: Historical mode active, ignoring', source, 'update to prevent contamination');
+            return;
+        }
+    } else {
+        // In real-time mode (60m), block historical updates
+        if (source === 'historical') {
+            console.warn('[updateChart] BLOCKED: Real-time mode active, ignoring historical update');
+            return;
+        }
+    }
 
     // Validate timestamp exists
     if (!data.timestamp) {
@@ -547,19 +620,26 @@ function updateChart(data) {
 
 // Update stat cards
 function updateStats(data) {
+    // Safety check: Convert null/undefined to 0
+    const inbound = data.inbound_mbps ?? 0;
+    const outbound = data.outbound_mbps ?? 0;
+    const total = data.total_mbps ?? 0;
+
+    console.log('[DEBUG] updateStats called with:', { inbound, outbound, total });
+
     // Store historical data for trends (keep last 30 data points = 30 minutes at 60 second intervals)
-    historicalData.inbound.push(data.inbound_mbps);
-    historicalData.outbound.push(data.outbound_mbps);
-    historicalData.total.push(data.total_mbps);
+    historicalData.inbound.push(inbound);
+    historicalData.outbound.push(outbound);
+    historicalData.total.push(total);
     if (historicalData.inbound.length > 30) {
         historicalData.inbound.shift();
         historicalData.outbound.shift();
         historicalData.total.shift();
     }
 
-    document.getElementById('inboundValue').innerHTML = data.inbound_mbps.toLocaleString() + calculateTrend(historicalData.inbound);
-    document.getElementById('outboundValue').innerHTML = data.outbound_mbps.toLocaleString() + calculateTrend(historicalData.outbound);
-    document.getElementById('totalValue').innerHTML = data.total_mbps.toLocaleString() + calculateTrend(historicalData.total);
+    document.getElementById('inboundValue').innerHTML = inbound.toLocaleString() + calculateTrend(historicalData.inbound);
+    document.getElementById('outboundValue').innerHTML = outbound.toLocaleString() + calculateTrend(historicalData.outbound);
+    document.getElementById('totalValue').innerHTML = total.toLocaleString() + calculateTrend(historicalData.total);
 
     // Calculate 5-minute averages (last 5 samples at 60-second intervals = 300 seconds = 5 minutes)
     const last5Inbound = historicalData.inbound.slice(-5);
@@ -649,6 +729,33 @@ function updateStats(data) {
         if (wanSpeedElement) {
             // Speed is already formatted with Mbps/Gbps suffix from backend
             wanSpeedElement.textContent = data.wan_speed || '-';
+        }
+    }
+
+    // Update CPU temperature in sidebar
+    if (data.cpu_temp !== undefined) {
+        const cpuTempElement = document.getElementById('sidebarCpuTemp');
+        if (cpuTempElement) {
+            if (data.cpu_temp !== null && data.cpu_temp_max !== null) {
+                // Format: "45°C / 85°C" (current / max)
+                let tempText = `${data.cpu_temp}°C / ${data.cpu_temp_max}°C`;
+
+                // Color code based on temperature thresholds
+                let tempColor = '#FA582D';  // Default orange
+                const tempPercentage = (data.cpu_temp / data.cpu_temp_max) * 100;
+
+                if (tempPercentage >= 90 || data.cpu_temp_alarm) {
+                    tempColor = '#ff4444';  // Red for critical (>90% or alarm)
+                } else if (tempPercentage >= 75) {
+                    tempColor = '#ff9900';  // Orange for warning (>75%)
+                } else {
+                    tempColor = '#00cc66';  // Green for normal (<75%)
+                }
+
+                cpuTempElement.innerHTML = `<span style="color: ${tempColor}">${tempText}</span>`;
+            } else {
+                cpuTempElement.textContent = 'N/A';
+            }
         }
     }
 
@@ -1031,6 +1138,14 @@ async function fetchThroughputData() {
 
         const data = response.data;
 
+        // DEBUG: Log the full API response
+        console.log('[DEBUG] /api/throughput response:', JSON.stringify(data, null, 2));
+        console.log('[DEBUG] Throughput values:', {
+            inbound_mbps: data.inbound_mbps,
+            outbound_mbps: data.outbound_mbps,
+            total_mbps: data.total_mbps
+        });
+
         if (data.status === 'success') {
             updateStats(data);
             updateChart(data);
@@ -1225,17 +1340,31 @@ async function init() {
     console.log('Initializing Palo Alto Firewall Monitor...');
     isInitialized = true;
 
-    // Load settings first
-    await initSettings();
+    // OPTIMIZATION: Parallelize independent API calls for faster loading
+    console.log('[OPTIMIZATION] Loading settings, devices, and metadata in parallel...');
+    const startTime = performance.now();
 
-    // Load devices and populate device selector
-    if (typeof loadDevices === 'function') {
-        await loadDevices();
+    const [settingsResult, devicesResult, metadataResult] = await Promise.allSettled([
+        initSettings(),
+        (typeof loadDevices === 'function') ? loadDevices() : Promise.resolve(),
+        loadDeviceMetadataCache()
+    ]);
+
+    const loadTime = (performance.now() - startTime).toFixed(0);
+    console.log(`[OPTIMIZATION] Parallel loading completed in ${loadTime}ms`);
+
+    // Check for failures
+    if (settingsResult.status === 'rejected') {
+        console.error('[OPTIMIZATION] Failed to load settings:', settingsResult.reason);
+    }
+    if (devicesResult.status === 'rejected') {
+        console.error('[OPTIMIZATION] Failed to load devices:', devicesResult.reason);
+    } else if (devicesResult.status === 'fulfilled') {
         console.log('Devices loaded on initialization');
     }
-
-    // Load device metadata cache for dashboard use
-    await loadDeviceMetadataCache();
+    if (metadataResult.status === 'rejected') {
+        console.error('[OPTIMIZATION] Failed to load metadata:', metadataResult.reason);
+    }
 
     // Initialize page navigation (menu clicks)
     initPageNavigation();
@@ -1295,11 +1424,38 @@ async function init() {
             console.log('[INIT] Initializing ThroughputDataService...');
 
             // Subscribe BEFORE initialization so we catch the first snapshot update
-            window.throughputService.subscribe('snapshot:update', (data) => {
-                console.log('[SERVICE] Received snapshot update, updating dashboard tiles');
+            window.throughputService.subscribe('snapshot:update', async (data) => {
+                console.log('[SERVICE] Received snapshot update, updating dashboard tiles and chart');
                 console.log('[SERVICE] Snapshot data:', data);
                 updateCyberHealth(data);
-                // Do NOT update chart - chart uses historical data only
+                updateStats(data);  // CRITICAL FIX: Update throughput values in graph header
+
+                // CRITICAL FIX: Update chart with new data point (append to historical data)
+                appendSnapshotToChart(data);
+
+                // Also fetch threats (independent of throughput data)
+                await fetchThreatData();
+
+                // FIX #3: Update chord diagrams with proper error handling and D3.js check
+                if (typeof loadChordDiagrams === 'function' && typeof d3 !== 'undefined') {
+                    try {
+                        await loadChordDiagrams();
+                    } catch (error) {
+                        console.error('[SERVICE] Error loading chord diagrams:', error);
+                    }
+                }
+
+                // Update tag-filtered chord diagram (only if tags are selected)
+                if (typeof loadTagFilteredChordDiagram === 'function' && typeof d3 !== 'undefined') {
+                    try {
+                        const tagSelect = document.getElementById('chordTagFilter');
+                        if (tagSelect && tagSelect.selectedOptions.length > 0) {
+                            await loadTagFilteredChordDiagram();
+                        }
+                    } catch (error) {
+                        console.error('[SERVICE] Error loading tag-filtered chord diagram:', error);
+                    }
+                }
             });
 
             // Subscribe to device changes (clear old data)
@@ -1318,10 +1474,11 @@ async function init() {
                 console.error(`[SERVICE] Data service error (${type}):`, error);
             });
 
-            // Now initialize (this will fetch first snapshot and emit to subscribers)
-            // Settings can be passed later when needed (refresh_interval, etc.)
-            await window.throughputService.initialize(deviceId, {});
-            console.log('[INIT] ThroughputDataService initialized');
+            // Now initialize with settings (this will start auto-refresh)
+            const settings = window.appSettings || {};
+            console.log('[INIT] Initializing ThroughputDataService with settings:', settings);
+            await window.throughputService.initialize(deviceId, settings);
+            console.log('[INIT] ThroughputDataService initialized with refresh interval:', settings.refresh_interval);
 
             // Explicitly fetch snapshot to ensure tiles are populated
             console.log('[INIT] Fetching initial snapshot for dashboard tiles...');
@@ -1329,14 +1486,40 @@ async function init() {
             if (initialSnapshot && initialSnapshot.status === 'success') {
                 console.log('[INIT] Initial snapshot received, updating tiles');
                 updateCyberHealth(initialSnapshot);
+                updateStats(initialSnapshot);  // CRITICAL FIX: Update throughput values in graph header
             } else {
                 console.warn('[INIT] Initial snapshot not ready:', initialSnapshot);
             }
+
+            // Fetch threats independently (NOT tied to throughput time range)
+            console.log('[INIT] Fetching threat data independently...');
+            await fetchThreatData();
         }
 
         // Load historical data for the selected time range on initialization
         console.log(`[INIT] Loading historical data for time range: ${window.currentTimeRange}`);
         await loadHistoricalThroughput(window.currentTimeRange);
+
+        // Load chord diagrams for traffic flow visualization on homepage (with D3.js check)
+        if (typeof loadChordDiagrams === 'function' && typeof d3 !== 'undefined') {
+            console.log('[INIT] Loading chord diagrams for client-destination traffic flows...');
+            try {
+                await loadChordDiagrams();
+            } catch (error) {
+                console.error('[INIT] Error loading chord diagrams:', error);
+            }
+        }
+
+        // Populate tag filter dropdown and load tag-filtered diagram (if tags selected)
+        if (typeof populateTagFilterDropdown === 'function') {
+            console.log('[INIT] Populating tag filter dropdown...');
+            try {
+                await populateTagFilterDropdown();
+                // Note: Don't auto-load tag diagram - wait for user to select tags
+            } catch (error) {
+                console.error('[INIT] Error populating tag filter dropdown:', error);
+            }
+        }
 
         // Service auto-refresh is already running (updates tiles every 60s)
         // Chart stays static with historical data
@@ -1374,6 +1557,10 @@ async function initializeCurrentDevice() {
         if (data.status === 'success' && data.settings) {
             const deviceId = data.settings.selected_device_id || '';
             window.currentDeviceId = deviceId;
+
+            // OPTIMIZATION: Cache settings to avoid duplicate fetch in initSettings()
+            window.CacheUtil.set('settings', data.settings, 5 * 60 * 1000);
+            console.log('[Global] Settings cached for 5 minutes');
 
             if (deviceId && deviceId.trim() !== '') {
                 console.log('[Global] Loaded device from settings:', deviceId);
@@ -1447,6 +1634,21 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Then run normal initialization
     await init();  // Fixed: await the async function
 
+    // Setup tag filter event listener for chord diagrams
+    const tagFilterSelect = document.getElementById('chordTagFilter');
+    if (tagFilterSelect) {
+        tagFilterSelect.addEventListener('change', async function() {
+            console.log('[CHORD-TAG] Tag selection changed');
+
+            // Save selected tags to settings (persistent across restarts)
+            const selectedTags = Array.from(this.selectedOptions).map(opt => opt.value);
+            await saveTagFilterSelection(selectedTags);
+
+            await loadTagFilteredChordDiagram();
+        });
+        console.log('[CHORD-TAG] Event listener attached to tag filter dropdown');
+    }
+
     console.log('[APP.JS] Initialization complete');
 });
 
@@ -1457,12 +1659,15 @@ document.addEventListener('DOMContentLoaded', async function() {
 // Current time range - global so modals can check if in historical mode
 // Load from localStorage if available, otherwise default to '30m'
 // CRITICAL FIX (v1.14.1): Validate that loaded value is in allowed list
-const validTimeRanges = ['5m', '15m', '30m', '60m', '1h', '6h', '24h', '7d', '30d', '90d'];
+// NOTE: validTimeRanges MUST match the actual options in the HTML dropdown (templates/index.html)
+const validTimeRanges = ['5m', '15m', '30m', '60m'];
 const storedTimeRange = localStorage.getItem('timeRange');
+console.log('[TIME RANGE] Loaded from localStorage:', storedTimeRange);
 if (storedTimeRange && validTimeRanges.includes(storedTimeRange)) {
     window.currentTimeRange = storedTimeRange;
+    console.log('[TIME RANGE] Using saved time range:', storedTimeRange);
 } else {
-    console.warn(`Invalid time range in localStorage: '${storedTimeRange}', defaulting to '30m'`);
+    console.warn(`[TIME RANGE] Invalid time range in localStorage: '${storedTimeRange}', defaulting to '30m'`);
     window.currentTimeRange = '30m';
     localStorage.setItem('timeRange', '30m');
 }
@@ -1478,6 +1683,7 @@ async function handleTimeRangeChange(range) {
 
     // Save to localStorage for site-wide persistence
     localStorage.setItem('timeRange', range);
+    console.log('[TIME RANGE] Saved to localStorage:', range);
 
     // Update dropdown value if it exists (for consistency across pages)
     const timeRangeSelect = document.getElementById('timeRangeSelect');
@@ -1497,84 +1703,123 @@ async function handleTimeRangeChange(range) {
 }
 
 /**
- * Fetch threat/URL data for a specific time range without updating the chart
- * This updates threat tiles (Critical, Medium, Blocked URLs) for the selected time range
- * Fixed v1.14.1: Separated from fetchThroughputData() to avoid chart contamination
+ * Fetch threat data from dedicated /api/threats endpoint
+ * Completely independent of throughput time range selection
+ * This keeps threat data separate from network throughput metrics
  */
-async function fetchThreatDataForTimeRange(range) {
+async function fetchThreatData() {
     try {
-        const deviceId = window.currentDeviceId;
-        if (!deviceId) {
-            console.warn('No device selected for threat data');
-            return;
-        }
+        console.log('[THREATS] Fetching threat data (independent of time range)');
 
-        console.log(`Fetching threat data for time range: ${range}`);
+        // Call dedicated /api/threats endpoint
+        // This is COMPLETELY separate from throughput data and time ranges
+        const response = await window.apiClient.get('/api/threats');
 
-        // Call /api/throughput with range parameter to get aggregated threat data
-        // This endpoint aggregates threats/URLs for the specified time range
-        const response = await window.apiClient.get('/api/throughput', {
-            params: { range: range }
-        });
-
-        if (!response.ok || response.data.status !== 'success') {
-            console.warn('Failed to fetch threat data for time range');
+        if (!response.ok) {
+            console.warn('[THREATS] Failed to fetch threat data');
             return;
         }
 
         const data = response.data;
 
-        // Update ONLY threat statistics (do NOT call updateChart!)
-        if (data.threats) {
-            // Store threat logs for modals
-            window.currentCriticalLogs = data.threats.critical_logs || [];
-            window.currentMediumLogs = data.threats.medium_logs || [];
-            window.currentBlockedUrlLogs = data.threats.blocked_url_logs || [];
+        // Handle waiting status (collector not ready)
+        if (data.status === 'waiting') {
+            console.log('[THREATS] Waiting for first collection');
+            return;
+        }
 
-            // Calculate unique counts for dashboard tiles
-            const uniqueCritical = new Set();
-            window.currentCriticalLogs.forEach(log => {
-                const threat = log.threat || 'Unknown';
-                uniqueCritical.add(threat);
-            });
-
-            const uniqueMedium = new Set();
-            window.currentMediumLogs.forEach(log => {
-                const threat = log.threat || 'Unknown';
-                uniqueMedium.add(threat);
-            });
-
-            const uniqueBlockedUrls = new Set();
-            window.currentBlockedUrlLogs.forEach(log => {
-                const url = log.url || log.threat || 'Unknown';
-                uniqueBlockedUrls.add(url);
-            });
-
-            // Update threat tiles
-            document.getElementById('criticalValue').innerHTML = uniqueCritical.size.toLocaleString();
-            document.getElementById('mediumValue').innerHTML = uniqueMedium.size.toLocaleString();
-            document.getElementById('blockedUrlValue').innerHTML = uniqueBlockedUrls.size.toLocaleString();
-
-            // Update last seen stats
-            const criticalLastSeen = document.getElementById('criticalLastSeen');
-            const mediumLastSeen = document.getElementById('mediumLastSeen');
-            const blockedUrlLastSeen = document.getElementById('blockedUrlLastSeen');
-
-            if (criticalLastSeen) {
-                criticalLastSeen.textContent = formatDaysAgo(data.threats.critical_last_seen);
-            }
-            if (mediumLastSeen) {
-                mediumLastSeen.textContent = formatDaysAgo(data.threats.medium_last_seen);
-            }
-            if (blockedUrlLastSeen) {
-                blockedUrlLastSeen.textContent = formatDaysAgo(data.threats.blocked_url_last_seen);
-            }
-
-            console.log(`Updated threat tiles: ${uniqueCritical.size} critical, ${uniqueMedium.size} medium, ${uniqueBlockedUrls.size} blocked URLs`);
+        // Update threat tiles using isolated function
+        if (data.status === 'success' && data.threats) {
+            updateThreatTilesOnly(data.threats);
+            console.log('[THREATS] Updated threat tiles from independent endpoint');
         }
     } catch (error) {
-        console.error('Error fetching threat data for time range:', error);
+        console.error('[THREATS] Error fetching threat data:', error);
     }
+}
+
+/**
+ * Append new snapshot data to chart (for auto-refresh)
+ * CRITICAL FIX: This makes the chart auto-update with new data points
+ */
+function appendSnapshotToChart(data) {
+    if (!data || !data.timestamp) {
+        console.warn('[CHART] Cannot append snapshot - missing timestamp');
+        return;
+    }
+
+    // Don't append if chart or chartData not initialized
+    if (!window.chart || !window.chartData) {
+        console.warn('[CHART] Chart not initialized, skipping append');
+        return;
+    }
+
+    // Get user's timezone preference
+    const userTz = window.userTimezone || 'UTC';
+
+    // Format timestamp for display
+    const timestamp = new Date(data.timestamp);
+    const timeLabel = timestamp.toLocaleTimeString('en-US', {
+        timeZone: userTz,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+
+    // Extract throughput values (with fallback to 0)
+    const inbound = parseFloat(data.inbound_mbps) || 0;
+    const outbound = parseFloat(data.outbound_mbps) || 0;
+    const total = parseFloat(data.total_mbps) || 0;
+
+    console.log(`[CHART] Appending new data point: ${timeLabel} - Total: ${total.toFixed(2)} Mbps`);
+
+    // Append new data to chartData arrays
+    window.chartData.timestamps.push(data.timestamp);
+    window.chartData.labels.push(timeLabel);
+    window.chartData.inbound.push(inbound);
+    window.chartData.outbound.push(outbound);
+    window.chartData.total.push(total);
+
+    // Calculate max data points based on time range
+    // Keep enough points to fill the time range (1 point per minute)
+    const maxDataPoints = getMaxDataPointsForTimeRange(window.currentTimeRange);
+
+    // Trim old data if exceeding max points (sliding window)
+    if (window.chartData.labels.length > maxDataPoints) {
+        const removeCount = window.chartData.labels.length - maxDataPoints;
+        console.log(`[CHART] Trimming ${removeCount} old data points (max: ${maxDataPoints})`);
+
+        window.chartData.timestamps.splice(0, removeCount);
+        window.chartData.labels.splice(0, removeCount);
+        window.chartData.inbound.splice(0, removeCount);
+        window.chartData.outbound.splice(0, removeCount);
+        window.chartData.total.splice(0, removeCount);
+    }
+
+    // Update chart
+    window.chart.data.labels = window.chartData.labels.slice();
+    window.chart.data.datasets[0].data = window.chartData.inbound.slice();
+    window.chart.data.datasets[1].data = window.chartData.outbound.slice();
+    window.chart.data.datasets[2].data = window.chartData.total.slice();
+
+    window.chart.update('none'); // Update without animation for smoother real-time updates
+
+    console.log(`[CHART] Chart updated with ${window.chartData.labels.length} total points`);
+}
+
+/**
+ * Get maximum data points to keep based on time range
+ */
+function getMaxDataPointsForTimeRange(range) {
+    // Data is collected every 1 minute, so max points = minutes in range
+    const maxPoints = {
+        '5m': 5,
+        '15m': 15,
+        '30m': 30,
+        '60m': 60
+    };
+    return maxPoints[range] || 60; // Default to 60 if unknown range
 }
 
 /**
@@ -1675,13 +1920,9 @@ async function loadHistoricalThroughput(range) {
         // Auto-load statistics and display them inline
         loadHistoricalStats(range);
 
-        // Fixed v1.14.1: DO NOT call fetchThroughputData() here - it returns a single latest sample
-        // which gets appended to the historical chart, contaminating it with the wrong data point.
-        // The historical data is already loaded above. fetchThroughputData() should only be used
-        // for real-time auto-refresh mode (via setInterval), not for historical viewing mode.
-
-        // Instead, fetch threat/URL data separately without updating the chart
-        await fetchThreatDataForTimeRange(range);
+        // Threat data is fetched independently via service subscription
+        // No need to call it here - threats are NOT tied to time range selection
+        // The ThroughputDataService automatically updates threats via updateCyberHealth()
     } catch (error) {
         console.error('Error loading historical data:', error);
     }
@@ -2035,6 +2276,7 @@ function initPageNavigation() {
  */
 async function refreshAllDataForDevice() {
     console.log('=== refreshAllDataForDevice called ===');
+    console.log('[DEBUG] currentVisiblePage =', currentVisiblePage);
 
     // ========================================================================
     // 0. PRESERVE USER'S TIME RANGE SELECTION (Fixed v1.14.1)
@@ -2074,6 +2316,36 @@ async function refreshAllDataForDevice() {
     historicalData.urlFiltering = [];
     historicalData.interfaceErrors = [];
     console.log('Historical data arrays cleared');
+
+    // ========================================================================
+    // 2a. CLEAR CHORD DIAGRAMS
+    // ========================================================================
+    // Clear SVG content and show loading state
+    const chordInternalSvg = document.getElementById('chordInternalSvg');
+    const chordInternetSvg = document.getElementById('chordInternetSvg');
+    const chordInternalLoading = document.getElementById('chordInternalLoading');
+    const chordInternetLoading = document.getElementById('chordInternetLoading');
+
+    // FIX #1: Add D3.js availability check before calling d3.select()
+    if (typeof d3 !== 'undefined') {
+        if (chordInternalSvg) {
+            d3.select('#chordInternalSvg').selectAll('*').remove();
+        }
+        if (chordInternetSvg) {
+            d3.select('#chordInternetSvg').selectAll('*').remove();
+        }
+    }
+    if (chordInternalLoading) {
+        chordInternalLoading.style.display = 'block';
+        chordInternalLoading.textContent = 'Loading...';
+        chordInternalLoading.style.color = 'rgba(255,255,255,0.7)';
+    }
+    if (chordInternetLoading) {
+        chordInternetLoading.style.display = 'block';
+        chordInternetLoading.textContent = 'Loading...';
+        chordInternetLoading.style.color = 'rgba(255,255,255,0.7)';
+    }
+    console.log('Chord diagrams cleared');
 
     // ========================================================================
     // 3. RESET DASHBOARD VALUES TO LOADING STATE
@@ -2261,6 +2533,47 @@ async function refreshAllDataForDevice() {
         topAppsContainer.innerHTML = '<div style="color: #ffffff; text-align: center; padding: 10px;">Loading...</div>';
     }
 
+    // Clear chord diagrams and show loading state
+    if (typeof d3 !== 'undefined') {
+        const chordInternalSvg = d3.select('#chordInternalSvg');
+        if (!chordInternalSvg.empty()) {
+            chordInternalSvg.selectAll('*').remove();
+        }
+        const chordInternetSvg = d3.select('#chordInternetSvg');
+        if (!chordInternetSvg.empty()) {
+            chordInternetSvg.selectAll('*').remove();
+        }
+        const chordTagSvg = d3.select('#chordTagSvg');
+        if (!chordTagSvg.empty()) {
+            chordTagSvg.selectAll('*').remove();
+        }
+    }
+    // Reuse chordInternalLoading and chordInternetLoading already declared at line 2208-2209
+    if (chordInternalLoading) {
+        chordInternalLoading.style.display = 'block';
+    }
+    if (chordInternetLoading) {
+        chordInternetLoading.style.display = 'block';
+    }
+    const chordInternalCount = document.getElementById('chordInternalCount');
+    if (chordInternalCount) {
+        chordInternalCount.textContent = '--';
+    }
+    const chordInternetCount = document.getElementById('chordInternetCount');
+    if (chordInternetCount) {
+        chordInternetCount.textContent = '--';
+    }
+    const chordTagLoading = document.getElementById('chordTagLoading');
+    if (chordTagLoading) {
+        chordTagLoading.style.display = 'block';
+        chordTagLoading.textContent = 'Select tags to view traffic';
+        chordTagLoading.style.color = 'rgba(255,255,255,0.7)';
+    }
+    const chordTagCount = document.getElementById('chordTagCount');
+    if (chordTagCount) {
+        chordTagCount.textContent = '--';
+    }
+
     // Reset Firewall Health tiles (9 metrics: CPU, Memory, PPS, Sessions, Top Category (LAN/Internet split), Top Internal/Internet Clients, Active Alerts)
     const cyberHealthIds = [
         'cyberHealthCpu', 'cyberHealthMemory', 'cyberHealthPps', 'cyberHealthSessions',
@@ -2335,9 +2648,35 @@ async function refreshAllDataForDevice() {
     }
 
     // Load only the currently visible page
-    if (currentVisiblePage === 'home') {
+    console.log('[DEBUG] Checking currentVisiblePage:', currentVisiblePage, 'matches home/homepage?', (currentVisiblePage === 'home' || currentVisiblePage === 'homepage'));
+    if (currentVisiblePage === 'home' || currentVisiblePage === 'homepage') {
         // Dashboard - throughput already refreshed by interval above
         console.log('Dashboard active - using interval for updates');
+
+        // FIX #4: Load chord diagrams with proper error handling and D3.js check
+        if (typeof loadChordDiagrams === 'function' && typeof d3 !== 'undefined') {
+            console.log('Loading chord diagrams for client-destination flows...');
+            try {
+                await loadChordDiagrams();
+            } catch (error) {
+                console.error('[REFRESH] Error loading chord diagrams:', error);
+            }
+        }
+
+        // Populate tag filter dropdown for new device and reload tag diagram if tags selected
+        if (typeof populateTagFilterDropdown === 'function') {
+            console.log('Populating tag filter dropdown for new device...');
+            try {
+                await populateTagFilterDropdown();
+                // Reload tag diagram if tags are selected
+                const tagSelect = document.getElementById('chordTagFilter');
+                if (tagSelect && tagSelect.selectedOptions.length > 0 && typeof loadTagFilteredChordDiagram === 'function') {
+                    await loadTagFilteredChordDiagram();
+                }
+            } catch (error) {
+                console.error('[REFRESH] Error with tag filter:', error);
+            }
+        }
     } else if (currentVisiblePage === 'connected-devices' && typeof loadConnectedDevices === 'function') {
         console.log('Loading Connected Devices page');
         loadConnectedDevices();
@@ -2383,6 +2722,147 @@ async function refreshAllDataForDevice() {
  *
  * @param {Object} data - Throughput data from /api/throughput endpoint
  */
+/**
+ * Update System Info sidebar fields
+ * Extracted from updateStats() to fix orphaned sidebar in v2.x
+ * @param {Object} data - Throughput data snapshot
+ */
+function updateSidebarInfo(data) {
+    // Update WAN IP
+    if (data.wan_ip !== undefined) {
+        const wanIpElement = document.getElementById('sidebarWanIp');
+        if (wanIpElement) {
+            wanIpElement.textContent = data.wan_ip || '-';
+        }
+    }
+
+    // Update WAN Speed
+    if (data.wan_speed !== undefined) {
+        const wanSpeedElement = document.getElementById('sidebarWanSpeed');
+        if (wanSpeedElement) {
+            wanSpeedElement.textContent = data.wan_speed || '-';
+        }
+    }
+
+    // Update PAN-OS Version
+    if (data.pan_os_version !== undefined) {
+        const versionElement = document.getElementById('sidebarPanosVersion');
+        if (versionElement) {
+            versionElement.textContent = data.pan_os_version || '-';
+        }
+    }
+
+    // Update Firewall Uptime (convert seconds to human-readable format)
+    if (data.uptime_seconds !== undefined && data.uptime_seconds !== null) {
+        const sidebarUptimeElement = document.getElementById('sidebarUptime');
+        if (sidebarUptimeElement) {
+            const uptimeFormatted = formatUptimeFromSeconds(data.uptime_seconds);
+            sidebarUptimeElement.textContent = uptimeFormatted;
+        }
+    }
+
+    // Update License Information
+    const expiredElement = document.getElementById('sidebarLicenseExpired');
+    const licensedElement = document.getElementById('sidebarLicenseLicensed');
+
+    if (expiredElement && data.license_expired !== undefined) {
+        expiredElement.textContent = data.license_expired || 0;
+    }
+
+    if (licensedElement && data.license_active !== undefined) {
+        licensedElement.textContent = data.license_active || 0;
+    }
+}
+
+/**
+ * Format uptime from seconds to human-readable string
+ * @param {number} seconds - Uptime in seconds
+ * @returns {string} Formatted uptime (e.g., "5d 6h 32m")
+ */
+function formatUptimeFromSeconds(seconds) {
+    if (!seconds || seconds === 0) return '-';
+
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+
+    if (days > 0) {
+        return `${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else {
+        return `${minutes}m`;
+    }
+}
+
+/**
+ * Update ONLY threat tiles (isolated from chart and other stats)
+ * Prevents threat updates from contaminating throughput graph
+ * @param {Object} threats - Threat data object with logs for all severities
+ */
+function updateThreatTilesOnly(threats) {
+    if (!threats) {
+        console.warn('[updateThreatTilesOnly] No threat data provided');
+        return;
+    }
+
+    // Store threat logs for modals (all severities)
+    window.currentCriticalLogs = threats.critical_logs || [];
+    window.currentHighLogs = threats.high_logs || [];
+    window.currentMediumLogs = threats.medium_logs || [];
+    window.currentBlockedUrlLogs = threats.blocked_url_logs || [];
+
+    // Iterate through all configured threat severities
+    Object.keys(THREAT_CONFIG).forEach(severity => {
+        const config = THREAT_CONFIG[severity];
+        const logs = threats[config.logsKey] || [];
+
+        // Store logs in global variable for modal access
+        window[config.globalLogsVar] = logs;
+
+        // Calculate unique counts (critical/high/medium by threat name, blocked URLs by URL)
+        const uniqueItems = new Set();
+        logs.forEach(log => {
+            if (severity === 'blocked') {
+                // Blocked URLs - use URL field
+                const url = log.url || log.threat || 'Unknown';
+                uniqueItems.add(url);
+            } else {
+                // Threats - use threat name
+                const threat = log.threat || 'Unknown';
+                uniqueItems.add(threat);
+            }
+        });
+
+        // Update count value on tile (just unique count)
+        const valueElement = document.getElementById(config.elementIds.value);
+        if (valueElement) {
+            valueElement.innerHTML = uniqueItems.size.toLocaleString();
+        }
+
+        // Update latest threat/URL name on tile
+        const latestElement = document.getElementById(config.elementIds.latest);
+        if (latestElement && logs.length > 0) {
+            const latestLog = logs[0];
+            if (severity === 'blocked') {
+                latestElement.textContent = latestLog.url || latestLog.threat || 'No recent blocks';
+            } else {
+                latestElement.textContent = latestLog.threat || 'No recent threats';
+            }
+        } else if (latestElement) {
+            latestElement.textContent = '-';
+        }
+
+        // Update "Last seen" timestamp
+        const lastSeenElement = document.getElementById(config.elementIds.lastSeen);
+        if (lastSeenElement && threats[config.lastSeenKey]) {
+            lastSeenElement.textContent = formatDaysAgo(threats[config.lastSeenKey]);
+        }
+    });
+
+    console.log(`[updateThreatTilesOnly] Updated threat tiles: ${window.currentCriticalLogs.length} critical, ${window.currentHighLogs.length} high, ${window.currentMediumLogs.length} medium, ${window.currentBlockedUrlLogs.length} blocked URLs`);
+}
+
 function updateCyberHealth(data) {
     // Tile 1: Data Plane CPU
     const cpuElement = document.getElementById('cyberHealthCpu');
@@ -2533,6 +3013,14 @@ function updateCyberHealth(data) {
         document.getElementById('cyberHealthTopInternetReceived').textContent = '--';
     }
 
+    // Update System Info sidebar (Fix: orphaned sidebar in v2.x - call extracted function)
+    updateSidebarInfo(data);
+
+    // Update threat tiles using isolated function (prevents graph contamination)
+    if (data.threats) {
+        updateThreatTilesOnly(data.threats);
+    }
+
 }
 
 /**
@@ -2590,6 +3078,551 @@ function updateActiveAlertsCount() {
             activeAlertsElement.textContent = '-';
             activeAlertsElement.style.color = '';
         });
+}
+
+// ===================================================================================
+// Chord Diagram Functions - Client-to-Destination Traffic Visualization
+// ===================================================================================
+
+/**
+ * Fetch and render chord diagrams for client-destination traffic flows
+ * Displays two separate diagrams: Internal traffic and Internet traffic
+ */
+async function loadChordDiagrams() {
+    console.log('[CHORD] Loading chord diagrams for client-destination traffic flow');
+
+    try {
+        // Get CSRF token from meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        const response = await fetch('/api/client-destination-flow', {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            console.log('[CHORD] Flow data received:', {
+                internal_nodes: data.internal.nodes.length,
+                internal_flows: data.internal.flows.length,
+                internet_nodes: data.internet.nodes.length,
+                internet_flows: data.internet.flows.length
+            });
+
+            // Update flow counts
+            const internalCount = document.getElementById('chordInternalCount');
+            const internetCount = document.getElementById('chordInternetCount');
+            if (internalCount) {
+                internalCount.textContent = `${data.internal.flows.length} flows`;
+            }
+            if (internetCount) {
+                internetCount.textContent = `${data.internet.flows.length} flows`;
+            }
+
+            // Render both chord diagrams
+            renderChordDiagram('chordInternalSvg', data.internal, 'internal');
+            renderChordDiagram('chordInternetSvg', data.internet, 'internet');
+        } else {
+            console.error('[CHORD] API returned error status:', data.message);
+            showChordError('chordInternalLoading', 'No internal flow data');
+            showChordError('chordInternetLoading', 'No internet flow data');
+        }
+    } catch (error) {
+        console.error('[CHORD] Error loading chord diagrams:', error);
+        showChordError('chordInternalLoading', 'Error loading data');
+        showChordError('chordInternetLoading', 'Error loading data');
+    }
+}
+
+/**
+ * Render a chord diagram using D3.js
+ * @param {string} svgId - ID of SVG element to render into
+ * @param {object} data - Flow data with nodes and flows arrays
+ * @param {string} type - Type of diagram ('internal' or 'internet')
+ */
+function renderChordDiagram(svgId, data, type) {
+    // FIX #2: Add D3.js availability check at function entry
+    if (typeof d3 === 'undefined') {
+        console.warn('[CHORD] D3.js library not available, cannot render diagram');
+        const loadingId = svgId.replace('Svg', 'Loading');
+        const loadingElement = document.getElementById(loadingId);
+        if (loadingElement) {
+            loadingElement.textContent = 'D3.js not loaded';
+            loadingElement.style.color = 'rgba(255,100,100,0.7)';
+        }
+        return;
+    }
+
+    const svg = d3.select(`#${svgId}`);
+    const container = svg.node().parentElement;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // Clear existing content
+    svg.selectAll('*').remove();
+
+    // Hide loading message
+    const loadingId = svgId.replace('Svg', 'Loading');
+    document.getElementById(loadingId).style.display = 'none';
+
+    // Check if we have data
+    if (!data.nodes || data.nodes.length === 0 || !data.flows || data.flows.length === 0) {
+        console.log(`[CHORD] No ${type} flow data to display`);
+        showChordMessage(svg, width, height, 'No traffic flows');
+        return;
+    }
+
+    console.log(`[CHORD] Rendering ${type} chord diagram with ${data.nodes.length} nodes and ${data.flows.length} flows`);
+
+    // Create matrix for chord diagram
+    const nodeIndex = {};
+    data.nodes.forEach((node, i) => {
+        nodeIndex[node] = i;
+    });
+
+    // Initialize matrix (nodes x nodes)
+    const matrix = Array(data.nodes.length).fill(0).map(() => Array(data.nodes.length).fill(0));
+
+    // Fill matrix with flow values
+    data.flows.forEach(flow => {
+        const sourceIdx = nodeIndex[flow.source];
+        const targetIdx = nodeIndex[flow.target];
+        if (sourceIdx !== undefined && targetIdx !== undefined) {
+            matrix[sourceIdx][targetIdx] += flow.value;
+        }
+    });
+
+    // Calculate outer and inner radius - reduced to 0.32 to leave room for IP labels
+    const outerRadius = Math.min(width, height) * 0.32;
+    const innerRadius = outerRadius - 35;
+
+    // Create chord layout
+    const chord = d3.chord()
+        .padAngle(0.05)
+        .sortSubgroups(d3.descending);
+
+    const arc = d3.arc()
+        .innerRadius(innerRadius)
+        .outerRadius(outerRadius);
+
+    const ribbon = d3.ribbon()
+        .radius(innerRadius);
+
+    // Color scale - different themes for each diagram type
+    let colorScheme;
+    if (type === 'internal') {
+        // Orange/warm theme for internal traffic
+        colorScheme = ['#FA582D', '#FF7F50', '#FFA07A', '#FF6347', '#FF8C00', '#FFD700', '#FFA500', '#FF4500'];
+    } else if (type === 'tag_filter') {
+        // Purple/blue theme for tagged traffic
+        colorScheme = ['#9C27B0', '#AB47BC', '#BA68C8', '#CE93D8', '#7B1FA2', '#8E24AA', '#9C27B0', '#AA00FF'];
+    } else {
+        // Green/cool theme for internet traffic
+        colorScheme = ['#4CAF50', '#66BB6A', '#81C784', '#A5D6A7', '#26A69A', '#00ACC1', '#00BCD4', '#0097A7'];
+    }
+
+    const color = d3.scaleOrdinal()
+        .domain(d3.range(data.nodes.length))
+        .range(colorScheme);
+
+    // Create SVG group centered
+    const g = svg.append('g')
+        .attr('transform', `translate(${width / 2}, ${height / 2})`);
+
+    // Generate chords
+    const chords = chord(matrix);
+
+    // Draw the ribbons (flows)
+    const ribbons = g.append('g')
+        .selectAll('path')
+        .data(chords)
+        .join('path')
+        .attr('d', ribbon)
+        .style('fill', d => color(d.source.index))
+        .style('opacity', 0.7)
+        .style('stroke', 'none')
+        .on('mouseover', function(event, d) {
+            // Highlight ribbon on hover
+            d3.select(this)
+                .style('opacity', 1)
+                .style('stroke', '#fff')
+                .style('stroke-width', 2);
+
+            // Show tooltip
+            const sourceNode = data.nodes[d.source.index];
+            const targetNode = data.nodes[d.target.index];
+            const value = matrix[d.source.index][d.target.index];
+            const valueText = formatBytes(value);
+
+            tooltip.style('opacity', 1)
+                .html(`<strong>${sourceNode}</strong> → <strong>${targetNode}</strong><br/>${valueText}`)
+                .style('left', `${event.pageX + 10}px`)
+                .style('top', `${event.pageY - 28}px`);
+        })
+        .on('mouseout', function(event, d) {
+            d3.select(this)
+                .style('opacity', 0.7)
+                .style('stroke', 'none');
+
+            tooltip.style('opacity', 0);
+        });
+
+    // Draw the arcs (nodes)
+    const groups = g.append('g')
+        .selectAll('g')
+        .data(chords.groups)
+        .join('g');
+
+    groups.append('path')
+        .attr('d', arc)
+        .style('fill', d => color(d.index))
+        .style('stroke', '#fff')
+        .style('stroke-width', 2)
+        .on('mouseover', function(event, d) {
+            d3.select(this)
+                .style('opacity', 0.8);
+
+            tooltip.style('opacity', 1)
+                .html(`<strong>${data.nodes[d.index]}</strong>`)
+                .style('left', `${event.pageX + 10}px`)
+                .style('top', `${event.pageY - 28}px`);
+        })
+        .on('mouseout', function(event, d) {
+            d3.select(this)
+                .style('opacity', 1);
+
+            tooltip.style('opacity', 0);
+        });
+
+    // Add labels with full IP addresses - adjusted sizing and positioning
+    const labelFontSize = Math.max(9, Math.min(11, width / 40)); // Adjusted for better fit
+    const labelDistance = Math.min(10, width * 0.02); // Dynamic label distance based on container
+
+    groups.append('text')
+        .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+        .attr('dy', '.35em')
+        .attr('transform', d => `
+            rotate(${(d.angle * 180 / Math.PI - 90)})
+            translate(${outerRadius + labelDistance})
+            ${d.angle > Math.PI ? 'rotate(180)' : ''}
+        `)
+        .style('text-anchor', d => d.angle > Math.PI ? 'end' : 'start')
+        .style('font-size', `${labelFontSize}px`)
+        .style('fill', '#fff')
+        .style('font-weight', '600')
+        .style('font-family', 'var(--font-secondary)')
+        .style('letter-spacing', '0.3px')
+        .text(d => {
+            // Show full IP address for clarity
+            return data.nodes[d.index];
+        });
+
+    // Create tooltip (global, shared between diagrams)
+    if (!window.chordTooltip) {
+        window.chordTooltip = d3.select('body').append('div')
+            .attr('class', 'chord-tooltip')
+            .style('position', 'absolute')
+            .style('background', 'rgba(0, 0, 0, 0.8)')
+            .style('color', '#fff')
+            .style('padding', '8px')
+            .style('border-radius', '4px')
+            .style('font-size', '12px')
+            .style('font-family', 'var(--font-secondary)')
+            .style('pointer-events', 'none')
+            .style('opacity', 0)
+            .style('z-index', 3000);
+    }
+    const tooltip = window.chordTooltip;
+
+    console.log(`[CHORD] ${type} chord diagram rendered successfully`);
+}
+
+/**
+ * Show error message in chord diagram container
+ */
+function showChordError(loadingId, message) {
+    const element = document.getElementById(loadingId);
+    if (element) {
+        element.textContent = message;
+        element.style.display = 'block';
+        element.style.color = 'rgba(255, 100, 100, 0.8)';
+    }
+}
+
+/**
+ * Show message in SVG (no data, error, etc.)
+ */
+function showChordMessage(svg, width, height, message) {
+    svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', height / 2)
+        .attr('text-anchor', 'middle')
+        .style('fill', 'rgba(255, 255, 255, 0.6)')
+        .style('font-size', '14px')
+        .style('font-family', 'var(--font-secondary)')
+        .text(message);
+}
+
+// ========================================================================
+// TAG-FILTERED CHORD DIAGRAM FUNCTIONS
+// ========================================================================
+
+/**
+ * Save tag filter selection to settings (persistent across restarts)
+ */
+async function saveTagFilterSelection(selectedTags) {
+    try {
+        console.log(`[CHORD-TAG] Saving tag filter selection: ${selectedTags.join(', ')}`);
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        const response = await fetch('/api/settings/tag-filter', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ selected_tags: selectedTags })
+        });
+
+        if (!response.ok) {
+            console.warn('[CHORD-TAG] Failed to save tag selection');
+        } else {
+            console.log('[CHORD-TAG] Tag selection saved successfully');
+        }
+    } catch (error) {
+        console.error('[CHORD-TAG] Error saving tag selection:', error);
+    }
+}
+
+/**
+ * Load saved tag filter selection from settings
+ */
+async function loadTagFilterSelection() {
+    try {
+        const response = await fetch('/api/settings/tag-filter');
+
+        if (!response.ok) {
+            return [];
+        }
+
+        const data = await response.json();
+        if (data.status === 'success' && data.selected_tags) {
+            console.log(`[CHORD-TAG] Loaded saved tag selection: ${data.selected_tags.join(', ')}`);
+            return data.selected_tags;
+        }
+
+        return [];
+    } catch (error) {
+        console.error('[CHORD-TAG] Error loading saved tag selection:', error);
+        return [];
+    }
+}
+
+/**
+ * Populate tag filter dropdown with available tags from device metadata
+ * Called on page load and when device changes
+ */
+async function populateTagFilterDropdown() {
+    console.log('[CHORD-TAG] Populating tag filter dropdown');
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        const response = await fetch('/api/device-metadata/tags', {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'success' && data.tags && data.tags.length > 0) {
+            const tagSelect = document.getElementById('chordTagFilter');
+            if (!tagSelect) {
+                console.warn('[CHORD-TAG] Tag filter dropdown not found in DOM');
+                return;
+            }
+
+            // Clear existing options
+            tagSelect.innerHTML = '';
+
+            // Add tags as options
+            data.tags.forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag;
+                option.textContent = tag;
+                tagSelect.appendChild(option);
+            });
+
+            console.log(`[CHORD-TAG] Loaded ${data.tags.length} tags: ${data.tags.join(', ')}`);
+
+            // Restore previously saved tag selection
+            const savedTags = await loadTagFilterSelection();
+            if (savedTags.length > 0) {
+                // Select the saved tags
+                Array.from(tagSelect.options).forEach(option => {
+                    if (savedTags.includes(option.value)) {
+                        option.selected = true;
+                    }
+                });
+                console.log(`[CHORD-TAG] Restored ${savedTags.length} saved tag selections`);
+
+                // Load the diagram with saved tags
+                if (typeof loadTagFilteredChordDiagram === 'function') {
+                    await loadTagFilteredChordDiagram();
+                }
+            }
+        } else {
+            console.log('[CHORD-TAG] No tags available');
+            const tagSelect = document.getElementById('chordTagFilter');
+            if (tagSelect) {
+                tagSelect.innerHTML = '<option value="" disabled>No tags available</option>';
+            }
+        }
+    } catch (error) {
+        console.error('[CHORD-TAG] Error loading tags:', error);
+        const tagSelect = document.getElementById('chordTagFilter');
+        if (tagSelect) {
+            tagSelect.innerHTML = '<option value="" disabled>Error loading tags</option>';
+        }
+    }
+}
+
+/**
+ * Load and render tag-filtered chord diagram
+ * Called when tag selection changes or on auto-refresh
+ */
+async function loadTagFilteredChordDiagram() {
+    console.log('[CHORD-TAG] Loading tag-filtered chord diagram');
+
+    // Check D3.js availability
+    if (typeof d3 === 'undefined') {
+        console.warn('[CHORD-TAG] D3.js not available, skipping');
+        return;
+    }
+
+    try {
+        const tagSelect = document.getElementById('chordTagFilter');
+        if (!tagSelect) {
+            console.warn('[CHORD-TAG] Tag filter dropdown not found');
+            return;
+        }
+
+        // Get selected tags
+        const selectedOptions = Array.from(tagSelect.selectedOptions);
+        const selectedTags = selectedOptions.map(option => option.value).filter(v => v);
+
+        console.log(`[CHORD-TAG] Selected tags: ${selectedTags.join(', ')}`);
+
+        // If no tags selected, show empty state
+        if (selectedTags.length === 0) {
+            console.log('[CHORD-TAG] No tags selected, showing empty state');
+            const svg = d3.select('#chordTagSvg');
+            if (!svg.empty()) {
+                svg.selectAll('*').remove();
+            }
+            const loadingElement = document.getElementById('chordTagLoading');
+            if (loadingElement) {
+                loadingElement.style.display = 'block';
+                loadingElement.textContent = 'Select tags to view traffic';
+                loadingElement.style.color = 'rgba(255,255,255,0.7)';
+            }
+            const countElement = document.getElementById('chordTagCount');
+            if (countElement) {
+                countElement.textContent = '--';
+            }
+            return;
+        }
+
+        // Show loading state
+        const loadingElement = document.getElementById('chordTagLoading');
+        if (loadingElement) {
+            loadingElement.style.display = 'block';
+            loadingElement.innerHTML = '<div style="width: 24px; height: 24px; border: 3px solid rgba(156, 39, 176, 0.3); border-top-color: #9C27B0; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 8px;"></div><div style="color: rgba(255,255,255,0.7); font-size: 0.8em;">Loading...</div>';
+        }
+
+        // Fetch filtered flow data
+        const tagsParam = selectedTags.join(',');
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        const response = await fetch(`/api/client-destination-flow-by-tag?tags=${encodeURIComponent(tagsParam)}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        console.log(`[CHORD-TAG] Received data:`, data);
+
+        if (data.status === 'success') {
+            // Update count display
+            const countElement = document.getElementById('chordTagCount');
+            if (countElement) {
+                const flowCount = data.tag_filter.flows.length;
+                const deviceCount = data.matching_devices;
+                countElement.textContent = `${flowCount} unique connections (${deviceCount} devices)`;
+            }
+
+            // Check if we have data to display
+            if (data.tag_filter.flows.length === 0) {
+                console.log('[CHORD-TAG] No flows found for selected tags');
+                const svg = d3.select('#chordTagSvg');
+                if (!svg.empty()) {
+                    svg.selectAll('*').remove();
+                }
+                if (loadingElement) {
+                    loadingElement.style.display = 'block';
+                    const message = data.message || `No traffic from ${data.matching_devices} matching devices`;
+                    loadingElement.textContent = message;
+                    loadingElement.style.color = 'rgba(255,200,100,0.8)';
+                }
+            } else {
+                // Render chord diagram
+                console.log(`[CHORD-TAG] Rendering chord diagram with ${data.tag_filter.nodes.length} nodes and ${data.tag_filter.flows.length} flows`);
+                renderChordDiagram('chordTagSvg', data.tag_filter, 'tag_filter');
+            }
+        } else {
+            throw new Error(data.message || 'Unknown error');
+        }
+
+    } catch (error) {
+        console.error('[CHORD-TAG] Error loading tag-filtered chord diagram:', error);
+        showChordError('chordTagLoading', `Error: ${error.message}`);
+        const countElement = document.getElementById('chordTagCount');
+        if (countElement) {
+            countElement.textContent = 'Error';
+        }
+    }
+}
+
+/**
+ * Helper function to format bytes to human-readable format
+ */
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
 // Note: Modal functions (showCriticalThreatsModal, showMediumThreatsModal, showBlockedUrlsModal, showTopAppsModal)

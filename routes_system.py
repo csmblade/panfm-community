@@ -488,4 +488,68 @@ def register_system_routes(app, csrf, limiter):
                 'message': str(e)
             }), 500
 
+    @app.route('/api/settings/tag-filter', methods=['GET'])
+    @limiter.limit("600 per hour")
+    @login_required
+    def get_tag_filter_settings():
+        """Get saved tag filter selections (persistent across restarts)"""
+        try:
+            from config import load_settings
+            settings = load_settings()
+            selected_tags = settings.get('chord_tag_filter', [])
+
+            return jsonify({
+                'status': 'success',
+                'selected_tags': selected_tags
+            })
+        except Exception as e:
+            exception(f"Error loading tag filter settings: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'selected_tags': []
+            }), 500
+
+    @app.route('/api/settings/tag-filter', methods=['POST'])
+    @limiter.limit("100 per hour")
+    @login_required
+    def save_tag_filter_settings():
+        """Save tag filter selections to settings (persistent across restarts)"""
+        try:
+            from config import load_settings, save_settings
+            from flask import request
+
+            data = request.get_json()
+            selected_tags = data.get('selected_tags', [])
+
+            # Validate input
+            if not isinstance(selected_tags, list):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'selected_tags must be an array'
+                }), 400
+
+            # Load current settings
+            settings = load_settings()
+
+            # Update tag filter
+            settings['chord_tag_filter'] = selected_tags
+
+            # Save settings
+            save_settings(settings)
+
+            debug(f"Saved tag filter selection: {selected_tags}")
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Tag filter saved successfully',
+                'selected_tags': selected_tags
+            })
+        except Exception as e:
+            exception(f"Error saving tag filter settings: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
     debug("System health and services routes registered successfully")

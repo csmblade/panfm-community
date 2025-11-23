@@ -145,71 +145,12 @@ if not exist "service_port_db.json" (
 )
 
 REM ============================================================
-REM Create throughput_history.db if it doesn't exist
+REM v2.0.0: SQLite databases removed - migrated to TimescaleDB
 REM ============================================================
-if exist "throughput_history.db\" (
-    echo   Warning: Removing directory 'throughput_history.db' ^(should be a file^)
-    rmdir /s /q "throughput_history.db"
-)
-
-if not exist "throughput_history.db" (
-    echo Creating throughput_history.db with COMPLETE schema...
-    echo   ^(includes all Phase 1-4 columns + Analytics Dashboard fields^)
-    echo.
-    echo   NOTE: Database will be initialized by ThroughputStorage on first run
-    echo         This ensures schema migrations run properly and includes:
-    echo         - Phase 1: Base throughput metrics
-    echo         - Phase 2: Threats, apps, interfaces, license, WAN
-    echo         - Phase 3: Categories support
-    echo         - Connected devices table
-    echo         - Traffic separation ^(internal/internet clients^)
-    echo         - Category split ^(LAN/Internet^)
-    echo         - Analytics traffic metrics ^(internal_mbps, internet_mbps^)
-    echo.
-
-    REM Create empty file so Docker doesn't create a directory
-    type nul > throughput_history.db
-
-    echo [OK] throughput_history.db placeholder created ^(app will initialize schema^)
-) else (
-    echo [OK] throughput_history.db already exists
-)
-
-REM ============================================================
-REM Create alerts.db if it doesn't exist
-REM ============================================================
-if exist "alerts.db\" (
-    echo   Warning: Removing directory 'alerts.db' ^(should be a file^)
-    rmdir /s /q "alerts.db"
-)
-
-if not exist "alerts.db" (
-    echo Creating alerts.db...
-
-    python -c "import sqlite3; conn = sqlite3.connect('alerts.db'); cursor = conn.cursor(); cursor.execute('''CREATE TABLE IF NOT EXISTS alert_history (id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT NOT NULL, alert_name TEXT NOT NULL, severity TEXT NOT NULL, triggered_at DATETIME NOT NULL, acknowledged BOOLEAN DEFAULT 0, acknowledged_at DATETIME, acknowledged_by TEXT, details TEXT)'''); cursor.execute('''CREATE INDEX IF NOT EXISTS idx_alert_device_triggered ON alert_history(device_id, triggered_at DESC)'''); cursor.execute('''CREATE INDEX IF NOT EXISTS idx_alert_acknowledged ON alert_history(acknowledged, triggered_at DESC)'''); conn.commit(); conn.close(); print('Created alerts.db with schema');" 2>nul || type nul > alerts.db
-
-    echo [OK] alerts.db created
-) else (
-    echo [OK] alerts.db already exists
-)
-
-REM ============================================================
-REM Create nmap_scans.db if it doesn't exist
-REM ============================================================
-if exist "nmap_scans.db\" (
-    echo   Warning: Removing directory 'nmap_scans.db' ^(should be a file^)
-    rmdir /s /q "nmap_scans.db"
-)
-
-if not exist "nmap_scans.db" (
-    echo Creating nmap_scans.db...
-
-    python -c "import sqlite3; conn = sqlite3.connect('nmap_scans.db'); cursor = conn.cursor(); cursor.execute('''CREATE TABLE IF NOT EXISTS scan_history (id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT NOT NULL, scan_type TEXT NOT NULL, target_network TEXT NOT NULL, started_at DATETIME NOT NULL, completed_at DATETIME, status TEXT NOT NULL, results_json TEXT, error_message TEXT)'''); cursor.execute('''CREATE INDEX IF NOT EXISTS idx_scan_device_started ON scan_history(device_id, started_at DESC)'''); cursor.execute('''CREATE INDEX IF NOT EXISTS idx_scan_status ON scan_history(status, started_at DESC)'''); conn.commit(); conn.close(); print('Created nmap_scans.db with schema');" 2>nul || type nul > nmap_scans.db
-
-    echo [OK] nmap_scans.db created
-) else (
-    echo [OK] nmap_scans.db already exists
-)
+REM throughput_history.db → TimescaleDB (throughput_history hypertable)
+REM alerts.db → TimescaleDB (alert_history, alert_configs tables)
+REM nmap_scans.db → TimescaleDB (nmap_scan_history hypertable)
+REM Database schema automatically initialized by init_timescaledb.sql
 
 REM ============================================================
 REM Create data directory if it doesn't exist
@@ -222,8 +163,42 @@ if not exist "data" (
     echo [OK] data directory already exists
 )
 
+REM ============================================================
+REM Create redis_data directory if it doesn't exist (v2.0.0)
+REM ============================================================
+if not exist "redis_data" (
+    echo Creating redis_data directory ^(Redis AOF persistence^)...
+    mkdir redis_data
+    echo [OK] redis_data directory created
+) else (
+    echo [OK] redis_data directory already exists
+)
+
+REM ============================================================
+REM Create timescaledb_data directory if it doesn't exist (v2.0.0)
+REM ============================================================
+if not exist "timescaledb_data" (
+    echo Creating timescaledb_data directory ^(PostgreSQL data files^)...
+    mkdir timescaledb_data
+    echo [OK] timescaledb_data directory created
+) else (
+    echo [OK] timescaledb_data directory already exists
+)
+
 echo.
-echo Setup complete! You can now run: docker compose up -d
+echo ============================================================
+echo Setup complete! PANfm v2.0.0 is ready to start
+echo ============================================================
 echo.
-echo Note: Upload MAC vendor and service port databases via Settings ^> Databases tab
+echo Run: docker compose up -d
+echo.
+echo First startup notes:
+echo   - Redis will initialize session store automatically
+echo   - TimescaleDB will create schema from init_timescaledb.sql
+echo   - Web UI will be available at http://localhost:3000
+echo   - First startup may take 60-90 seconds for database initialization
+echo.
+echo Post-setup:
+echo   - Default login: admin / admin ^(change on first login^)
+echo   - Upload MAC vendor and service port databases via Settings ^> Databases
 echo.

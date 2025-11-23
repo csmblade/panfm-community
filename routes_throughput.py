@@ -203,6 +203,18 @@ def register_throughput_routes(app, csrf, limiter):
                 latest_sample['top_internet_client'] = top_internet_client
                 debug(f"Top internet client: {top_internet_client['ip']} ({top_internet_client.get('hostname', 'Unknown')}) - {top_internet_client['bytes_total']/1_000_000:.2f} MB")
 
+            # ============================================================================
+            # CPU TEMPERATURE: Real-time temperature from firewall
+            # ============================================================================
+            from firewall_api_metrics import get_cpu_temperature
+            temp_data = get_cpu_temperature(device_id)
+            if temp_data:
+                latest_sample['cpu_temp'] = temp_data.get('cpu_temp')
+                latest_sample['cpu_temp_max'] = temp_data.get('cpu_temp_max')
+                latest_sample['cpu_temp_alarm'] = temp_data.get('cpu_temp_alarm', False)
+                if temp_data.get('cpu_temp') is not None:
+                    debug(f"CPU Temperature: {temp_data['cpu_temp']}°C / {temp_data['cpu_temp_max']}°C")
+
             return jsonify(latest_sample)
 
         except Exception as e:
@@ -335,15 +347,51 @@ def register_throughput_routes(app, csrf, limiter):
                     'message': f'No data available for the selected time range ({time_range}). Try a shorter time range or wait for more data collection.'
                 })
 
-            # Data available - return success with samples
+            # Data available - transform samples to match frontend expectations
+            # Frontend expects nested objects: sessions{}, cpu{}, and fields: threats, interface_errors
+            transformed_samples = []
+            for sample in samples:
+                # Create nested sessions object
+                sessions_obj = {
+                    'active': sample.get('sessions_active', 0),
+                    'tcp': sample.get('sessions_tcp', 0),
+                    'udp': sample.get('sessions_udp', 0),
+                    'icmp': sample.get('sessions_icmp', 0)
+                }
+
+                # Create nested cpu object
+                cpu_obj = {
+                    'data_plane_cpu': sample.get('cpu_data_plane', 0),
+                    'mgmt_plane_cpu': sample.get('cpu_mgmt_plane', 0),
+                    'memory_used_pct': sample.get('memory_used_pct', 0)
+                }
+
+                # Build transformed sample
+                transformed = {
+                    'timestamp': sample.get('timestamp'),
+                    'total_mbps': sample.get('total_mbps', 0),
+                    'inbound_mbps': sample.get('inbound_mbps', 0),
+                    'outbound_mbps': sample.get('outbound_mbps', 0),
+                    'internal_mbps': sample.get('internal_mbps', 0),
+                    'internet_mbps': sample.get('internet_mbps', 0),
+                    'sessions': sessions_obj,
+                    'cpu': cpu_obj,
+                    'threats': sample.get('threats_count', 0),  # Real data from threat_logs
+                    'interface_errors': sample.get('interface_errors', 0)  # Real data from firewall API
+                }
+
+                transformed_samples.append(transformed)
+
+            debug(f"Transformed {len(transformed_samples)} samples with nested objects for frontend")
+
             return jsonify({
                 'status': 'success',
                 'device_id': device_id,
                 'start_time': start_time.isoformat(),
                 'end_time': now.isoformat(),
                 'resolution': resolution,
-                'sample_count': len(samples),
-                'samples': samples
+                'sample_count': len(transformed_samples),
+                'samples': transformed_samples
             })
 
         except Exception as e:
@@ -647,7 +695,8 @@ def register_throughput_routes(app, csrf, limiter):
             else:
                 return jsonify({'status': 'error', 'message': 'Invalid time range'}), 400
 
-            # Get collector and query data
+            # Query client_bandwidth table directly (TimescaleDB enterprise approach)
+            # This leverages TimescaleDB aggregates and is 10-100x faster than parsing JSON
             collector = get_collector()
             if not collector:
                 # Fallback: create storage directly for read-only queries
@@ -658,77 +707,73 @@ def register_throughput_routes(app, csrf, limiter):
             else:
                 storage = collector.storage
 
-            samples = storage.query_samples(
-                device_id=device_id,
-                start_time=start_time,
-                end_time=now,
-                resolution='raw'  # Always use raw for accurate client aggregation
-            )
+            # Get TimescaleDB connection
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+            conn = storage._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-            debug(f"Retrieved {len(samples)} samples for client aggregation")
-
-            # Aggregate clients across all samples
-            client_data = {}  # {ip: {'total_mb': X, 'count': Y, 'first_seen': Z, 'last_seen': W, 'hostname': H}}
-
-            for sample in samples:
-                # Determine which JSON field to use based on filter
+            try:
+                # Determine traffic_type filter based on filter parameter
                 if filter_type == 'internal':
-                    client_json_field = 'top_internal_client_json'
+                    traffic_filter = "AND traffic_type = 'internal'"
                 elif filter_type == 'internet':
-                    client_json_field = 'top_internet_client_json'
-                else:  # 'all'
-                    client_json_field = 'top_bandwidth_client_json'
+                    traffic_filter = "AND traffic_type = 'internet'"
+                else:  # 'all' - sum across all traffic types
+                    traffic_filter = ""  # No filter - aggregate across all types
 
-                client_json = sample.get(client_json_field)
-                if not client_json:
-                    continue
+                # Query client_bandwidth hypertable with TimescaleDB aggregation
+                # Build query with traffic_filter properly interpolated
+                query = '''
+                    SELECT
+                        client_ip::text AS ip,
+                        hostname,
+                        custom_name,
+                        SUM(bytes_total) AS total_bytes,
+                        AVG(bandwidth_mbps) AS avg_mbps,
+                        COUNT(*) AS sample_count,
+                        MIN(time) AS first_seen,
+                        MAX(time) AS last_seen
+                    FROM client_bandwidth
+                    WHERE device_id = %s
+                      AND time >= %s
+                      AND time <= %s
+                      ''' + traffic_filter + '''
+                    GROUP BY client_ip, hostname, custom_name
+                    ORDER BY total_bytes DESC
+                    LIMIT 10
+                '''
 
-                try:
-                    client_info = json.loads(client_json) if isinstance(client_json, str) else client_json
-                    if not client_info:
-                        continue
+                debug(f"Executing top clients query: device_id={device_id}, start={start_time}, end={now}, filter={filter_type}")
+                cursor.execute(query, (device_id, start_time, now))
+                rows = cursor.fetchall()
 
-                    ip = client_info.get('ip', 'Unknown')
-                    hostname = client_info.get('hostname', ip)
-                    mb = client_info.get('total_mb', 0)
+                debug(f"Retrieved {len(rows)} top clients from client_bandwidth table")
 
-                    if ip not in client_data:
-                        client_data[ip] = {
-                            'ip': ip,
-                            'hostname': hostname,
-                            'total_mb': 0,
-                            'count': 0,
-                            'first_seen': sample.get('timestamp'),
-                            'last_seen': sample.get('timestamp')
-                        }
+                # Convert to list format expected by frontend
+                clients_list = []
+                for row in rows:
+                    # Prefer custom_name, fallback to hostname, then IP
+                    display_name = row['custom_name'] or row['hostname'] or row['ip']
 
-                    client_data[ip]['total_mb'] += mb
-                    client_data[ip]['count'] += 1
-                    client_data[ip]['last_seen'] = sample.get('timestamp')
+                    clients_list.append({
+                        'ip': row['ip'],
+                        'hostname': display_name,  # Use enriched name (custom_name or hostname)
+                        'total_mb': round(row['total_bytes'] / 1_000_000, 2),  # Convert bytes to MB
+                        'avg_mbps': round(row['avg_mbps'] or 0, 2),
+                        'sample_count': row['sample_count'],
+                        'first_seen': row['first_seen'].isoformat() + 'Z' if row['first_seen'] else None,
+                        'last_seen': row['last_seen'].isoformat() + 'Z' if row['last_seen'] else None
+                    })
 
-                except (json.JSONDecodeError, TypeError) as e:
-                    debug(f"Failed to parse client JSON: {e}")
-                    continue
+                top_clients = clients_list
+                total_clients = len(rows)
 
-            # Convert to list and calculate averages
-            clients_list = []
-            for ip, data in client_data.items():
-                avg_mbps = (data['total_mb'] / data['count']) if data['count'] > 0 else 0
-                clients_list.append({
-                    'ip': data['ip'],
-                    'hostname': data['hostname'],
-                    'total_mb': round(data['total_mb'], 2),
-                    'avg_mbps': round(avg_mbps, 2),
-                    'sample_count': data['count'],
-                    'first_seen': data['first_seen'],
-                    'last_seen': data['last_seen']
-                })
+                debug(f"Returning {len(top_clients)} top clients (filter={filter_type})")
 
-            # Sort by total_mb descending and take top 10
-            clients_list.sort(key=lambda x: x['total_mb'], reverse=True)
-            top_clients = clients_list[:10]
-
-            debug(f"Aggregated {len(client_data)} unique clients, returning top {len(top_clients)}")
+            finally:
+                cursor.close()
+                storage._return_connection(conn)
 
             return jsonify({
                 'status': 'success',
@@ -737,12 +782,379 @@ def register_throughput_routes(app, csrf, limiter):
                 'filter_type': filter_type,
                 'start_time': start_time.isoformat(),
                 'end_time': now.isoformat(),
-                'total_clients': len(client_data),
+                'total_clients': total_clients,
                 'top_clients': top_clients
             })
 
         except Exception as e:
+            import traceback
+            print(f"\n{'='*80}")
+            print(f"ERROR IN TOP CLIENTS API")
+            print(f"{'='*80}")
+            print(f"Exception: {type(e).__name__}: {str(e)}")
+            print(f"Traceback:")
+            traceback.print_exc()
+            print(f"{'='*80}\n")
             exception(f"Failed to retrieve top clients: {str(e)}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    @app.route('/api/client-destination-flow')
+    @limiter.limit("600 per hour")  # Dashboard auto-refresh support
+    @login_required
+    def client_destination_flow():
+        """
+        API endpoint for client-to-destination IP flow data for chord diagrams.
+
+        Returns traffic flows showing which clients connect to which destination IPs,
+        split into two categories:
+        - Internal traffic: Local-to-local flows (both IPs private)
+        - Internet traffic: Flows to public destination IPs
+
+        Response format:
+        {
+            'status': 'success',
+            'internal': {
+                'nodes': ['client_ip1', 'client_ip2', 'dest_ip1', ...],
+                'flows': [
+                    {'source': 'client_ip1', 'target': 'dest_ip1', 'value': bytes},
+                    ...
+                ]
+            },
+            'internet': {
+                'nodes': ['client_ip1', 'client_ip2', 'dest_ip1', ...],
+                'flows': [
+                    {'source': 'client_ip1', 'target': 'dest_ip1', 'value': bytes},
+                    ...
+                ]
+            }
+        }
+        """
+        debug("=== Client-Destination Flow API endpoint called ===")
+
+        try:
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            # Auto-select first enabled device if none selected
+            if not device_id or device_id.strip() == '':
+                from device_manager import device_manager
+                devices = device_manager.load_devices()
+                enabled_devices = [d for d in devices if d.get('enabled', True)]
+                if enabled_devices:
+                    device_id = enabled_devices[0].get('id')
+                    debug(f"No device selected, auto-selected: {device_id}")
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No devices configured'
+                    }), 400
+
+            # Get firewall configuration
+            from firewall_api import get_firewall_config
+            firewall_config = get_firewall_config(device_id)
+
+            if not firewall_config:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Device configuration not found'
+                }), 404
+
+            # Get traffic logs from firewall (last 100 sessions for better sampling)
+            from firewall_api_logs import get_traffic_logs
+            traffic_data = get_traffic_logs(firewall_config, max_logs=100)
+
+            if traffic_data.get('status') != 'success':
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to retrieve traffic logs'
+                }), 500
+
+            traffic_logs = traffic_data.get('logs', [])
+            debug(f"Processing {len(traffic_logs)} traffic logs for chord diagram")
+
+            # Helper function to check if IP is private
+            def is_private_ip(ip):
+                if not ip or ip == 'N/A':
+                    return False
+                try:
+                    parts = ip.split('.')
+                    if len(parts) != 4:
+                        return False
+                    first = int(parts[0])
+                    second = int(parts[1])
+                    return (first == 10 or
+                            (first == 172 and 16 <= second <= 31) or
+                            (first == 192 and second == 168) or
+                            first == 127 or
+                            (first == 169 and second == 254))
+                except (ValueError, IndexError):
+                    return False
+
+            # Aggregate flows by source-destination pairs
+            internal_flows = {}  # {(src, dst): bytes}
+            internet_flows = {}  # {(src, dst): bytes}
+
+            for log in traffic_logs:
+                src_ip = log.get('src', '')
+                dst_ip = log.get('dst', '')
+                bytes_total = int(log.get('bytes_sent', 0)) + int(log.get('bytes_received', 0))
+
+                # Skip invalid IPs
+                if not src_ip or not dst_ip or src_ip == 'N/A' or dst_ip == 'N/A':
+                    continue
+
+                # Determine flow category
+                src_private = is_private_ip(src_ip)
+                dst_private = is_private_ip(dst_ip)
+
+                flow_key = (src_ip, dst_ip)
+
+                if src_private and dst_private:
+                    # Internal traffic (both IPs private)
+                    internal_flows[flow_key] = internal_flows.get(flow_key, 0) + bytes_total
+                elif src_private and not dst_private:
+                    # Internet traffic (private source to public destination)
+                    internet_flows[flow_key] = internet_flows.get(flow_key, 0) + bytes_total
+
+            # Convert to chord diagram format (nodes + flows) - LIMITED TO TOP 5 SOURCE IPS
+            def build_chord_data(flows_dict):
+                # Aggregate total bytes per source IP
+                source_totals = {}
+                for (src, dst), bytes_val in flows_dict.items():
+                    source_totals[src] = source_totals.get(src, 0) + bytes_val
+
+                # Get top 5 source IPs by total bytes
+                top_sources = sorted(source_totals.items(), key=lambda x: x[1], reverse=True)[:5]
+                top_source_ips = set([ip for ip, _ in top_sources])
+
+                debug(f"Top 5 source IPs: {[f'{ip} ({bytes_val:,} bytes)' for ip, bytes_val in top_sources]}")
+
+                # Filter flows to only include top 5 sources
+                filtered_flows = {k: v for k, v in flows_dict.items() if k[0] in top_source_ips}
+
+                # Get unique nodes from filtered flows
+                nodes = set()
+                for (src, dst) in filtered_flows.keys():
+                    nodes.add(src)
+                    nodes.add(dst)
+
+                # Sort nodes for consistent ordering
+                nodes_list = sorted(list(nodes))
+
+                # Build flow list from filtered flows
+                flows_list = [
+                    {
+                        'source': src,
+                        'target': dst,
+                        'value': value
+                    }
+                    for (src, dst), value in filtered_flows.items()
+                ]
+
+                # Sort flows by value (descending)
+                flows_list.sort(key=lambda x: x['value'], reverse=True)
+
+                return {
+                    'nodes': nodes_list,
+                    'flows': flows_list
+                }
+
+            internal_data = build_chord_data(internal_flows)
+            internet_data = build_chord_data(internet_flows)
+
+            debug(f"Internal flows: {len(internal_flows)} pairs, {len(internal_data['nodes'])} nodes")
+            debug(f"Internet flows: {len(internet_flows)} pairs, {len(internet_data['nodes'])} nodes")
+
+            return jsonify({
+                'status': 'success',
+                'internal': internal_data,
+                'internet': internet_data
+            })
+
+        except Exception as e:
+            import traceback
+            exception(f"Failed to retrieve client-destination flow data: {str(e)}")
+            traceback.print_exc()
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    @app.route('/api/client-destination-flow-by-tag')
+    @limiter.limit("600 per hour")
+    @login_required
+    def client_destination_flow_by_tag():
+        """
+        Filter traffic flows by device tags (e.g., "IoT", "finance", "employee").
+
+        Query Parameters:
+            tags (required): Comma-separated list of tags (e.g., "IoT,camera")
+            operator (optional): "AND" or "OR" (default: "OR")
+                - OR: Device matches if it has ANY selected tag
+                - AND: Device matches only if it has ALL selected tags
+            max_logs (optional): Number of traffic logs to fetch (default: 100)
+
+        Returns:
+            JSON with filtered flow data for chord diagram:
+            {
+                'status': 'success',
+                'tag_filter': {
+                    'nodes': ['192.168.1.10', '8.8.8.8', ...],
+                    'flows': [
+                        {'source': '192.168.1.10', 'target': '8.8.8.8', 'value': 1234567},
+                        ...
+                    ]
+                },
+                'tags': ['IoT', 'camera'],
+                'operator': 'OR',
+                'matching_devices': 5
+            }
+        """
+        try:
+            # 1. Parse query parameters
+            tags_param = request.args.get('tags', '')
+            operator = request.args.get('operator', 'OR').upper()
+            max_logs = int(request.args.get('max_logs', 500))  # Increased from 100 to 500 for better IoT representation
+
+            debug(f"[TAG-FLOW] Request received: tags={tags_param}, operator={operator}, max_logs={max_logs}")
+
+            if not tags_param:
+                debug("[TAG-FLOW] No tags specified in request")
+                return jsonify({'status': 'error', 'message': 'No tags specified'}), 400
+
+            # Parse comma-separated tags
+            tag_filters = [t.strip() for t in tags_param.split(',') if t.strip()]
+
+            if not tag_filters:
+                debug("[TAG-FLOW] Empty tag list after parsing")
+                return jsonify({'status': 'error', 'message': 'No valid tags specified'}), 400
+
+            debug(f"[TAG-FLOW] Parsed {len(tag_filters)} tags: {tag_filters}")
+
+            # 2. Get selected device ID from settings
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                debug("[TAG-FLOW] No device selected in settings")
+                return jsonify({'status': 'error', 'message': 'No device selected'}), 400
+
+            debug(f"[TAG-FLOW] Using device_id: {device_id}")
+
+            # 3. Get connected devices with metadata using PostgreSQL JOIN (single query!)
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+            from firewall_api import get_firewall_config
+            from firewall_api_logs import get_traffic_logs
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+
+            # Single query with JOIN - filters by tags in PostgreSQL
+            connected_devices = storage.get_connected_devices_with_metadata(
+                device_id=device_id,
+                max_age_seconds=300,
+                tags=tag_filters,
+                tag_operator=operator
+            )
+
+            debug(f"[TAG-FLOW] Retrieved {len(connected_devices)} devices with tags {tag_filters} (operator: {operator})")
+
+            # Build set of matching IPs
+            matching_ips = set()
+            for device in connected_devices:
+                matching_ips.add(device['ip'])
+                debug(f"[TAG-FLOW] Matched IP {device['ip']} (MAC: {device['mac']}, tags: {device['tags']})")
+
+            if len(matching_ips) == 0:
+                debug(f"[TAG-FLOW] No devices found with tags: {tag_filters}")
+                return jsonify({
+                    'status': 'success',
+                    'tag_filter': {'nodes': [], 'flows': []},
+                    'tags': tag_filters,
+                    'operator': operator,
+                    'matching_devices': 0,
+                    'message': f'No devices found with tags: {", ".join(tag_filters)}'
+                })
+
+
+            # 5. Get firewall configuration and fetch traffic logs
+            firewall_ip, api_key, base_url = get_firewall_config(device_id)
+
+            if not firewall_ip or not api_key:
+                debug(f"[TAG-FLOW] Could not retrieve firewall config for device {device_id}")
+                return jsonify({'status': 'error', 'message': 'Could not retrieve firewall configuration'}), 500
+
+            debug(f"[TAG-FLOW] Fetching traffic logs (max {max_logs}) from firewall {firewall_ip}")
+
+            # get_traffic_logs expects tuple (firewall_ip, api_key, base_url) and returns list of dicts
+            # get_traffic_logs returns dict with {"status": "success", "logs": [...]}
+            traffic_data = get_traffic_logs((firewall_ip, api_key, base_url), max_logs=max_logs)
+            traffic_logs = traffic_data.get("logs", [])
+
+            # 6. Filter flows where source IP has matching tags
+            filtered_flows = {}
+
+            for log in traffic_logs:
+                src_ip = log.get('src', '')
+                dst_ip = log.get('dst', '')
+                bytes_sent = int(log.get('bytes_sent', 0))
+                bytes_received = int(log.get('bytes_received', 0))
+                bytes_total = bytes_sent + bytes_received
+
+                # Only include flows where source IP matches tag filter
+                if src_ip in matching_ips and dst_ip:
+                    flow_key = (src_ip, dst_ip)
+                    filtered_flows[flow_key] = filtered_flows.get(flow_key, 0) + bytes_total
+
+            debug(f"[TAG-FLOW] Filtered to {len(filtered_flows)} unique flows from tagged devices")
+
+            # 7. Build chord diagram data structure - LIMITED TO TOP 5 SOURCE IPS
+            # Aggregate total bytes per source IP
+            source_totals = {}
+            for (src, dst), bytes_val in filtered_flows.items():
+                source_totals[src] = source_totals.get(src, 0) + bytes_val
+
+            # Get top 5 source IPs by total bytes
+            top_sources = sorted(source_totals.items(), key=lambda x: x[1], reverse=True)[:5]
+            top_source_ips = set([ip for ip, _ in top_sources])
+
+            debug(f"[TAG-FLOW] Top 5 source IPs: {[f'{ip} ({bytes_val:,} bytes)' for ip, bytes_val in top_sources]}")
+
+            # Filter flows to only include top 5 sources
+            filtered_flows_top5 = {k: v for k, v in filtered_flows.items() if k[0] in top_source_ips}
+
+            # Get unique nodes from filtered flows
+            nodes = set()
+            for (src, dst) in filtered_flows_top5.keys():
+                nodes.add(src)
+                nodes.add(dst)
+
+            nodes_list = sorted(list(nodes))
+
+            # Build flow list from filtered flows
+            flows_list = [
+                {'source': src, 'target': dst, 'value': value}
+                for (src, dst), value in filtered_flows_top5.items()
+            ]
+
+            # Sort flows by value (descending)
+            flows_list.sort(key=lambda x: x['value'], reverse=True)
+
+            debug(f"[TAG-FLOW] Built chord data: {len(nodes_list)} nodes, {len(flows_list)} flows (top 5 sources)")
+
+            # 8. Return chord diagram data
+            return jsonify({
+                'status': 'success',
+                'tag_filter': {
+                    'nodes': nodes_list,
+                    'flows': flows_list
+                },
+                'tags': tag_filters,
+                'operator': operator,
+                'matching_devices': len(matching_ips)
+            })
+
+        except Exception as e:
+            import traceback
+            exception(f"[TAG-FLOW] Failed to retrieve tag-filtered flow data: {str(e)}")
+            traceback.print_exc()
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
     debug("Throughput routes registered successfully")

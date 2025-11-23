@@ -48,6 +48,23 @@ TIMESCALE_DSN = f"postgresql://{TIMESCALE_USER}:{TIMESCALE_PASSWORD}@{TIMESCALE_
 USE_TIMESCALE = True  # Hardcoded - SQLite support removed
 
 # =========================================
+# Application Statistics Configuration (Enterprise)
+# =========================================
+# Centralized configuration for application traffic analysis
+# Follows enterprise pattern of configuration constants vs magic numbers
+
+APPLICATION_SETTINGS = {
+    'max_logs_default': 1000,           # Default traffic logs to fetch from firewall
+    'max_logs_analytics': 5000,         # For detailed analytics and historical queries
+    'applications_limit_dashboard': 500, # Maximum apps to display on dashboard
+    'applications_time_window_minutes': 60,  # Time window for application statistics (1 hour)
+    'reverse_dns_timeout': 2,           # DNS lookup timeout (seconds)
+    'service_port_cache_ttl': 3600,     # Service port DB cache TTL (1 hour)
+    'retry_max_attempts': 3,            # Max retry attempts for API calls (already in ApiClient)
+    'retry_base_delay': 1000,           # Base retry delay in milliseconds
+}
+
+# =========================================
 # Elasticsearch Configuration (v2.0.0 - Phase 2)
 # =========================================
 # Log storage and full-text search

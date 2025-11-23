@@ -753,7 +753,7 @@ window.showHighThreatsModal = function showHighThreatsModal() {
         container.innerHTML = tableHtml;
     }
 
-    modal.style.display = 'block';
+    modal.style.display = 'flex';
 };
 
 function closeHighThreatsModal() {

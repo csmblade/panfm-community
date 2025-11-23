@@ -18,6 +18,8 @@
  * - toggleDeviceRowExpansion(mac)
  */
 
+console.log('✅ [CONNECTED DEVICES CORE] Version 1.13.1 - SORTING DEBUG ENABLED');
+
 // ============================================================================
 // GLOBAL STATE
 // ============================================================================
@@ -360,6 +362,9 @@ function populateZoneFilter() {
  * Applies filters, sorting, and generates HTML table
  */
 function renderConnectedDevicesTable() {
+    // Debug logging to verify sort state
+    console.log(`[RENDER] Sort: field=${connectedDevicesSortBy}, desc=${connectedDevicesSortDesc}, devices count=${allConnectedDevices.length}`);
+
     const tableDiv = document.getElementById('connectedDevicesTable');
     const searchTerm = (document.getElementById('connectedDevicesSearchInput')?.value || '').toLowerCase().trim();
     const vlanFilter = document.getElementById('connectedDevicesVlanFilter')?.value || '';
@@ -417,20 +422,53 @@ function renderConnectedDevicesTable() {
         let aVal = a[connectedDevicesSortBy];
         let bVal = b[connectedDevicesSortBy];
 
-        // Handle missing values
-        if (aVal === undefined || aVal === null) aVal = '';
-        if (bVal === undefined || bVal === null) bVal = '';
+        // Handle missing values for numeric fields
+        if (connectedDevicesSortBy === 'age' || connectedDevicesSortBy === 'total_volume') {
+            if (aVal === undefined || aVal === null) aVal = 0;
+            if (bVal === undefined || bVal === null) bVal = 0;
+        } else {
+            // Handle missing values for string fields
+            if (aVal === undefined || aVal === null) aVal = '';
+            if (bVal === undefined || bVal === null) bVal = '';
+        }
 
-        // For string fields, use locale compare
-        if (typeof aVal === 'string') {
+        // For numeric fields (age, total_volume), always use numeric comparison
+        if (connectedDevicesSortBy === 'age' || connectedDevicesSortBy === 'total_volume') {
+            // Debug logging for first few comparisons
+            if (Math.random() < 0.01) {
+                console.log(`[SORT DEBUG] ${connectedDevicesSortBy}: a=${aVal} (${typeof aVal}), b=${bVal} (${typeof bVal}), desc=${connectedDevicesSortDesc}`);
+            }
+            return connectedDevicesSortDesc ? bVal - aVal : aVal - bVal;
+        }
+
+        // For string fields, use locale compare (ensure both are strings)
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
             return connectedDevicesSortDesc ?
                 bVal.localeCompare(aVal) :
                 aVal.localeCompare(bVal);
         }
 
-        // For numeric fields (age, vlan)
+        // Convert to strings if types mismatch (safety fallback)
+        if (typeof aVal === 'string' || typeof bVal === 'string') {
+            const aStr = String(aVal);
+            const bStr = String(bVal);
+            return connectedDevicesSortDesc ?
+                bStr.localeCompare(aStr) :
+                aStr.localeCompare(bStr);
+        }
+
+        // For other numeric fields (vlan, etc.)
         return connectedDevicesSortDesc ? bVal - aVal : aVal - bVal;
     });
+
+    // Debug: Log first 5 sorted devices with total_volume
+    if (connectedDevicesSortBy === 'total_volume') {
+        console.log('[SORTED] First 5 devices by total_volume:', filteredDevices.slice(0, 5).map(d => ({
+            ip: d.ip,
+            total_volume: d.total_volume,
+            type: typeof d.total_volume
+        })));
+    }
 
     // Apply limit (unless "All" is selected)
     const displayDevices = limit === -1 ? filteredDevices : filteredDevices.slice(0, limit);

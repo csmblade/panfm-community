@@ -160,7 +160,8 @@ class TimescaleStorage:
                     internal_mbps, internet_mbps,
                     top_category_wan_json, top_category_lan_json, top_category_internet_json,
                     app_version, threat_version, wildfire_version, url_version,
-                    wan_ip, wan_speed, hostname, uptime_seconds, pan_os_version, license_expired, license_active
+                    wan_ip, wan_speed, hostname, uptime_seconds, pan_os_version, license_expired, license_active,
+                    threats_count, interface_errors
                 ) VALUES (
                     %s, %s,
                     %s, %s, %s,
@@ -173,7 +174,8 @@ class TimescaleStorage:
                     %s, %s,
                     %s, %s, %s,
                     %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s
                 )
                 ON CONFLICT (time, device_id) DO NOTHING
             ''', (
@@ -193,7 +195,8 @@ class TimescaleStorage:
                 sample_data.get('hostname'), sample_data.get('uptime_seconds'),
                 sample_data.get('panos_version') or sample_data.get('pan_os_version'),
                 (sample_data.get('license', {}) or {}).get('expired', 0),
-                (sample_data.get('license', {}) or {}).get('licensed', 0)
+                (sample_data.get('license', {}) or {}).get('licensed', 0),
+                sample_data.get('threats_count', 0), sample_data.get('interface_errors', 0)
             ))
 
             conn.commit()
@@ -468,6 +471,7 @@ class TimescaleStorage:
                         cpu_data_plane, cpu_mgmt_plane, memory_used_pct,
                         disk_root_pct, disk_logs_pct, disk_var_pct,
                         internal_mbps, internet_mbps,
+                        threats_count, interface_errors,
                         app_version, threat_version, wildfire_version, url_version
                     FROM throughput_samples
                     WHERE device_id = %s AND time BETWEEN %s AND %s
@@ -644,28 +648,110 @@ class TimescaleStorage:
 
     def insert_connected_devices(self, device_id: str, devices: list, collection_time=None) -> bool:
         """
-        Store connected devices data (stub for compatibility).
+        Batch insert connected devices into connected_devices hypertable.
 
-        Connected devices are stored in a separate system (nmap_scans.db).
-        This method is kept for API compatibility with legacy code.
+        Uses TimescaleDB hypertable with automatic time-based partitioning (7-day chunks).
+        Performs batch INSERT with ON CONFLICT to update existing entries.
 
         Args:
             device_id: Device identifier
-            devices: List of connected devices
-            collection_time: Collection timestamp (unused)
+            devices: List of connected device dictionaries from firewall API
+            collection_time: Collection timestamp (defaults to now())
 
         Returns:
-            bool: Always returns True (no-op)
+            bool: True if successful, False otherwise
         """
-        debug("insert_connected_devices called (no-op - stored in nmap_scans.db)")
-        return True
+        if not devices:
+            debug("No connected devices to insert for device %s", device_id)
+            return True
+
+        conn = None
+        try:
+            from datetime import datetime
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            # Use provided timestamp or current time
+            timestamp = collection_time if collection_time else datetime.now()
+
+            # Prepare batch insert data
+            insert_data = []
+            for device in devices:
+                # Extract fields from device dict
+                ip = device.get('ip')
+                if not ip:
+                    continue  # Skip devices without IP
+
+                mac = device.get('mac')
+                hostname = device.get('hostname') or device.get('original_hostname')
+                interface = device.get('interface')
+                zone = device.get('zone')
+                # Convert TTL to integer (firewall API returns string like "29.7")
+                ttl_str = device.get('ttl')
+                try:
+                    ttl = int(float(ttl_str)) if ttl_str and ttl_str != '-' else None
+                except (ValueError, TypeError):
+                    ttl = None
+                vendor = device.get('vendor')
+                custom_name = device.get('custom_name')
+
+                insert_data.append((
+                    timestamp,
+                    device_id,
+                    ip,
+                    mac,
+                    hostname,
+                    interface,
+                    zone,
+                    ttl,
+                    vendor,
+                    custom_name,
+                    timestamp,  # first_seen
+                    timestamp   # last_seen
+                ))
+
+            if not insert_data:
+                debug("No valid devices to insert (all missing IP addresses)")
+                return True
+
+            # Batch insert using execute_batch
+            execute_batch(cursor, """
+                INSERT INTO connected_devices (
+                    time, device_id, ip, mac, hostname, interface, zone, ttl,
+                    vendor, custom_name, first_seen, last_seen
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (time, device_id, ip) DO UPDATE SET
+                    mac = EXCLUDED.mac,
+                    hostname = EXCLUDED.hostname,
+                    interface = EXCLUDED.interface,
+                    zone = EXCLUDED.zone,
+                    ttl = EXCLUDED.ttl,
+                    vendor = EXCLUDED.vendor,
+                    custom_name = EXCLUDED.custom_name,
+                    last_seen = EXCLUDED.last_seen
+            """, insert_data, page_size=100)
+
+            conn.commit()
+            cursor.close()
+            debug("Batch inserted %d connected devices (device=%s, time=%s)", len(insert_data), device_id, timestamp)
+            return True
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to batch insert connected devices: %s", str(e))
+            return False
+
+        finally:
+            if conn:
+                self._return_connection(conn)
 
     def get_connected_devices(self, device_id: str, max_age_seconds: int = 90) -> list:
         """
-        Get connected devices from nmap_scans.db SQLite database.
+        Get connected devices from TimescaleDB connected_devices hypertable.
 
-        Connected devices are NOT stored in TimescaleDB - they're stored in a separate
-        SQLite database (nmap_scans.db) managed by the Nmap scanning system.
+        Returns the most recent entry for each unique IP address within the time window.
+        Uses DISTINCT ON to get latest record per IP for efficient querying.
 
         Args:
             device_id: Device identifier
@@ -674,50 +760,85 @@ class TimescaleStorage:
         Returns:
             list: List of connected device dictionaries, or empty list if error
         """
-        import sqlite3
-        import os
         from datetime import datetime, timedelta
 
+        conn = None
         try:
-            # Path to nmap_scans.db
-            db_path = 'nmap_scans.db'
-            if not os.path.exists(db_path):
-                debug(f"nmap_scans.db not found at {db_path}")
-                return []
-
-            # Connect to SQLite database
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row  # Return dict-like rows
-            cursor = conn.cursor()
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             # Calculate cutoff time
             cutoff_time = datetime.now() - timedelta(seconds=max_age_seconds)
 
-            # Query connected devices
+            # Query connected devices - get latest entry per IP
             cursor.execute('''
-                SELECT * FROM connected_devices
-                WHERE device_id = ? AND timestamp >= ?
-                ORDER BY timestamp DESC
-            ''', (device_id, cutoff_time.isoformat()))
+                SELECT DISTINCT ON (ip)
+                    time,
+                    device_id,
+                    ip,
+                    mac,
+                    hostname,
+                    interface,
+                    zone,
+                    ttl,
+                    vendor,
+                    custom_name,
+                    first_seen,
+                    last_seen
+                FROM connected_devices
+                WHERE device_id = %s AND time >= %s
+                ORDER BY ip, time DESC
+            ''', (device_id, cutoff_time))
 
             rows = cursor.fetchall()
-            conn.close()
+            cursor.close()
 
-            # Convert rows to list of dicts
-            devices = [dict(row) for row in rows]
-            debug(f"Retrieved {len(devices)} connected devices from nmap_scans.db (max_age={max_age_seconds}s)")
+            # Convert rows to list of dicts with formatted timestamps
+            devices = []
+            for row in rows:
+                device_dict = dict(row)
+                # Format timestamps to ISO strings with Z suffix
+                if device_dict.get('time'):
+                    device_dict['time'] = self._format_timestamp(device_dict['time'])
+                if device_dict.get('first_seen'):
+                    device_dict['first_seen'] = self._format_timestamp(device_dict['first_seen'])
+                if device_dict.get('last_seen'):
+                    device_dict['last_seen'] = self._format_timestamp(device_dict['last_seen'])
+                # Convert IP and MAC to strings
+                if device_dict.get('ip'):
+                    device_dict['ip'] = str(device_dict['ip'])
+                if device_dict.get('mac'):
+                    device_dict['mac'] = str(device_dict['mac'])
+
+                # Extract VLAN from interface field (e.g., "ethernet1/21.90" -> "90")
+                interface = device_dict.get('interface', '')
+                if interface and '.' in interface:
+                    # Interface has VLAN suffix (e.g., ethernet1/21.90)
+                    vlan = interface.split('.')[-1]
+                    device_dict['vlan'] = vlan
+                else:
+                    # No VLAN suffix (trunk interface or untagged)
+                    device_dict['vlan'] = '-'
+
+                devices.append(device_dict)
+
+            debug(f"Retrieved {len(devices)} connected devices from TimescaleDB (max_age={max_age_seconds}s)")
             return devices
 
         except Exception as e:
-            exception(f"Error fetching connected devices from nmap_scans.db: {str(e)}")
+            exception(f"Error fetching connected devices from TimescaleDB: {str(e)}")
             return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
 
     def get_connected_devices_with_bandwidth(self, device_id: str, max_age_seconds: int = 90, bandwidth_window_minutes: int = 60) -> list:
         """
-        Get connected devices with bandwidth data aggregated from traffic logs.
+        Get connected devices with bandwidth data aggregated from client_bandwidth table.
 
-        Fetches connected devices from nmap_scans.db and enriches each device with
-        bandwidth statistics from the traffic_logs table (TimescaleDB).
+        Fetches connected devices from TimescaleDB connected_devices hypertable and enriches
+        each device with bandwidth statistics from the client_bandwidth table (TimescaleDB).
 
         Args:
             device_id: Device identifier
@@ -730,16 +851,14 @@ class TimescaleStorage:
         from datetime import datetime, timedelta
 
         try:
-            # Get base connected devices from SQLite
+            # Get base connected devices from TimescaleDB
             devices = self.get_connected_devices(device_id, max_age_seconds)
 
             if not devices:
                 debug("No connected devices found, skipping bandwidth aggregation")
                 return []
 
-            # Get bandwidth data from traffic_logs (TimescaleDB)
-            # Since traffic_logs don't have a direct table in TimescaleDB yet,
-            # we'll use the client_bandwidth table we just created
+            # Get bandwidth data from client_bandwidth hypertable
 
             conn = None
             try:
@@ -750,6 +869,7 @@ class TimescaleStorage:
                 start_time = datetime.now() - timedelta(minutes=bandwidth_window_minutes)
 
                 # Query client_bandwidth for all clients in the time window
+                # Sum across ALL traffic types (internal + internet + total)
                 cursor.execute('''
                     SELECT
                         client_ip,
@@ -759,7 +879,6 @@ class TimescaleStorage:
                     FROM client_bandwidth
                     WHERE device_id = %s
                       AND time > %s
-                      AND traffic_type = 'total'
                     GROUP BY client_ip
                 ''', (device_id, start_time))
 
@@ -783,9 +902,10 @@ class TimescaleStorage:
                 ip = device.get('ip')
                 if ip and ip in bandwidth_by_ip:
                     bw = bandwidth_by_ip[ip]
-                    device['bytes_sent'] = bw.get('total_bytes_sent', 0)
-                    device['bytes_received'] = bw.get('total_bytes_received', 0)
-                    device['total_volume'] = bw.get('total_bytes', 0)
+                    # Convert to int to ensure numeric type (PostgreSQL may return Decimal)
+                    device['bytes_sent'] = int(bw.get('total_bytes_sent', 0) or 0)
+                    device['bytes_received'] = int(bw.get('total_bytes_received', 0) or 0)
+                    device['total_volume'] = int(bw.get('total_bytes', 0) or 0)
                 else:
                     # No bandwidth data for this device
                     device['bytes_sent'] = 0
@@ -1053,6 +1173,201 @@ class TimescaleStorage:
             if conn:
                 self._return_connection(conn)
 
+    def get_top_internal_client(self, device_id: str, minutes: int = 60) -> Optional[Dict]:
+        """
+        Get top client by internal-only traffic bandwidth.
+
+        Convenience wrapper around get_top_client() for internal traffic.
+        This method is called by throughput_collector.py for Top Clients display.
+
+        Args:
+            device_id: Device identifier
+            minutes: Time window in minutes (default 60)
+
+        Returns:
+            Dict with ip, hostname, custom_name, bytes_sent, bytes_received, bytes_total or None
+        """
+        return self.get_top_client(device_id, traffic_type='internal', minutes=minutes)
+
+    def get_top_internet_client(self, device_id: str, minutes: int = 60) -> Optional[Dict]:
+        """
+        Get top client by internet-bound traffic bandwidth.
+
+        Convenience wrapper around get_top_client() for internet traffic.
+        This method is called by throughput_collector.py for Top Clients display.
+
+        Args:
+            device_id: Device identifier
+            minutes: Time window in minutes (default 60)
+
+        Returns:
+            Dict with ip, hostname, custom_name, bytes_sent, bytes_received, bytes_total or None
+        """
+        return self.get_top_client(device_id, traffic_type='internet', minutes=minutes)
+
+    def get_application_statistics(self, device_id: str, limit: int = 500, minutes: int = 60) -> List[Dict]:
+        """
+        Get application traffic statistics from database (ENTERPRISE DATABASE-FIRST PATTERN).
+
+        Queries application_samples hypertable for recent application traffic data.
+        This is the database-optimized version used by /api/applications endpoint.
+
+        Args:
+            device_id: Device identifier
+            limit: Maximum number of applications to return (default 500)
+            minutes: Time window in minutes (default 60 for last hour)
+
+        Returns:
+            List of application statistics dictionaries with keys:
+                - name: Application name
+                - category: Application category
+                - bytes_sent: Bytes sent
+                - bytes_received: Bytes received
+                - bytes: Total bytes (sent + received)
+                - sessions: Total session count
+                - sources: List of source IPs/hostnames
+                - destinations: List of destination IPs/hostnames
+                - vlans: List of VLANs
+                - zones: List of security zones
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Query recent application samples (aggregated)
+            query = '''
+                SELECT
+                    application,
+                    category,
+                    SUM(bytes_sent) AS bytes_sent,
+                    SUM(bytes_received) AS bytes_received,
+                    SUM(bytes_total) AS bytes_total,
+                    SUM(sessions_total) AS sessions_total,
+                    array_agg(DISTINCT top_source_ip) FILTER (WHERE top_source_ip IS NOT NULL) AS source_ips,
+                    array_agg(DISTINCT top_source_hostname) FILTER (WHERE top_source_hostname IS NOT NULL) AS source_hostnames,
+                    array_agg(DISTINCT vlan) FILTER (WHERE vlan IS NOT NULL) AS vlans,
+                    array_agg(DISTINCT source_zone) FILTER (WHERE source_zone IS NOT NULL) AS zones
+                FROM application_samples
+                WHERE device_id = %s
+                  AND time >= NOW() - INTERVAL '%s minutes'
+                GROUP BY application, category
+                ORDER BY bytes_total DESC
+                LIMIT %s
+            '''
+
+            cursor.execute(query, (device_id, minutes, limit))
+            rows = cursor.fetchall()
+
+            cursor.close()
+
+            # Convert to expected format (match firewall API structure)
+            applications = []
+            for row in rows:
+                # Calculate counts for frontend table display
+                source_ips = row['source_ips'] or []
+                source_count = len([ip for ip in source_ips if ip])  # Count non-null IPs
+
+                app_data = {
+                    'name': row['application'],
+                    'category': row['category'],
+                    'bytes_sent': int(row['bytes_sent'] or 0),
+                    'bytes_received': int(row['bytes_received'] or 0),
+                    'bytes': int(row['bytes_total'] or 0),
+                    'sessions': int(row['sessions_total'] or 0),
+                    'sources': source_ips,
+                    'source_hostnames': row['source_hostnames'] or [],
+                    'vlans': row['vlans'] or [],
+                    'zones': row['zones'] or [],
+                    # Calculated counts for table display (frontend expects these)
+                    'source_count': source_count,
+                    'dest_count': 0,  # Destination tracking not yet implemented in TimescaleDB
+                    # Fields not stored in TimescaleDB (use empty arrays for frontend compatibility)
+                    'protocols': [],  # Protocol info not stored in hypertable
+                    'ports': [],      # Port info not stored in hypertable
+                    'source_ips': source_ips,  # For backward compatibility
+                    'dest_ips': [],   # Destination IPs not stored
+                    'destinations': []  # Destination details not stored
+                }
+                applications.append(app_data)
+
+            debug(f"Retrieved {len(applications)} applications from database (device={device_id}, window={minutes}min)")
+            return applications
+
+        except Exception as e:
+            exception(f"Failed to get application statistics: {str(e)}")
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_application_summary(self, device_id: str, minutes: int = 60) -> Dict:
+        """
+        Get summary statistics for all applications (ENTERPRISE DATABASE-FIRST PATTERN).
+
+        Aggregates application traffic for summary tiles on dashboard.
+
+        Args:
+            device_id: Device identifier
+            minutes: Time window in minutes (default 60 for last hour)
+
+        Returns:
+            Dictionary with summary statistics:
+                - total_applications: Total number of unique applications
+                - total_sessions: Total session count across all apps
+                - total_bytes: Total bytes across all apps
+                - vlans_detected: Number of unique VLANs
+                - zones_detected: Number of unique zones
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Query summary stats
+            query = '''
+                SELECT
+                    COUNT(DISTINCT application) AS total_applications,
+                    SUM(sessions_total) AS total_sessions,
+                    SUM(bytes_total) AS total_bytes,
+                    COUNT(DISTINCT vlan) FILTER (WHERE vlan IS NOT NULL) AS vlans_detected,
+                    COUNT(DISTINCT source_zone) FILTER (WHERE source_zone IS NOT NULL) AS zones_detected
+                FROM application_samples
+                WHERE device_id = %s
+                  AND time >= NOW() - INTERVAL '%s minutes'
+            '''
+
+            cursor.execute(query, (device_id, minutes))
+            row = cursor.fetchone()
+
+            cursor.close()
+
+            summary = {
+                'total_applications': int(row['total_applications'] or 0),
+                'total_sessions': int(row['total_sessions'] or 0),
+                'total_bytes': int(row['total_bytes'] or 0),
+                'vlans_detected': int(row['vlans_detected'] or 0),
+                'zones_detected': int(row['zones_detected'] or 0)
+            }
+
+            debug(f"Application summary: {summary['total_applications']} apps, {summary['total_sessions']} sessions, {summary['total_bytes']} bytes")
+            return summary
+
+        except Exception as e:
+            exception(f"Failed to get application summary: {str(e)}")
+            return {
+                'total_applications': 0,
+                'total_sessions': 0,
+                'total_bytes': 0,
+                'vlans_detected': 0,
+                'zones_detected': 0
+            }
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
     def insert_threat_logs(self, device_id: str, logs: List[Dict], severity: str) -> bool:
         """
         Batch insert threat logs into TimescaleDB.
@@ -1239,26 +1554,26 @@ class TimescaleStorage:
                 top_source_hostname = None
                 top_source_bytes = 0
 
-                sources = app.get('sources', {})
+                sources = app.get('sources', [])  # sources is a list of dicts, not a dict
                 if sources:
                     # Get source with highest bytes
-                    top_src = max(sources.values(), key=lambda s: s.get('bytes', 0))
+                    top_src = max(sources, key=lambda s: s.get('bytes', 0))
                     top_source_ip = top_src.get('ip')
                     top_source_hostname = top_src.get('hostname')
                     top_source_bytes = top_src.get('bytes', 0)
 
-                # Extract zone info (convert sets to comma-separated strings)
-                zones = app.get('zones', set())
+                # Extract zone info (convert lists to comma-separated strings)
+                zones = app.get('zones', [])  # zones is a list, not a set
                 source_zone = ','.join(sorted(zones)) if zones else None
 
                 # Extract VLAN info
-                vlans = app.get('vlans', set())
+                vlans = app.get('vlans', [])  # vlans is a list, not a set
                 vlan = ','.join(sorted(vlans)) if vlans else None
 
                 insert_data.append((
                     timestamp,
                     device_id,
-                    app.get('app', 'unknown'),
+                    app.get('name', 'unknown'),  # Changed from 'app' to 'name' to match firewall API
                     app.get('category', 'unknown'),
                     app.get('sessions', 0),
                     app.get('sessions', 0),  # sessions_tcp (not split in current data)
@@ -1445,6 +1760,352 @@ class TimescaleStorage:
             if conn:
                 self._return_connection(conn)
 
+    # =========================================
+    # Device Metadata Methods (PostgreSQL)
+    # =========================================
+
+    def get_device_metadata(self, mac: str) -> dict:
+        """
+        Get metadata for a single device by MAC address.
+
+        Args:
+            mac: MAC address (will be normalized to lowercase)
+
+        Returns:
+            dict with keys: custom_name, location, comment, tags
+            Returns empty dict if not found
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT custom_name, location, comment, tags
+                FROM device_metadata
+                WHERE mac = %s
+            """, (mac.lower(),))
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            if row:
+                return {
+                    'custom_name': row[0],
+                    'location': row[1],
+                    'comment': row[2],
+                    'tags': row[3] or []
+                }
+            return {}
+
+        except Exception as e:
+            exception("Failed to get metadata for MAC %s: %s", mac, str(e))
+            return {}
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_all_device_metadata(self, device_id: str = None) -> dict:
+        """
+        Get metadata for all devices, optionally filtered by device_id.
+
+        Args:
+            device_id: Optional device ID to filter by
+
+        Returns:
+            dict mapping MAC addresses to metadata: {mac: {custom_name, location, comment, tags}}
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            if device_id:
+                cursor.execute("""
+                    SELECT mac, custom_name, location, comment, tags
+                    FROM device_metadata
+                    WHERE device_id = %s OR device_id IS NULL
+                """, (device_id,))
+            else:
+                cursor.execute("""
+                    SELECT mac, custom_name, location, comment, tags
+                    FROM device_metadata
+                """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            # Build dict mapping MAC -> metadata
+            result = {}
+            for row in rows:
+                mac = str(row[0])  # Convert MACADDR to string
+                result[mac] = {
+                    'custom_name': row[1],
+                    'location': row[2],
+                    'comment': row[3],
+                    'tags': row[4] or []
+                }
+
+            debug(f"Retrieved metadata for {len(result)} devices")
+            return result
+
+        except Exception as e:
+            exception("Failed to get all device metadata: %s", str(e))
+            return {}
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def upsert_device_metadata(self, mac: str, custom_name: str = None, location: str = None,
+                                comment: str = None, tags: list = None, device_id: str = None) -> bool:
+        """
+        Insert or update device metadata.
+
+        Args:
+            mac: MAC address (will be normalized to lowercase)
+            custom_name: Custom device name
+            location: Physical location
+            comment: User notes
+            tags: List of tags
+            device_id: Optional device ID link
+
+        Returns:
+            True if successful, False otherwise
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            # Normalize MAC
+            mac = mac.lower()
+
+            # Ensure tags is a list
+            if tags is None:
+                tags = []
+
+            # Upsert (INSERT ... ON CONFLICT UPDATE)
+            cursor.execute("""
+                INSERT INTO device_metadata (mac, device_id, custom_name, location, comment, tags)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (mac) DO UPDATE SET
+                    device_id = COALESCE(EXCLUDED.device_id, device_metadata.device_id),
+                    custom_name = COALESCE(EXCLUDED.custom_name, device_metadata.custom_name),
+                    location = COALESCE(EXCLUDED.location, device_metadata.location),
+                    comment = COALESCE(EXCLUDED.comment, device_metadata.comment),
+                    tags = EXCLUDED.tags,
+                    updated_at = NOW()
+            """, (mac, device_id, custom_name, location, comment, tags))
+
+            conn.commit()
+            cursor.close()
+
+            debug(f"Upserted metadata for MAC {mac}")
+            return True
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to upsert metadata for MAC %s: %s", mac, str(e))
+            return False
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def delete_device_metadata(self, mac: str) -> bool:
+        """
+        Delete metadata for a device.
+
+        Args:
+            mac: MAC address
+
+        Returns:
+            True if successful, False otherwise
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM device_metadata WHERE mac = %s", (mac.lower(),))
+            conn.commit()
+            cursor.close()
+
+            debug(f"Deleted metadata for MAC {mac}")
+            return True
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to delete metadata for MAC %s: %s", mac, str(e))
+            return False
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_all_tags(self) -> list:
+        """
+        Get list of all unique tags across all devices.
+
+        Returns:
+            List of tag strings, sorted alphabetically
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT DISTINCT unnest(tags) AS tag
+                FROM device_metadata
+                ORDER BY tag
+            """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            tags = [row[0] for row in rows if row[0]]
+            debug(f"Retrieved {len(tags)} unique tags")
+            return tags
+
+        except Exception as e:
+            exception("Failed to get all tags: %s", str(e))
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_all_locations(self) -> list:
+        """
+        Get list of all unique locations across all devices.
+
+        Returns:
+            List of location strings, sorted alphabetically
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT DISTINCT location
+                FROM device_metadata
+                WHERE location IS NOT NULL AND location != ''
+                ORDER BY location
+            """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            locations = [row[0] for row in rows]
+            debug(f"Retrieved {len(locations)} unique locations")
+            return locations
+
+        except Exception as e:
+            exception("Failed to get all locations: %s", str(e))
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_connected_devices_with_metadata(self, device_id: str, max_age_seconds: int = 300,
+                                             tags: list = None, tag_operator: str = 'OR') -> list:
+        """
+        Get connected devices with metadata joined, optionally filtered by tags.
+
+        Args:
+            device_id: Device ID to query
+            max_age_seconds: Maximum age of last_seen timestamp (default 5 minutes)
+            tags: Optional list of tags to filter by
+            tag_operator: 'OR' (any tag matches) or 'AND' (all tags must match)
+
+        Returns:
+            List of dicts with connected device info + metadata:
+            [{ip, mac, hostname, interface, zone, vendor, custom_name, location, comment, tags, ...}]
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            # Base query with JOIN
+            query = """
+                SELECT
+                    cd.ip,
+                    cd.mac,
+                    cd.hostname,
+                    cd.interface,
+                    cd.zone,
+                    cd.ttl,
+                    cd.vendor,
+                    cd.first_seen,
+                    cd.last_seen,
+                    dm.custom_name,
+                    dm.location,
+                    dm.comment,
+                    dm.tags
+                FROM connected_devices cd
+                LEFT JOIN device_metadata dm ON cd.mac = dm.mac
+                WHERE cd.device_id = %s
+                  AND cd.last_seen > NOW() - INTERVAL '%s seconds'
+            """
+
+            params = [device_id, max_age_seconds]
+
+            # Add tag filtering if specified
+            if tags and len(tags) > 0:
+                if tag_operator.upper() == 'AND':
+                    # Device must have ALL tags
+                    query += " AND dm.tags @> %s"
+                    params.append(tags)
+                else:
+                    # Device must have ANY tag (overlap operator)
+                    query += " AND dm.tags && %s"
+                    params.append(tags)
+
+            query += " ORDER BY cd.ip"
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            cursor.close()
+
+            # Convert to list of dicts
+            devices = []
+            for row in rows:
+                devices.append({
+                    'ip': row[0],
+                    'mac': str(row[1]),  # Convert MACADDR to string
+                    'hostname': row[2],
+                    'interface': row[3],
+                    'zone': row[4],
+                    'ttl': row[5],
+                    'vendor': row[6],
+                    'first_seen': row[7],
+                    'last_seen': row[8],
+                    'custom_name': row[9],
+                    'location': row[10],
+                    'comment': row[11],
+                    'tags': row[12] or []
+                })
+
+            debug(f"Retrieved {len(devices)} connected devices with metadata (tags: {tags}, operator: {tag_operator})")
+            return devices
+
+        except Exception as e:
+            exception("Failed to get connected devices with metadata: %s", str(e))
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+
     def close(self):
         """Close connection pool."""
         if hasattr(self, 'pool') and self.pool:
@@ -1500,3 +2161,75 @@ def create_timescale_storage_from_env() -> TimescaleStorage:
 
     connection_string = f"postgresql://{user}:{password}@{host}:{port}/{database}"
     return TimescaleStorage(connection_string)
+
+
+# =====================================================
+# Helper Functions for Traffic Classification
+# =====================================================
+
+def is_private_ip(ip: str) -> bool:
+    """
+    Check if an IP address is in a private/RFC1918 range.
+
+    Private IP ranges:
+    - 10.0.0.0/8 (10.0.0.0 - 10.255.255.255)
+    - 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
+    - 192.168.0.0/16 (192.168.0.0 - 192.168.255.255)
+
+    Args:
+        ip: IP address string (e.g., "192.168.1.1")
+
+    Returns:
+        True if IP is in a private range, False otherwise
+    """
+    if not ip:
+        return False
+
+    try:
+        # Split into octets
+        parts = ip.split('.')
+        if len(parts) != 4:
+            return False
+
+        # Convert to integers
+        octets = [int(p) for p in parts]
+
+        # Check 10.0.0.0/8
+        if octets[0] == 10:
+            return True
+
+        # Check 172.16.0.0/12
+        if octets[0] == 172 and 16 <= octets[1] <= 31:
+            return True
+
+        # Check 192.168.0.0/16
+        if octets[0] == 192 and octets[1] == 168:
+            return True
+
+        return False
+
+    except (ValueError, IndexError):
+        # Invalid IP format
+        return False
+
+
+def is_internet_traffic(src_ip: str, dst_ip: str) -> bool:
+    """
+    Check if traffic is internet-bound (one private IP, one public IP).
+
+    Internet traffic is defined as:
+    - Source is private, destination is public (outbound)
+    - Source is public, destination is private (inbound)
+
+    Args:
+        src_ip: Source IP address
+        dst_ip: Destination IP address
+
+    Returns:
+        True if one IP is private and one is public, False otherwise
+    """
+    src_private = is_private_ip(src_ip)
+    dst_private = is_private_ip(dst_ip)
+
+    # XOR: True if exactly one is private (one private + one public = internet traffic)
+    return src_private != dst_private

@@ -184,83 +184,13 @@ else
     echo "✓ service_port_db.json already exists"
 fi
 
-# Create throughput_history.db if it doesn't exist
-ensure_file_not_directory "throughput_history.db"
-if [ ! -f "throughput_history.db" ]; then
-    echo "Creating throughput_history.db with COMPLETE schema..."
-    echo "  (includes all Phase 1-4 columns + Analytics Dashboard fields)"
-
-    # Let the app create it with proper schema via ThroughputStorage
-    # This ensures all migrations run and schema is complete
-    echo "  NOTE: Database will be initialized by ThroughputStorage on first run"
-    echo "        This ensures schema migrations run properly and includes:"
-    echo "        - Phase 1: Base throughput metrics"
-    echo "        - Phase 2: Threats, apps, interfaces, license, WAN"
-    echo "        - Phase 3: Categories support"
-    echo "        - Connected devices table"
-    echo "        - Traffic separation (internal/internet clients)"
-    echo "        - Category split (LAN/Internet)"
-    echo "        - Analytics traffic metrics (internal_mbps, internet_mbps)"
-
-    # Create empty file so Docker doesn't create a directory
-    touch throughput_history.db
-
-    echo "✓ throughput_history.db placeholder created (app will initialize schema)"
-else
-    echo "✓ throughput_history.db already exists"
-fi
-
-# Create alerts.db if it doesn't exist
-ensure_file_not_directory "alerts.db"
-if [ ! -f "alerts.db" ]; then
-    echo "Creating alerts.db..."
-
-    # Create SQLite database with schema using Python
-    python3 -c "
-import sqlite3
-import os
-
-# Create database file
-db_path = 'alerts.db'
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
-
-# Create alert_history table (matches alert_manager.py schema)
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS alert_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        device_id TEXT NOT NULL,
-        alert_name TEXT NOT NULL,
-        severity TEXT NOT NULL,
-        triggered_at DATETIME NOT NULL,
-        acknowledged BOOLEAN DEFAULT 0,
-        acknowledged_at DATETIME,
-        acknowledged_by TEXT,
-        details TEXT
-    )
-''')
-
-# Create indexes
-cursor.execute('''
-    CREATE INDEX IF NOT EXISTS idx_alert_device_triggered
-    ON alert_history(device_id, triggered_at DESC)
-''')
-
-cursor.execute('''
-    CREATE INDEX IF NOT EXISTS idx_alert_acknowledged
-    ON alert_history(acknowledged, triggered_at DESC)
-''')
-
-conn.commit()
-conn.close()
-
-print('Created alerts.db with schema')
-" 2>/dev/null || touch alerts.db
-
-    echo "✓ alerts.db created"
-else
-    echo "✓ alerts.db already exists"
-fi
+# ============================================================
+# v2.0.0: SQLite databases removed - migrated to TimescaleDB
+# ============================================================
+# throughput_history.db → TimescaleDB (throughput_history hypertable)
+# alerts.db → TimescaleDB (alert_history, alert_configs tables)
+# nmap_scans.db → TimescaleDB (nmap_scan_history hypertable)
+# Database schema automatically initialized by init_timescaledb.sql
 
 # Create data directory if it doesn't exist
 if [ ! -d "data" ]; then
@@ -271,7 +201,38 @@ else
     echo "✓ data directory already exists"
 fi
 
+# Create redis_data directory if it doesn't exist (v2.0.0)
+if [ ! -d "redis_data" ]; then
+    echo "Creating redis_data directory (Redis AOF persistence)..."
+    mkdir -p redis_data
+    echo "✓ redis_data directory created"
+else
+    echo "✓ redis_data directory already exists"
+fi
+
+# Create timescaledb_data directory if it doesn't exist (v2.0.0)
+if [ ! -d "timescaledb_data" ]; then
+    echo "Creating timescaledb_data directory (PostgreSQL data files)..."
+    mkdir -p timescaledb_data
+    echo "✓ timescaledb_data directory created"
+else
+    echo "✓ timescaledb_data directory already exists"
+fi
+
 echo ""
-echo "Setup complete! You can now run: docker compose up -d"
+echo "============================================================"
+echo "Setup complete! PANfm v2.0.0 is ready to start"
+echo "============================================================"
 echo ""
-echo "Note: Upload MAC vendor and service port databases via Settings > Databases tab"
+echo "Run: docker compose up -d"
+echo ""
+echo "First startup notes:"
+echo "  - Redis will initialize session store automatically"
+echo "  - TimescaleDB will create schema from init_timescaledb.sql"
+echo "  - Web UI will be available at http://localhost:3000"
+echo "  - First startup may take 60-90 seconds for database initialization"
+echo ""
+echo "Post-setup:"
+echo "  - Default login: admin / admin (change on first login)"
+echo "  - Upload MAC vendor and service port databases via Settings > Databases"
+echo ""

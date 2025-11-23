@@ -71,7 +71,8 @@ from firewall_api_metrics import (
     get_system_resources,
     get_interface_stats,
     get_interface_traffic_counters,
-    get_session_count
+    get_session_count,
+    get_cpu_temperature
 )
 from firewall_api_applications import (
     get_top_applications,
@@ -126,10 +127,24 @@ def get_firewall_config(device_id=None):
     return firewall_ip, api_key, base_url
 
 
-def get_device_uptime(device_id):
-    """Fetch uptime for a specific device"""
+def get_device_system_info(device_id):
+    """Fetch uptime AND version in a single API call (OPTIMIZED)
+
+    This function combines what used to be two separate API calls into one,
+    reducing latency by 50% when loading device information.
+
+    Args:
+        device_id: Device UUID
+
+    Returns:
+        dict: {'uptime': str or None, 'version': str or None}
+    """
     try:
         firewall_ip, api_key, base_url = get_firewall_config(device_id)
+
+        if not base_url or not api_key:
+            debug(f"No config found for device {device_id}")
+            return {'uptime': None, 'version': None}
 
         cmd = "<show><system><info></info></system></show>"
         params = {
@@ -138,55 +153,59 @@ def get_device_uptime(device_id):
             'key': api_key
         }
 
-        response = api_request_get(base_url, params=params, verify=False, timeout=5)
+        # Reduced timeout from 5s to 2s (healthy firewalls respond in <1s)
+        response = api_request_get(base_url, params=params, verify=False, timeout=2)
         if response.status_code == 200:
             root = ET.fromstring(response.text)
-            uptime_elem = root.find('.//uptime')
-            if uptime_elem is not None and uptime_elem.text:
-                return uptime_elem.text
 
-        return None
+            # Extract both uptime and version from single response
+            uptime_elem = root.find('.//uptime')
+            version_elem = root.find('.//sw-version')
+
+            return {
+                'uptime': uptime_elem.text if uptime_elem is not None and uptime_elem.text else None,
+                'version': version_elem.text if version_elem is not None and version_elem.text else None
+            }
+
+        return {'uptime': None, 'version': None}
     except Exception as e:
-        debug(f"Error fetching uptime for device {device_id}: {str(e)}")
-        return None
+        debug(f"Error fetching system info for device {device_id}: {str(e)}")
+        return {'uptime': None, 'version': None}
+
+
+def get_device_uptime(device_id):
+    """Fetch uptime for a specific device
+
+    DEPRECATED: Use get_device_system_info() instead for better performance.
+    This function is kept for backward compatibility.
+    """
+    info = get_device_system_info(device_id)
+    return info.get('uptime')
 
 
 def get_device_version(device_id):
-    """Fetch PAN-OS version for a specific device"""
-    try:
-        firewall_ip, api_key, base_url = get_firewall_config(device_id)
+    """Fetch PAN-OS version for a specific device
 
-        cmd = "<show><system><info></info></system></show>"
-        params = {
-            'type': 'op',
-            'cmd': cmd,
-            'key': api_key
-        }
-
-        response = api_request_get(base_url, params=params, verify=False, timeout=5)
-        if response.status_code == 200:
-            root = ET.fromstring(response.text)
-            version_elem = root.find('.//sw-version')
-            if version_elem is not None and version_elem.text:
-                return version_elem.text
-
-        return None
-    except Exception as e:
-        debug(f"Error fetching version for device {device_id}: {str(e)}")
-        return None
+    DEPRECATED: Use get_device_system_info() instead for better performance.
+    This function is kept for backward compatibility.
+    """
+    info = get_device_system_info(device_id)
+    return info.get('version')
 
 
 # Export all functions for backward compatibility
 __all__ = [
     # Core functions (defined in this module)
     'get_firewall_config',
-    'get_device_uptime',
-    'get_device_version',
+    'get_device_system_info',  # OPTIMIZED: Combined uptime + version
+    'get_device_uptime',  # DEPRECATED: Use get_device_system_info()
+    'get_device_version',  # DEPRECATED: Use get_device_system_info()
     # Re-exported from firewall_api_metrics
     'get_system_resources',
     'get_interface_stats',
     'get_interface_traffic_counters',
     'get_session_count',
+    'get_cpu_temperature',
     # Re-exported from firewall_api_throughput
     'get_throughput_data',
     'get_wan_interface_ip',

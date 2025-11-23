@@ -170,35 +170,57 @@ function resetSettingsData() {
 // updateMonitoredInterface function moved to app.js to access device variables
 
 async function initSettings() {
-    // Load settings on startup
+    // OPTIMIZATION: Check cache first to avoid duplicate API call
+    let cachedSettings = window.CacheUtil ? window.CacheUtil.get('settings') : null;
+
     try {
-        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
-        const response = await window.apiClient.get('/api/settings');
+        let settings;
 
-        if (!response.ok) {
-            console.error('Failed to load settings on init');
-            return;
-        }
+        if (cachedSettings) {
+            console.log('[OPTIMIZATION] Using cached settings (avoiding duplicate /api/settings call)');
+            settings = cachedSettings;
+        } else {
+            console.log('[OPTIMIZATION] No cached settings, fetching from API');
+            // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+            const response = await window.apiClient.get('/api/settings');
 
-        const data = response.data;
+            if (!response.ok) {
+                console.error('Failed to load settings on init');
+                return;
+            }
 
-        if (data.status === 'success') {
-            UPDATE_INTERVAL = data.settings.refresh_interval * 1000;
+            const data = response.data;
 
-            // Store settings globally for use by ThroughputDataService and other modules
-            window.appSettings = data.settings;
+            if (data.status !== 'success') {
+                console.error('Settings API returned error');
+                return;
+            }
 
-            // Store timezone globally for use in time formatting functions
-            window.userTimezone = data.settings.timezone || 'UTC';
+            settings = data.settings;
 
-            // Show debug alert if debug logging is enabled
-            const debugAlert = document.getElementById('debugAlert');
-            if (data.settings.debug_logging === true) {
-                debugAlert.style.display = 'block';
-            } else {
-                debugAlert.style.display = 'none';
+            // Cache for future use
+            if (window.CacheUtil) {
+                window.CacheUtil.set('settings', settings, 5 * 60 * 1000);
             }
         }
+
+        // Apply settings
+        UPDATE_INTERVAL = settings.refresh_interval * 1000;
+
+        // Store settings globally for use by ThroughputDataService and other modules
+        window.appSettings = settings;
+
+        // Store timezone globally for use in time formatting functions
+        window.userTimezone = settings.timezone || 'UTC';
+
+        // Show debug alert if debug logging is enabled
+        const debugAlert = document.getElementById('debugAlert');
+        if (settings.debug_logging === true) {
+            debugAlert.style.display = 'block';
+        } else {
+            debugAlert.style.display = 'none';
+        }
+
     } catch (error) {
         console.error('Error loading initial settings:', error);
     }

@@ -8,6 +8,8 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_session import Session
+from flask_compress import Compress
+import redis
 from datetime import timedelta
 import urllib3
 import os
@@ -18,6 +20,16 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Enable Gzip Compression (compresses responses > 1KB for faster loading)
+# This reduces index.html from 283KB → ~70KB (75% reduction)
+app.config['COMPRESS_MIMETYPES'] = [
+    'text/html', 'text/css', 'text/xml', 'application/json',
+    'application/javascript', 'text/javascript'
+]
+app.config['COMPRESS_LEVEL'] = 6  # Compression level (1-9, 6 is good balance)
+app.config['COMPRESS_MIN_SIZE'] = 1024  # Only compress responses > 1KB
+Compress(app)
 
 # Configuration
 # SECRET_KEY stored in file for persistence across container restarts
@@ -57,14 +69,22 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if using HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Flask-Session configuration (filesystem for persistence across container restarts)
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'data', 'flask_session')
-app.config['SESSION_PERMANENT'] = True
-app.config['SESSION_USE_SIGNER'] = False  # Set to False to avoid bytes/string incompatibility
+# Flask-Session configuration (Redis for enterprise reliability)
+# Redis provides automatic session expiration and cleanup
+# Prevents "Loading devices..." hang on container restart
+redis_host = os.environ.get('REDIS_HOST', 'localhost')
+redis_port = int(os.environ.get('REDIS_PORT', 6379))
 
-# Ensure session directory exists
-os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+app.config['SESSION_TYPE'] = 'redis'
+app.config['SESSION_REDIS'] = redis.Redis(
+    host=redis_host,
+    port=redis_port
+)
+app.config['SESSION_PERMANENT'] = True
+app.config['SESSION_USE_SIGNER'] = True  # Enable session signing for security
+app.config['SESSION_KEY_PREFIX'] = 'panfm_session:'
+
+info(f"Configured Redis session store at {redis_host}:{redis_port}")
 
 # Initialize Flask-Session
 Session(app)

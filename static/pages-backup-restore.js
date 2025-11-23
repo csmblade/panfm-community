@@ -44,7 +44,8 @@ function initBackupRestore() {
     }
 
     // Auto-check migration status on load
-    checkMigrationStatus();
+    // DISABLED: Migration endpoints removed after PostgreSQL migration (v2.0.0)
+    // checkMigrationStatus();
 }
 
 /**

@@ -6,13 +6,40 @@ from flask import jsonify, request
 from auth import login_required
 from config import load_settings, save_settings
 from device_manager import device_manager
-from firewall_api import get_device_uptime, get_device_version
+from firewall_api import get_device_system_info  # OPTIMIZED: Combined uptime+version
 from logger import debug, info, error, exception
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from time import time
 
 
 def register_device_management_routes(app, csrf, limiter):
     """Register device management CRUD routes"""
     debug("Registering device management CRUD routes")
+
+    # ============================================================================
+    # Device Info Caching (OPTIMIZATION)
+    # ============================================================================
+    # Cache device system info (uptime, version) for 30 seconds to reduce API calls
+    _device_info_cache = {}
+    CACHE_TTL = 30  # seconds
+
+    def get_device_info_cached(device_id):
+        """Get device system info with TTL-based caching"""
+        now = time()
+        cache_key = device_id
+
+        # Check cache
+        if cache_key in _device_info_cache:
+            cached_data, cached_time = _device_info_cache[cache_key]
+            if now - cached_time < CACHE_TTL:
+                debug(f"Cache HIT for device {device_id} (age: {int(now - cached_time)}s)")
+                return cached_data
+
+        # Cache miss or expired - fetch from firewall
+        debug(f"Cache MISS for device {device_id} - fetching from firewall")
+        info = get_device_system_info(device_id)
+        _device_info_cache[cache_key] = (info, now)
+        return info
 
     # ============================================================================
     # Device Management API Endpoints
@@ -22,31 +49,52 @@ def register_device_management_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")  # Support frequent device list reads
     @login_required
     def get_devices():
-        """Get all devices with encrypted API keys"""
+        """Get all devices with encrypted API keys (OPTIMIZED: parallel + cached)"""
         try:
+            start_time = time()
+
             # Load devices with encrypted API keys for API response (security)
             devices = device_manager.load_devices(decrypt_api_keys=False)
             groups = device_manager.get_groups()
 
-            # Fetch uptime and version for each enabled device
-            for device in devices:
-                if device.get('enabled', True):
-                    try:
-                        uptime = get_device_uptime(device['id'])
-                        device['uptime'] = uptime if uptime else 'N/A'
-                    except Exception as e:
-                        debug(f"Error fetching uptime for device {device['id']}: {str(e)}")
-                        device['uptime'] = 'N/A'
+            # Identify enabled devices that need info fetching
+            enabled_devices = [d for d in devices if d.get('enabled', True)]
+            debug(f"Fetching info for {len(enabled_devices)} enabled devices")
 
+            # OPTIMIZATION: Fetch device info in parallel using ThreadPoolExecutor
+            # This reduces load time from N×2s (sequential) to max(2s) (parallel)
+            def fetch_device_info(device):
+                """Fetch system info for a single device (runs in thread pool)"""
+                try:
+                    info = get_device_info_cached(device['id'])
+                    device['uptime'] = info['uptime'] if info['uptime'] else 'N/A'
+                    device['version'] = info['version'] if info['version'] else 'N/A'
+                except Exception as e:
+                    debug(f"Error fetching info for device {device['id']}: {str(e)}")
+                    device['uptime'] = 'N/A'
+                    device['version'] = 'N/A'
+                return device
+
+            # Use ThreadPoolExecutor for parallel execution (max 5 workers per API limit)
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                # Submit all enabled devices for processing
+                futures = {executor.submit(fetch_device_info, device): device for device in enabled_devices}
+
+                # Wait for all futures to complete
+                for future in as_completed(futures):
                     try:
-                        version = get_device_version(device['id'])
-                        device['version'] = version if version else 'N/A'
+                        future.result()  # Results are updated in-place on device dict
                     except Exception as e:
-                        debug(f"Error fetching version for device {device['id']}: {str(e)}")
-                        device['version'] = 'N/A'
-                else:
+                        debug(f"Thread pool future failed: {str(e)}")
+
+            # Mark disabled devices
+            for device in devices:
+                if not device.get('enabled', True):
                     device['uptime'] = 'Disabled'
                     device['version'] = 'N/A'
+
+            elapsed = (time() - start_time) * 1000  # Convert to ms
+            debug(f"Device list loaded in {elapsed:.0f}ms (parallel + cached)")
 
             return jsonify({
                 'status': 'success',
@@ -54,6 +102,7 @@ def register_device_management_routes(app, csrf, limiter):
                 'groups': groups
             })
         except Exception as e:
+            exception(f"Error in get_devices: {str(e)}")
             return jsonify({
                 'status': 'error',
                 'message': str(e)

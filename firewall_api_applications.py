@@ -1,16 +1,23 @@
 """
 Firewall API application traffic analysis for Palo Alto firewalls
 Handles application statistics, top applications, and traffic aggregation
+
+Enterprise-level improvements (v2.0+):
+- Type hints for all public functions
+- Configuration constants instead of magic numbers
+- Database-first architecture (TimescaleDB)
 """
 import xml.etree.ElementTree as ET
 import time
+from typing import Dict, List, Tuple, Optional, Any
 from utils import api_request_get
 from logger import debug, exception
 from firewall_api_logs import get_traffic_logs
 from firewall_api_devices import get_dhcp_leases, get_connected_devices
+from config import APPLICATION_SETTINGS
 
 
-def is_private_ip(ip):
+def is_private_ip(ip: str) -> bool:
     """
     Check if an IP address is a private (RFC 1918) address.
 
@@ -144,8 +151,11 @@ def classify_traffic_direction(sources, destinations, zones, category):
     return 'unknown'
 
 
-def get_top_applications(firewall_config, top_count=5):
-    """Fetch top applications from traffic logs
+def get_top_applications(
+    firewall_config: Tuple[str, str, str],
+    top_count: int = 5
+) -> Dict[str, Any]:
+    """Fetch top applications from traffic logs.
 
     Args:
         firewall_config: Tuple of (firewall_ip, api_key, base_url)
@@ -220,9 +230,9 @@ def get_top_applications(firewall_config, top_count=5):
         return {'apps': [], 'total_count': 0}
 
 
-def extract_vlan_from_interface(interface_name):
+def extract_vlan_from_interface(interface_name: Optional[str]) -> Optional[str]:
     """
-    Extract VLAN ID from interface name
+    Extract VLAN ID from interface name.
 
     Common formats: ethernet1/1.10, ae1.100, vlan.100, etc.
 
@@ -250,24 +260,33 @@ def extract_vlan_from_interface(interface_name):
     return None
 
 
-def get_application_statistics(firewall_config, max_logs=5000):
+def get_application_statistics(
+    firewall_config: Tuple[str, str, str],
+    max_logs: Optional[int] = None
+) -> Dict[str, Any]:
     """
-    Fetch application statistics from traffic logs
+    Fetch application statistics from traffic logs (FIREWALL-BASED LEGACY METHOD).
 
     Returns aggregated data by application name with sessions, bytes, source IPs, destinations, etc.
     Also returns summary statistics for the dashboard.
 
     VLAN information is extracted from inbound_if and outbound_if fields (not zones).
 
+    NOTE: This is the legacy firewall-based method. For production, use the database-first
+    approach via TimescaleStorage.get_application_statistics() which is much faster.
+
     Args:
         firewall_config: Tuple of (firewall_ip, api_key, base_url)
-        max_logs: Maximum number of logs to retrieve (default: 5000)
+        max_logs: Maximum number of logs to retrieve (default: from APPLICATION_SETTINGS)
 
     Returns:
         dict: Application statistics with:
             - applications: List of app stats including sessions, bytes, sources, destinations
             - summary: Aggregate statistics (total apps, sessions, bytes, VLANs, zones, timespan)
     """
+    # Use config constant if not specified (enterprise pattern)
+    if max_logs is None:
+        max_logs = APPLICATION_SETTINGS['max_logs_analytics']
     debug("=== get_application_statistics called ===")
     try:
         traffic_logs_data = get_traffic_logs(firewall_config, max_logs)

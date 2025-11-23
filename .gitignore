@@ -61,6 +61,9 @@ alerts.db
 # Note: throughput_history.db removed in v2.0.0 (replaced by TimescaleDB)
 timescaledb_data/
 
+# Redis session data directory (Enterprise session persistence)
+redis_data/
+
 # Temporary/debug files
 logs.txt
 logs*.txt

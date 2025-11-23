@@ -10,6 +10,7 @@ from config import load_settings
 from utils import api_request_get, get_api_stats
 from logger import debug, exception
 from device_manager import device_manager
+from firewall_api_metrics import get_cpu_temperature
 
 # Store per-device statistics for rate calculation
 previous_stats = {}
@@ -402,6 +403,9 @@ def get_throughput_data(device_id=None):
             # Get system resource data (pass device_id for proper context)
             resource_data = get_system_resources(device_id)
 
+            # Get CPU temperature data
+            cpu_temp_data = get_cpu_temperature(device_id)
+
             # Use top 10 for all modal displays
             max_logs = 10
             top_apps_count = 10
@@ -503,6 +507,9 @@ def get_throughput_data(device_id=None):
                 'total_pps': round(max(0, total_pps), 0),
                 'sessions': session_data,
                 'cpu': resource_data,
+                'cpu_temp': cpu_temp_data.get('cpu_temp'),
+                'cpu_temp_max': cpu_temp_data.get('cpu_temp_max'),
+                'cpu_temp_alarm': cpu_temp_data.get('cpu_temp_alarm'),
                 'threats': threat_data,
                 'system_logs': system_logs,
                 'interfaces': interface_stats_list,  # For backward compatibility (UI uses this)
