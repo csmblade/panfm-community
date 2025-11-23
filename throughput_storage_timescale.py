@@ -300,34 +300,41 @@ class TimescaleStorage:
                 'url_version': sample.pop('url_version', None)
             }
 
-            # Parse JSON fields
+            # Parse JSON fields (PostgreSQL JSONB already deserialized by psycopg2)
+            # Only json.loads() if it's a string, otherwise use as-is (already a dict)
             if sample.get('top_bandwidth_client_json'):
-                sample['top_bandwidth_client'] = json.loads(sample.pop('top_bandwidth_client_json'))
+                json_value = sample.pop('top_bandwidth_client_json')
+                sample['top_bandwidth_client'] = json.loads(json_value) if isinstance(json_value, str) else json_value
             else:
                 sample.pop('top_bandwidth_client_json', None)
 
             if sample.get('top_internal_client_json'):
-                sample['top_internal_client'] = json.loads(sample.pop('top_internal_client_json'))
+                json_value = sample.pop('top_internal_client_json')
+                sample['top_internal_client'] = json.loads(json_value) if isinstance(json_value, str) else json_value
             else:
                 sample.pop('top_internal_client_json', None)
 
             if sample.get('top_internet_client_json'):
-                sample['top_internet_client'] = json.loads(sample.pop('top_internet_client_json'))
+                json_value = sample.pop('top_internet_client_json')
+                sample['top_internet_client'] = json.loads(json_value) if isinstance(json_value, str) else json_value
             else:
                 sample.pop('top_internet_client_json', None)
 
             if sample.get('top_category_wan_json'):
-                sample['top_category_wan'] = json.loads(sample.pop('top_category_wan_json'))
+                json_value = sample.pop('top_category_wan_json')
+                sample['top_category_wan'] = json.loads(json_value) if isinstance(json_value, str) else json_value
             else:
                 sample.pop('top_category_wan_json', None)
 
             if sample.get('top_category_lan_json'):
-                sample['top_category_lan'] = json.loads(sample.pop('top_category_lan_json'))
+                json_value = sample.pop('top_category_lan_json')
+                sample['top_category_lan'] = json.loads(json_value) if isinstance(json_value, str) else json_value
             else:
                 sample.pop('top_category_lan_json', None)
 
             if sample.get('top_category_internet_json'):
-                sample['top_category_internet'] = json.loads(sample.pop('top_category_internet_json'))
+                json_value = sample.pop('top_category_internet_json')
+                sample['top_category_internet'] = json.loads(json_value) if isinstance(json_value, str) else json_value
             else:
                 sample.pop('top_category_internet_json', None)
 

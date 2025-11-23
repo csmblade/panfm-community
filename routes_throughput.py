@@ -26,7 +26,8 @@ def register_throughput_routes(app, csrf, limiter):
             range (optional): Time range for historical data (1m, 5m, 30m, 1h, 6h, 24h, 7d, 30d)
                              If not specified, returns latest real-time sample
         """
-        from throughput_collector import get_collector, init_collector
+        # v2.0.0: Direct TimescaleDB query - NO collector needed in web process
+        from throughput_storage_timescale import TimescaleStorage
         from config import TIMESCALE_DSN
 
         # Check if range parameter is provided for historical data
@@ -64,37 +65,10 @@ def register_throughput_routes(app, csrf, limiter):
         debug(f"Refresh interval: {refresh_interval}s")
 
         try:
-            # Lazy initialization: Initialize collector in worker process if not already initialized
-            # This fixes the Gunicorn forking issue where global variables aren't inherited
-            collector = get_collector()
-            if collector is None:
-                retention_days = settings.get('throughput_retention_days', 90)
-                if settings.get('throughput_collection_enabled', True):
-                    debug("Lazy-initializing collector in worker process (Gunicorn fork fix)")
-                    collector = init_collector(None, retention_days)  # db_path unused in v2.0.0
-                else:
-                    debug("Throughput collection disabled in settings")
-
-            # Get collector and storage (shared across all threads in gthread worker)
-            if collector is None:
-                # Graceful degradation: Return waiting status instead of error (v1.14.0)
-                warning("Throughput collection not initialized - returning waiting status")
-                return jsonify({
-                    'status': 'waiting',
-                    'message': 'Waiting for first data collection (refresh in 30 seconds)',
-                    'timestamp': dt_module.datetime.utcnow().isoformat() + 'Z',
-                    'inbound_mbps': 0,
-                    'outbound_mbps': 0,
-                    'total_mbps': 0,
-                    'inbound_pps': 0,
-                    'outbound_pps': 0,
-                    'total_pps': 0,
-                    'sessions': {'active': 0, 'tcp': 0, 'udp': 0, 'icmp': 0},
-                    'cpu': {'data_plane_cpu': 0, 'mgmt_plane_cpu': 0, 'memory_used_pct': 0},
-                    'retry_after_seconds': 30
-                }), 200  # Return HTTP 200, not 503!
-
-            storage = collector.storage
+            # v2.0.0 Architecture: Web process queries TimescaleDB directly (read-only)
+            # Clock process (clock.py) handles all data collection and writes
+            # NO collector initialization needed here - just query the database
+            storage = TimescaleStorage(TIMESCALE_DSN)
 
             # NOTE: Threat data removed - now handled by separate /api/threats endpoint
             # Throughput endpoint is ONLY for network throughput metrics

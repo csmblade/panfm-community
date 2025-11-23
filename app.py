@@ -159,10 +159,11 @@ except Exception as e:
 # by the separate clock.py process. This keeps the Flask web server lightweight and
 # follows production best practices for separating web and background task concerns.
 #
-# The web server needs read-only access to the throughput database to serve historical
-# data via API endpoints. The collector is now lazy-initialized in routes_throughput.py
-# when first accessed. This fixes the Gunicorn forking issue where global variables
-# initialized in the main process are not inherited by worker processes.
+# The web server has READ-ONLY access to TimescaleDB to serve dashboard data via API
+# endpoints. Web routes query the database directly using TimescaleStorage(TIMESCALE_DSN).
+# NO collector initialization happens in the web process - only clock.py initializes
+# the collector for writing data. This dual-process architecture eliminates locking
+# issues and enables high-performance concurrent reads.
 
 # Disable caching for static files (v2.1.0 - fix browser cache issues)
 @app.after_request

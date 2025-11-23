@@ -10,16 +10,16 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 2
 VERSION_MINOR = 1
-VERSION_PATCH = 0
+VERSION_PATCH = 1
 
 # Build metadata (optional)
-VERSION_BUILD = "20251120"  # YYYYMMDD format
+VERSION_BUILD = "20251123"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
-VERSION_PRERELEASE = "alpha"
+VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Enterprise Data Layer"
+VERSION_CODENAME = "Database-First Architecture"
 
 
 def get_version():
@@ -75,6 +75,25 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '2.1.1',
+        'codename': 'Database-First Architecture',
+        'date': '2025-11-23',
+        'type': 'patch',
+        'changes': [
+            '🔧 CRITICAL FIX: v2.0.0 Architecture Cleanup',
+            '',
+            'REMOVED: Obsolete SQLite-era lazy initialization pattern from routes_throughput.py',
+            'FIXED: Dashboard blank data issue (System Info, Cyberhealth, Top Clients)',
+            'FIXED: PostgreSQL JSONB auto-deserialization (psycopg2 returns dicts)',
+            'IMPLEMENTED: Correct dual-process architecture (clock=WRITE, web=READ)',
+            '',
+            'FILES MODIFIED:',
+            '- routes_throughput.py: Direct TimescaleDB queries (removed lazy init)',
+            '- throughput_storage_timescale.py: Fixed JSONB isinstance() checks',
+            '- app.py: Updated comments for database-first architecture'
+        ]
+    },
     {
         'version': '2.0.0',
         'codename': 'TimescaleDB Migration',
