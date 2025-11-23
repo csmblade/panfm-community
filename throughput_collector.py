@@ -769,6 +769,85 @@ class ThroughputCollector:
             exception(f"Error computing interface errors: {str(e)}")
             return 0
 
+    def collect_traffic_flows_for_device(self, device_id: str):
+        """
+        Collect traffic flow data from firewall for Sankey diagram visualization.
+
+        Parses application statistics to extract source→destination→application flows
+        and stores them in the traffic_flows hypertable for later querying.
+
+        Called every 60 seconds by APScheduler in clock.py as part of regular collection.
+
+        Args:
+            device_id: Device identifier
+
+        Returns:
+            None (logs success/failure via debug logging)
+        """
+        try:
+            debug(f"Collecting traffic flows for device {device_id}")
+
+            # Get application statistics which includes source/destination data
+            from firewall_api_applications import get_application_statistics
+            from firewall_api import get_firewall_config
+
+            # Get firewall config for API calls
+            firewall_config = get_firewall_config(device_id)
+            if not firewall_config:
+                debug(f"No firewall config for device {device_id}, skipping flow collection")
+                return
+
+            # Fetch application data (includes sources and destinations)
+            # Note: This calls the firewall API directly (legacy method)
+            # Future: Consider caching or using database source if available
+            app_data = get_application_statistics(firewall_config, max_logs=5000)
+
+            if not app_data or 'applications' not in app_data:
+                debug(f"No application data for device {device_id}, skipping flow collection")
+                return
+
+            # Extract individual flows from application data
+            flows = []
+            for app in app_data.get('applications', []):
+                app_name = app.get('name')
+                category = app.get('category')
+
+                # Each application has multiple sources
+                for source in app.get('sources', []):
+                    source_ip = source.get('ip')
+
+                    # Each source has multiple destinations
+                    for dest in app.get('destinations', []):
+                        dest_ip = dest.get('ip')
+                        dest_port = dest.get('port')
+                        dest_bytes = dest.get('bytes', 0)
+                        dest_sessions = dest.get('sessions', 1)
+
+                        # Create flow record
+                        if source_ip and dest_ip and dest_bytes > 0:
+                            flows.append({
+                                'source_ip': source_ip,
+                                'dest_ip': dest_ip,
+                                'dest_port': dest_port,
+                                'application': app_name,
+                                'category': category,
+                                'bytes_total': dest_bytes,
+                                'sessions': dest_sessions
+                            })
+
+            # Batch insert flows to database
+            if flows:
+                success = self.storage.insert_traffic_flows(device_id, flows)
+                if success:
+                    debug(f"Collected {len(flows)} traffic flows for device {device_id}")
+                else:
+                    debug(f"Failed to insert traffic flows for device {device_id}")
+            else:
+                debug(f"No traffic flows extracted for device {device_id}")
+
+        except Exception as e:
+            exception(f"Error collecting traffic flows for device {device_id}: {str(e)}")
+
     def _compute_top_applications(self, device_id: str, top_count: int = 5) -> Dict:
         """
         Compute top applications by bandwidth from application_statistics in database.

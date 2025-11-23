@@ -36,6 +36,11 @@ def register_operations_routes(app, csrf, limiter):
     _license_cache = {}
     CACHE_TTL = 300  # 5 minutes (300 seconds)
 
+    # Traffic flows cache for Sankey diagrams (60 seconds TTL)
+    # Flows are collected every 60 seconds, so caching for 60s ensures fresh data
+    _traffic_flows_cache = {}
+    FLOWS_CACHE_TTL = 60  # 60 seconds
+
     # ============================================================================
     # Base Routes
     # ============================================================================
@@ -250,6 +255,104 @@ def register_operations_routes(app, csrf, limiter):
                 'total': 0,
                 'source': 'error'
             })
+
+    @app.route('/api/device-flows/<device_id>/<client_ip>')
+    @limiter.limit("600 per hour")  # Same as other monitoring endpoints
+    @login_required
+    def device_flows_api(device_id, client_ip):
+        """
+        API endpoint for traffic flow data (Sankey diagram visualization).
+
+        Returns source→destination→application flow breakdown for a specific client IP.
+        Queries traffic_flows hypertable with TTL caching for enterprise performance.
+
+        Query params:
+            minutes: Time range in minutes (default: 60, max: 1440)
+
+        Returns:
+            JSON with flow data suitable for d3-sankey rendering
+        """
+        debug(f"=== Device Flows API called for device={device_id}, client={client_ip} ===")
+
+        try:
+            # Parse query parameters
+            minutes = request.args.get('minutes', '60')
+            try:
+                minutes = int(minutes)
+                if minutes < 1 or minutes > 1440:  # Max 24 hours
+                    minutes = 60
+            except ValueError:
+                minutes = 60
+
+            # Check TTL cache (60-second cache to align with collection interval)
+            cache_key = f"{device_id}:{client_ip}:{minutes}"
+            now = time()
+
+            if cache_key in _traffic_flows_cache:
+                cached_data, cache_time = _traffic_flows_cache[cache_key]
+                age = now - cache_time
+                if age < FLOWS_CACHE_TTL:
+                    debug(f"Cache HIT for {cache_key} (age={age:.1f}s)")
+                    return jsonify({
+                        'status': 'success',
+                        'flows': cached_data,
+                        'total_flows': len(cached_data),
+                        'client_ip': client_ip,
+                        'device_id': device_id,
+                        'minutes': minutes,
+                        'timestamp': datetime.now().isoformat(),
+                        'source': 'cache',
+                        'cache_age': age
+                    })
+                else:
+                    debug(f"Cache EXPIRED for {cache_key} (age={age:.1f}s)")
+            else:
+                debug(f"Cache MISS for {cache_key}")
+
+            # Query database for traffic flows
+            collector = get_collector()
+            if not collector or not collector.storage:
+                debug("No collector or storage available")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Database not initialized',
+                    'flows': [],
+                    'total_flows': 0,
+                    'client_ip': client_ip,
+                    'device_id': device_id
+                }), 503
+
+            # Get flows from TimescaleDB (indexed query, <100ms)
+            flows = collector.storage.get_traffic_flows_for_client(device_id, client_ip, minutes)
+
+            debug(f"Retrieved {len(flows)} traffic flows from database for {client_ip} ({minutes}min window)")
+
+            # Update cache
+            _traffic_flows_cache[cache_key] = (flows, now)
+            debug(f"Cache UPDATED for {cache_key}")
+
+            return jsonify({
+                'status': 'success',
+                'flows': flows,
+                'total_flows': len(flows),
+                'client_ip': client_ip,
+                'device_id': device_id,
+                'minutes': minutes,
+                'timestamp': datetime.now().isoformat(),
+                'source': 'database'
+            })
+
+        except Exception as e:
+            error(f"Error in device-flows API: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'flows': [],
+                'total_flows': 0,
+                'client_ip': client_ip,
+                'device_id': device_id,
+                'source': 'error'
+            }), 500
 
     @app.route('/api/top-category')
     @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds

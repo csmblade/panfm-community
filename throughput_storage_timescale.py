@@ -2136,6 +2136,202 @@ class TimescaleStorage:
                 self._return_connection(conn)
 
 
+    # ============================================================================
+    # Traffic Flows Methods (v2.2.0 - Sankey Diagram Support)
+    # ============================================================================
+
+    def insert_traffic_flows(self, device_id: str, flows: List[Dict]) -> bool:
+        """
+        Insert traffic flow records for Sankey diagram visualization.
+
+        Batch inserts source→destination→application flow data collected from firewall.
+        Uses execute_batch for high-performance bulk inserts.
+
+        Args:
+            device_id: Device ID
+            flows: List of flow dictionaries with keys:
+                - source_ip (str): Source IP address
+                - dest_ip (str): Destination IP address
+                - dest_port (int, optional): Destination port
+                - application (str): Application name
+                - category (str, optional): Application category
+                - protocol (str, optional): Protocol ('tcp', 'udp', 'icmp', 'other')
+                - bytes_sent (int, optional): Bytes sent
+                - bytes_received (int, optional): Bytes received
+                - bytes_total (int): Total bytes for this flow
+                - sessions (int, optional): Session count (default: 1)
+                - source_zone (str, optional): Source security zone
+                - dest_zone (str, optional): Destination security zone
+                - source_vlan (str, optional): Source VLAN
+                - dest_vlan (str, optional): Destination VLAN
+                - source_hostname (str, optional): Source hostname
+                - dest_hostname (str, optional): Destination hostname
+
+        Returns:
+            True if successful, False otherwise
+
+        Example:
+            flows = [
+                {
+                    'source_ip': '192.168.1.100',
+                    'dest_ip': '172.217.14.196',
+                    'dest_port': 443,
+                    'application': 'web-browsing',
+                    'category': 'general-internet',
+                    'protocol': 'tcp',
+                    'bytes_total': 1234567,
+                    'sessions': 5
+                },
+                ...
+            ]
+            storage.insert_traffic_flows(device_id, flows)
+        """
+        if not flows:
+            debug("No traffic flows to insert")
+            return True
+
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            # Prepare batch insert
+            query = '''
+                INSERT INTO traffic_flows (
+                    time, device_id, source_ip, dest_ip, dest_port,
+                    application, category, protocol,
+                    bytes_sent, bytes_received, bytes_total, sessions,
+                    source_zone, dest_zone, source_vlan, dest_vlan,
+                    source_hostname, dest_hostname
+                ) VALUES (
+                    NOW(), %s, %s::inet, %s::inet, %s,
+                    %s, %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s
+                )
+                ON CONFLICT (time, device_id, source_ip, dest_ip, dest_port, application)
+                DO UPDATE SET
+                    bytes_sent = traffic_flows.bytes_sent + EXCLUDED.bytes_sent,
+                    bytes_received = traffic_flows.bytes_received + EXCLUDED.bytes_received,
+                    bytes_total = traffic_flows.bytes_total + EXCLUDED.bytes_total,
+                    sessions = traffic_flows.sessions + EXCLUDED.sessions
+            '''
+
+            # Prepare batch data
+            batch_data = []
+            for flow in flows:
+                batch_data.append((
+                    device_id,
+                    flow['source_ip'],
+                    flow['dest_ip'],
+                    flow.get('dest_port'),
+                    flow['application'],
+                    flow.get('category'),
+                    flow.get('protocol'),
+                    flow.get('bytes_sent', 0),
+                    flow.get('bytes_received', 0),
+                    flow['bytes_total'],
+                    flow.get('sessions', 1),
+                    flow.get('source_zone'),
+                    flow.get('dest_zone'),
+                    flow.get('source_vlan'),
+                    flow.get('dest_vlan'),
+                    flow.get('source_hostname'),
+                    flow.get('dest_hostname')
+                ))
+
+            # Batch insert (page size 100)
+            execute_batch(cursor, query, batch_data, page_size=100)
+            conn.commit()
+            cursor.close()
+
+            debug(f"Inserted {len(flows)} traffic flows for device {device_id}")
+            return True
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to insert traffic flows: %s", str(e))
+            return False
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_traffic_flows_for_client(self, device_id: str, client_ip: str, minutes: int = 60) -> List[Dict]:
+        """
+        Get traffic flows for a specific client IP (Sankey diagram data).
+
+        Queries traffic_flows hypertable with indexed lookup for fast response (<100ms).
+        Returns aggregated flows grouped by application, destination IP, and port.
+
+        Args:
+            device_id: Device ID
+            client_ip: Client/source IP address
+            minutes: Time window in minutes (default: 60 = last 1 hour)
+
+        Returns:
+            List of flow dictionaries with keys:
+                - application (str): Application name
+                - destination_ip (str): Destination IP
+                - destination_port (int): Destination port
+                - bytes (int): Total bytes for this flow
+                - sessions (int): Session count
+
+        Example:
+            flows = storage.get_traffic_flows_for_client(
+                device_id='device-123',
+                client_ip='192.168.1.100',
+                minutes=60
+            )
+            # Returns: [
+            #     {'application': 'web-browsing', 'destination_ip': '172.217.14.196',
+            #      'destination_port': 443, 'bytes': 1234567, 'sessions': 5},
+            #     ...
+            # ]
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            query = '''
+                SELECT
+                    application,
+                    dest_ip::text AS destination_ip,
+                    dest_port AS destination_port,
+                    SUM(bytes_total) AS bytes,
+                    SUM(sessions) AS sessions,
+                    MAX(category) AS category,
+                    MAX(protocol) AS protocol,
+                    MAX(dest_zone) AS destination_zone,
+                    MAX(dest_hostname) AS destination_hostname
+                FROM traffic_flows
+                WHERE device_id = %s
+                  AND source_ip = %s::inet
+                  AND time >= NOW() - INTERVAL '%s minutes'
+                GROUP BY application, dest_ip, dest_port
+                ORDER BY bytes DESC
+                LIMIT 50
+            '''
+
+            cursor.execute(query, (device_id, client_ip, minutes))
+            rows = cursor.fetchall()
+            cursor.close()
+
+            flows = [dict(row) for row in rows]
+            debug(f"Retrieved {len(flows)} traffic flows for client {client_ip} ({minutes}min window)")
+            return flows
+
+        except Exception as e:
+            exception(f"Failed to get traffic flows for client {client_ip}: {str(e)}")
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
     def close(self):
         """Close connection pool."""
         if hasattr(self, 'pool') and self.pool:

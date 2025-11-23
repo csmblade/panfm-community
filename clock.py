@@ -290,6 +290,91 @@ def collect_connected_devices():
     finally:
         current_job = None
 
+def collect_traffic_flows():
+    """Scheduled job to collect traffic flows for Sankey diagrams from all firewalls."""
+    global current_job
+    job_name = 'traffic_flows_collection'
+    current_job = job_name
+    start_time = datetime.utcnow()
+    print(f"[CLOCK JOB] ► collect_traffic_flows() STARTED at {start_time.isoformat()}")
+
+    # Initialize job stats if not exists
+    if job_name not in scheduler_stats['jobs']:
+        scheduler_stats['jobs'][job_name] = {
+            'success_count': 0,
+            'error_count': 0,
+            'last_run': None,
+            'last_error': None
+        }
+
+    try:
+        # Import required modules
+        from device_manager import device_manager
+
+        collector = get_collector()
+        if not collector:
+            error("Collector not initialized, skipping traffic flows collection")
+            current_job = None
+            return
+
+        # Get all enabled devices
+        devices = device_manager.load_devices(decrypt_api_keys=False)
+        enabled_devices = [d for d in devices if d.get('enabled', True)]
+
+        if not enabled_devices:
+            debug("No enabled devices found, skipping traffic flows collection")
+            return
+
+        print(f"[CLOCK JOB] Collecting traffic flows from {len(enabled_devices)} enabled firewall(s)...")
+        info("Collecting traffic flows from %d enabled firewall(s)", len(enabled_devices))
+
+        success_count = 0
+        error_count = 0
+
+        for device in enabled_devices:
+            device_id = device.get('id')
+            device_name = device.get('name', device_id)
+
+            try:
+                print(f"[CLOCK JOB] Collecting traffic flows from device '{device_name}' ({device_id})...")
+
+                # Collect traffic flows for this device
+                collector.collect_traffic_flows_for_device(device_id)
+                success_count += 1
+
+                print(f"[CLOCK JOB] ✓ Traffic flows collected from device '{device_name}'")
+
+            except Exception as e:
+                error_count += 1
+                print(f"[CLOCK JOB] ✗ Failed to collect traffic flows from device '{device_name}': {str(e)}")
+                exception(f"Error collecting traffic flows from device {device_name}: {str(e)}")
+
+        end_time = datetime.utcnow()
+        duration = (end_time - start_time).total_seconds()
+
+        print(f"[CLOCK JOB] ✓ collect_traffic_flows() COMPLETED in {duration:.2f} seconds")
+        print(f"[CLOCK JOB] Results: {success_count} success, {error_count} errors")
+        info(f"Traffic flows collection completed: {success_count} success, {error_count} errors, duration={duration:.2f}s")
+
+        # Update job stats
+        scheduler_stats['jobs'][job_name]['success_count'] += 1
+        scheduler_stats['jobs'][job_name]['last_run'] = end_time.isoformat()
+
+    except Exception as e:
+        end_time = datetime.utcnow()
+        duration = (end_time - start_time).total_seconds()
+
+        print(f"[CLOCK JOB] ✗ ERROR after {duration:.2f} seconds: {str(e)}")
+        exception("Error in traffic flows collection after %.2fs: %s", duration, str(e))
+
+        # Update job error stats
+        scheduler_stats['jobs'][job_name]['error_count'] += 1
+        scheduler_stats['jobs'][job_name]['last_error'] = str(e)
+
+        raise  # Re-raise to trigger EVENT_JOB_ERROR
+    finally:
+        current_job = None
+
 def check_settings_changes(scheduler):
     """
     Check if settings have changed and reschedule jobs if needed.
@@ -564,7 +649,18 @@ def main():
     )
     print(f"[CLOCK INIT] ✓ Job 'collect_connected_devices' registered with {refresh_interval}-second interval")
 
-    # Register Job 3: Database Cleanup (daily at 02:00 UTC)
+    # Register Job 3: Traffic Flows Collection (for Sankey diagrams)
+    scheduler.add_job(
+        func=collect_traffic_flows,
+        trigger='interval',
+        seconds=60,  # Collect every 60 seconds
+        id='collect_traffic_flows',
+        name='Traffic Flows Collection',
+        replace_existing=True
+    )
+    print(f"[CLOCK INIT] ✓ Job 'collect_traffic_flows' registered (every 60 seconds)")
+
+    # Register Job 4: Database Cleanup (daily at 02:00 UTC)
     scheduler.add_job(
         func=cleanup_old_data,
         trigger='cron',
@@ -576,7 +672,7 @@ def main():
     )
     print(f"[CLOCK INIT] ✓ Job 'cleanup_databases' registered (daily at 02:00 UTC)")
 
-    # Register Job 4: Scheduler Stats Persistence (every 60 seconds)
+    # Register Job 5: Scheduler Stats Persistence (every 60 seconds)
     scheduler.add_job(
         func=persist_scheduler_stats,
         trigger='interval',
@@ -618,9 +714,16 @@ def main():
         print(f"[CLOCK INIT] ⚠ Initial connected devices collection failed: {str(e)}")
         # Continue anyway - scheduler will retry
 
+    try:
+        collect_traffic_flows()  # Run traffic flows collection immediately
+        print("[CLOCK INIT] ✓ Initial traffic flows collection completed")
+    except Exception as e:
+        print(f"[CLOCK INIT] ⚠ Initial traffic flows collection failed: {str(e)}")
+        # Continue anyway - scheduler will retry
+
     print("=" * 60)
     print(f"Initial collections complete - dashboard data available immediately")
-    print(f"Recurring collections will run every {refresh_interval} seconds")
+    print(f"Recurring collections will run every {refresh_interval} seconds (traffic flows: 60s)")
     print("=" * 60)
 
     # Wait brief period before starting scheduler to avoid race condition

@@ -601,7 +601,7 @@ function renderConnectedDevicesTable() {
                 <td style="padding: 12px; color: #666;">${device.zone || '-'}</td>
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.interface}</td>
                 <td style="padding: 12px; color: #666;">${device.ttl}</td>
-                <td style="padding: 12px; text-align: right; color: #FA582D; font-weight: 600;">${formatBytesHuman(device.total_volume || 0)}</td>
+                <td onclick="openSankeyDiagram('${device.ip}')" style="padding: 12px; text-align: right; color: #FA582D; font-weight: 600; cursor: pointer; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'" title="Click to view traffic flow breakdown">${formatBytesHuman(device.total_volume || 0)}</td>
             </tr>`;
 
         // Add expandable row detail for location/comments (if either exists)

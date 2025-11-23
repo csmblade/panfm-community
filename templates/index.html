@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
     <style>
         :root {
             --font-primary: 'Roboto', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -1508,6 +1509,64 @@
                         <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1em; font-family: var(--font-primary); font-weight: 600; text-transform: uppercase;">VLANs</h3>
                         <div id="appDetailsVLANs" style="font-family: monospace; color: #666; font-size: 0.95em;">-</div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Traffic Flow Sankey Diagram Modal -->
+        <div id="sankeyModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1400px; width: 95%; max-height: 95vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+                <!-- Modal Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                    <div>
+                        <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Traffic Flow Breakdown</h2>
+                        <p id="sankeyClientInfo" style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Source: <span style="font-weight: 600; color: #FA582D;">-</span></p>
+                    </div>
+                    <button id="closeSankeyModalBtn" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                </div>
+
+                <!-- Summary Stats -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                    <div style="background: linear-gradient(135deg, #FA582D 0%, #E04F26 100%); border-radius: 8px; padding: 15px; color: #F2F0EF;">
+                        <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px; font-family: var(--font-secondary);">Total Flows</div>
+                        <div id="sankeyTotalFlows" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary);">-</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #C64620 0%, #AD3D1A 100%); border-radius: 8px; padding: 15px; color: #F2F0EF;">
+                        <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px; font-family: var(--font-secondary);">Total Volume</div>
+                        <div id="sankeyTotalVolume" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary);">-</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #AD3D1A 0%, #933414 100%); border-radius: 8px; padding: 15px; color: #F2F0EF;">
+                        <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px; font-family: var(--font-secondary);">Time Range</div>
+                        <div id="sankeyTimeRange" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary);">60 min</div>
+                    </div>
+                </div>
+
+                <!-- Sankey Diagram Container -->
+                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                    <div id="sankeyDiagram" style="width: 100%; height: 600px; overflow: visible;">
+                        <!-- SVG will be rendered here by d3-sankey -->
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="sankeyLoading" style="display: none; text-align: center; padding: 60px 20px;">
+                    <div style="margin: 0 auto 20px auto; width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #FA582D; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <p style="color: #666; font-size: 1.1em; font-family: var(--font-secondary);">Loading traffic flow data...</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="sankeyError" style="display: none; padding: 20px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                    <p style="margin: 0; color: #856404; font-size: 0.9em; font-family: var(--font-secondary);">
+                        <strong>Unable to load traffic flow data.</strong> <span id="sankeyErrorMessage"></span>
+                    </p>
+                </div>
+
+                <!-- Note -->
+                <div style="padding: 10px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px;">
+                    <p style="margin: 0; color: #0d47a1; font-size: 0.9em; font-family: var(--font-secondary);">
+                        <strong>Flow visualization:</strong> Shows source → destination → application connections.
+                        Link width represents traffic volume. Data collected every 60 seconds from firewall.
+                    </p>
                 </div>
             </div>
         </div>
@@ -3794,6 +3853,7 @@
     <script defer src="/static/pages-connected-devices-core.js"></script>
     <script defer src="/static/pages-connected-devices-metadata.js"></script>
     <script defer src="/static/pages-connected-devices-export.js"></script>
+    <script defer src="/static/pages-connected-devices-sankey.js"></script>
 
     <!-- Page-specific modules (depend on app.js) -->
     <script defer src="/static/devices.js?v=1.8.4"></script>
