@@ -106,6 +106,21 @@ class ThroughputCollector:
                               db_versions.get('threat_version', 'N/A'),
                               db_versions.get('wildfire_version', 'N/A'))
 
+                    # Enhanced Insights: Collect CPU temperature
+                    # Phase 2: Store CPU temperature in database instead of hitting firewall API directly
+                    from firewall_api_metrics import get_cpu_temperature
+                    temp_data = get_cpu_temperature(device_id)
+                    if temp_data:
+                        throughput_data['cpu_temp'] = temp_data.get('cpu_temp')
+                        throughput_data['cpu_temp_max'] = temp_data.get('cpu_temp_max')
+                        throughput_data['cpu_temp_alarm'] = temp_data.get('cpu_temp_alarm', False)
+                        if temp_data.get('cpu_temp') is not None:
+                            debug("Collected CPU temperature for device %s: %d°C / %d°C (alarm: %s)",
+                                  device_name,
+                                  temp_data.get('cpu_temp'),
+                                  temp_data.get('cpu_temp_max'),
+                                  temp_data.get('cpu_temp_alarm', False))
+
                     # Note: Session utilization is already enhanced in get_throughput_data()
                     # which calls get_session_count() that now returns max and utilization_pct
 

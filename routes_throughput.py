@@ -16,6 +16,23 @@ def register_throughput_routes(app, csrf, limiter):
     """Register throughput data and history routes"""
     debug("Registering throughput routes")
 
+    # ============================================================================
+    # PHASE 3: Singleton TimescaleStorage Instance Caching
+    # ============================================================================
+    # Reuse single TimescaleStorage instance across all requests instead of
+    # creating new connections every time. Reduces connection overhead significantly.
+    _storage_instance = None
+
+    def get_storage():
+        """Get or create singleton TimescaleStorage instance"""
+        nonlocal _storage_instance
+        if _storage_instance is None:
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+            _storage_instance = TimescaleStorage(TIMESCALE_DSN)
+            debug("Created singleton TimescaleStorage instance")
+        return _storage_instance
+
     @app.route('/api/throughput')
     @limiter.limit("600 per hour")  # Support auto-refresh (configurable interval)
     @login_required
@@ -27,8 +44,7 @@ def register_throughput_routes(app, csrf, limiter):
                              If not specified, returns latest real-time sample
         """
         # v2.0.0: Direct TimescaleDB query - NO collector needed in web process
-        from throughput_storage_timescale import TimescaleStorage
-        from config import TIMESCALE_DSN
+        # Phase 3: Using singleton storage instance (see get_storage() above)
 
         # Check if range parameter is provided for historical data
         time_range = request.args.get('range')
@@ -68,7 +84,7 @@ def register_throughput_routes(app, csrf, limiter):
             # v2.0.0 Architecture: Web process queries TimescaleDB directly (read-only)
             # Clock process (clock.py) handles all data collection and writes
             # NO collector initialization needed here - just query the database
-            storage = TimescaleStorage(TIMESCALE_DSN)
+            storage = get_storage()  # Phase 3: Use singleton instance
 
             # NOTE: Threat data removed - now handled by separate /api/threats endpoint
             # Throughput endpoint is ONLY for network throughput metrics
@@ -178,16 +194,18 @@ def register_throughput_routes(app, csrf, limiter):
                 debug(f"Top internet client: {top_internet_client['ip']} ({top_internet_client.get('hostname', 'Unknown')}) - {top_internet_client['bytes_total']/1_000_000:.2f} MB")
 
             # ============================================================================
-            # CPU TEMPERATURE: Real-time temperature from firewall
+            # CPU TEMPERATURE: From database (collected by throughput_collector)
+            # Phase 2: Read from database instead of direct firewall API call
             # ============================================================================
-            from firewall_api_metrics import get_cpu_temperature
-            temp_data = get_cpu_temperature(device_id)
-            if temp_data:
-                latest_sample['cpu_temp'] = temp_data.get('cpu_temp')
-                latest_sample['cpu_temp_max'] = temp_data.get('cpu_temp_max')
-                latest_sample['cpu_temp_alarm'] = temp_data.get('cpu_temp_alarm', False)
-                if temp_data.get('cpu_temp') is not None:
-                    debug(f"CPU Temperature: {temp_data['cpu_temp']}°C / {temp_data['cpu_temp_max']}°C")
+            # CPU temp is already in latest_sample from database query above
+            if latest_sample.get('cpu_temp') is not None:
+                debug(f"CPU Temperature (from database): {latest_sample.get('cpu_temp')}°C / {latest_sample.get('cpu_temp_max')}°C (alarm: {latest_sample.get('cpu_temp_alarm', False)})")
+            else:
+                # Fallback if not yet collected: add null values
+                latest_sample['cpu_temp'] = None
+                latest_sample['cpu_temp_max'] = None
+                latest_sample['cpu_temp_alarm'] = False
+                debug("CPU temperature not yet collected by throughput_collector")
 
             return jsonify(latest_sample)
 
@@ -289,9 +307,8 @@ def register_throughput_routes(app, csrf, limiter):
                 # Fallback: create storage directly for read-only queries
                 # This is needed because web process doesn't have collector initialized
                 debug("Collector not initialized, using direct storage access")
-                from throughput_storage_timescale import TimescaleStorage
-                from config import TIMESCALE_DSN
-                storage = TimescaleStorage(TIMESCALE_DSN)
+                # Phase 3: Using singleton storage instance
+                storage = get_storage()  # Phase 3: Use singleton instance
             else:
                 storage = collector.storage
 
@@ -433,9 +450,8 @@ def register_throughput_routes(app, csrf, limiter):
             if not collector:
                 # Fallback: create storage directly for read-only queries
                 debug("Collector not initialized, using direct storage access for export")
-                from throughput_storage_timescale import TimescaleStorage
-                from config import TIMESCALE_DSN
-                storage = TimescaleStorage(TIMESCALE_DSN)
+                # Phase 3: Using singleton storage instance
+                storage = get_storage()  # Phase 3: Use singleton instance
             else:
                 storage = collector.storage
 
@@ -552,9 +568,8 @@ def register_throughput_routes(app, csrf, limiter):
             if not collector:
                 # Fallback: create storage directly for read-only queries
                 debug("Collector not initialized, using direct storage access for stats")
-                from throughput_storage_timescale import TimescaleStorage
-                from config import TIMESCALE_DSN
-                storage = TimescaleStorage(TIMESCALE_DSN)
+                # Phase 3: Using singleton storage instance
+                storage = get_storage()  # Phase 3: Use singleton instance
             else:
                 storage = collector.storage
 
@@ -675,9 +690,8 @@ def register_throughput_routes(app, csrf, limiter):
             if not collector:
                 # Fallback: create storage directly for read-only queries
                 debug("Collector not initialized, using direct storage access")
-                from throughput_storage_timescale import TimescaleStorage
-                from config import TIMESCALE_DSN
-                storage = TimescaleStorage(TIMESCALE_DSN)
+                # Phase 3: Using singleton storage instance
+                storage = get_storage()  # Phase 3: Use singleton instance
             else:
                 storage = collector.storage
 
@@ -1018,7 +1032,7 @@ def register_throughput_routes(app, csrf, limiter):
             from firewall_api import get_firewall_config
             from firewall_api_logs import get_traffic_logs
 
-            storage = TimescaleStorage(TIMESCALE_DSN)
+            storage = get_storage()  # Phase 3: Use singleton instance
 
             # Single query with JOIN - filters by tags in PostgreSQL
             connected_devices = storage.get_connected_devices_with_metadata(

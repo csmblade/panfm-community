@@ -20,11 +20,21 @@ from firewall_api import (
 )
 from logger import debug, error
 from throughput_collector import get_collector
+from time import time
 
 
 def register_operations_routes(app, csrf, limiter):
     """Register operational endpoints (logs, applications, interfaces, settings, tech support)"""
     debug("Registering operational routes")
+
+    # ============================================================================
+    # TTL-Based Response Caching (Performance Optimization)
+    # ============================================================================
+    # Cache slow firewall API calls to improve dashboard load times
+    # Software and license info don't change frequently - safe to cache for 5 minutes
+    _software_cache = {}
+    _license_cache = {}
+    CACHE_TTL = 300  # 5 minutes (300 seconds)
 
     # ============================================================================
     # Base Routes
@@ -323,21 +333,65 @@ def register_operations_routes(app, csrf, limiter):
     @limiter.limit("120 per minute")  # Higher limit for reboot monitoring (15s intervals = 4/min, +buffer)
     @login_required
     def software_updates():
-        """API endpoint for software update information"""
+        """API endpoint for software update information (CACHED: 5 min TTL)"""
         debug("=== Software Updates API endpoint called ===")
         settings = load_settings()
-        debug(f"Selected device ID from settings: {settings.get('selected_device_id', 'NONE')}")
+        device_id = settings.get('selected_device_id', '')
+        debug(f"Selected device ID: {device_id}")
+
+        # Check cache first
+        now = time()
+        if device_id and device_id in _software_cache:
+            cached_data, cached_time = _software_cache[device_id]
+            age = int(now - cached_time)
+            if now - cached_time < CACHE_TTL:
+                debug(f"Software updates cache HIT (age: {age}s, TTL: {CACHE_TTL}s)")
+                return jsonify(cached_data)
+            else:
+                debug(f"Software updates cache EXPIRED (age: {age}s > TTL: {CACHE_TTL}s)")
+
+        # Cache miss or expired - fetch from firewall
+        debug("Software updates cache MISS - fetching from firewall API")
         firewall_config = get_firewall_config()
         data = get_software_updates(firewall_config)
+
+        # Store in cache
+        if device_id:
+            _software_cache[device_id] = (data, now)
+            debug(f"Cached software updates for device {device_id}")
+
         return jsonify(data)
 
     @app.route('/api/license')
     @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds
     @login_required
     def license_info():
-        """API endpoint for license information"""
+        """API endpoint for license information (CACHED: 5 min TTL)"""
+        settings = load_settings()
+        device_id = settings.get('selected_device_id', '')
+        debug(f"License info requested for device: {device_id}")
+
+        # Check cache first
+        now = time()
+        if device_id and device_id in _license_cache:
+            cached_data, cached_time = _license_cache[device_id]
+            age = int(now - cached_time)
+            if now - cached_time < CACHE_TTL:
+                debug(f"License info cache HIT (age: {age}s, TTL: {CACHE_TTL}s)")
+                return jsonify(cached_data)
+            else:
+                debug(f"License info cache EXPIRED (age: {age}s > TTL: {CACHE_TTL}s)")
+
+        # Cache miss or expired - fetch from firewall
+        debug("License info cache MISS - fetching from firewall API")
         firewall_config = get_firewall_config()
         data = get_license_info(firewall_config)
+
+        # Store in cache
+        if device_id:
+            _license_cache[device_id] = (data, now)
+            debug(f"Cached license info for device {device_id}")
+
         return jsonify(data)
 
     # ============================================================================
