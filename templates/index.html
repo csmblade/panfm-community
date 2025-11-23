@@ -1233,28 +1233,28 @@
                 <div class="error-message" id="connectedDevicesErrorMessage"></div>
 
                 <!-- Search and Filter Bar -->
-                <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 3px solid #FA582D;">
+                <div style="background: #F2F0EF; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 3px solid #FA582D;">
                     <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                         <div>
                             <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">General Search</label>
                             <input type="text"
                                 id="connectedDevicesSearchInput"
                                 placeholder="Search by hostname, IP, MAC, vendor..."
-                                style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s;"
+                                style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s; background: #F2F0EF;"
                                 onfocus="this.style.borderColor='#FA582D'"
                                 onblur="this.style.borderColor='#ddd'"
                             />
                         </div>
                         <div>
                             <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">VLAN Filter</label>
-                            <select id="connectedDevicesVlanFilter" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer; transition: border-color 0.3s;" onfocus="this.style.borderColor='#ff6600'" onblur="this.style.borderColor='#ddd'">
+                            <select id="connectedDevicesVlanFilter" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: #F2F0EF; color: #333; font-size: 0.95em; cursor: pointer; transition: border-color 0.3s;" onfocus="this.style.borderColor='#ff6600'" onblur="this.style.borderColor='#ddd'">
                                 <option value="">All VLANs</option>
                                 <!-- Will be populated dynamically -->
                             </select>
                         </div>
                         <div>
                             <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Security Zone Filter</label>
-                            <select id="connectedDevicesZoneFilter" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer; transition: border-color 0.3s;" onfocus="this.style.borderColor='#ff6600'" onblur="this.style.borderColor='#ddd'">
+                            <select id="connectedDevicesZoneFilter" style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: #F2F0EF; color: #333; font-size: 0.95em; cursor: pointer; transition: border-color 0.3s;" onfocus="this.style.borderColor='#ff6600'" onblur="this.style.borderColor='#ddd'">
                                 <option value="">All Zones</option>
                                 <!-- Will be populated dynamically -->
                             </select>
@@ -1264,7 +1264,7 @@
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <label style="color: #333; font-weight: 600; font-size: 0.9em;">Show:</label>
-                                <select id="connectedDevicesLimit" style="padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.9em; cursor: pointer;">
+                                <select id="connectedDevicesLimit" style="padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; background: #F2F0EF; color: #333; font-size: 0.9em; cursor: pointer;">
                                     <option value="10">10 devices</option>
                                     <option value="25">25 devices</option>
                                     <option value="50" selected>50 devices</option>
