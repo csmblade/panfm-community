@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 2
 VERSION_MINOR = 1
-VERSION_PATCH = 1
+VERSION_PATCH = 2
 
 # Build metadata (optional)
 VERSION_BUILD = "20251123"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251123"  # YYYYMMDD format
 VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Database-First Architecture"
+VERSION_CODENAME = "UI Polish"
 
 
 def get_version():

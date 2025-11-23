@@ -381,121 +381,163 @@ class ApiClient {
 window.apiClient = new ApiClient();
 console.log('[ApiClient] Centralized API client initialized (v1.14.0)');
 
-// Initialize Chart.js
-const ctx = document.getElementById('throughputChart').getContext('2d');
-// Make chart globally accessible
-const chart = window.chart = window.throughputChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: chartData.labels,
-        datasets: [
-            {
-                label: 'Inbound',
-                data: chartData.inbound,
-                borderColor: '#ff6600',
-                backgroundColor: 'rgba(255, 102, 0, 0.1)',
-                borderWidth: 3,
-                tension: 0.4,
-                fill: true,
-                pointRadius: 4,
-                pointHoverRadius: 6
-            },
-            {
-                label: 'Outbound',
-                data: chartData.outbound,
-                borderColor: '#ff9933',
-                backgroundColor: 'rgba(255, 153, 51, 0.1)',
-                borderWidth: 3,
-                tension: 0.4,
-                fill: true,
-                pointRadius: 4,
-                pointHoverRadius: 6
-            },
-            {
-                label: 'Total',
-                data: chartData.total,
-                borderColor: '#333333',
-                backgroundColor: 'rgba(51, 51, 51, 0.1)',
-                borderWidth: 3,
-                tension: 0.4,
-                fill: true,
-                pointRadius: 4,
-                pointHoverRadius: 6
-            }
-        ]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        backgroundColor: '#F7D9BC',  // Custom background color
-        interaction: {
-            mode: 'index',
-            intersect: false,
-        },
-        plugins: {
-            legend: {
-                display: false
-            },
-            tooltip: {
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                padding: 12,
-                titleFont: {
-                    size: 14
-                },
-                bodyFont: {
-                    size: 13
-                },
-                callbacks: {
-                    label: function(context) {
-                        let label = context.dataset.label || '';
-                        if (label) {
-                            label += ': ';
-                        }
-                        label += context.parsed.y.toFixed(2) + ' MB';
-                        return label;
-                    }
-                }
-            }
-        },
-        scales: {
-            x: {
-                display: true,
-                grid: {
-                    display: false
-                },
-                ticks: {
-                    font: {
-                        size: 10
-                    },
-                    maxRotation: 0,
-                    minRotation: 0,
-                    maxTicksLimit: 10,
-                    autoSkip: true,
-                    autoSkipPadding: 10
-                }
-            },
-            y: {
-                display: true,
-                beginAtZero: true,
-                grid: {
-                    color: 'rgba(0, 0, 0, 0.05)'
-                },
-                ticks: {
-                    font: {
-                        size: 12
-                    },
-                    callback: function(value) {
-                        return value.toFixed(1) + ' Mbps';
-                    }
-                }
-            }
-        },
-        animation: {
-            duration: 750,
-            easing: 'easeInOutQuart'
-        }
+// D3.js Line Chart Implementation (replicates Chart.js network throughput graph)
+function initializeD3Chart() {
+    const svg = d3.select("#throughputChart");
+    const margin = {top: 20, right: 30, bottom: 50, left: 80};
+    const width = svg.node().getBoundingClientRect().width - margin.left - margin.right;
+    const height = 300 - margin.top - margin.bottom;
+
+    // Clear any existing chart
+    svg.selectAll("*").remove();
+
+    // Create chart group
+    const g = svg.append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // Store globally for updates
+    window.d3Chart = {
+        svg: svg,
+        g: g,
+        margin: margin,
+        width: width,
+        height: height
+    };
+
+    return window.d3Chart;
+}
+
+// Update D3 line chart with new data
+function updateD3Chart(data) {
+    if (!window.d3Chart) {
+        initializeD3Chart();
     }
-});
+
+    const {g, width, height, margin} = window.d3Chart;
+
+    // Clear existing content
+    g.selectAll("*").remove();
+
+    // Prepare data
+    const labels = data.labels || [];
+    const inbound = data.inbound || [];
+    const outbound = data.outbound || [];
+    const total = data.total || [];
+
+    if (labels.length === 0) return;
+
+    // Create scales
+    const xScale = d3.scalePoint()
+        .domain(labels)
+        .range([0, width])
+        .padding(0.5);
+
+    const allValues = [...inbound, ...outbound, ...total].filter(v => v !== null && v !== undefined);
+    const maxY = d3.max(allValues) || 10;
+
+    const yScale = d3.scaleLinear()
+        .domain([0, maxY])
+        .range([height, 0])
+        .nice();
+
+    // Create line generators with smooth curves
+    const line = d3.line()
+        .defined(d => d !== null && d !== undefined)
+        .x((d, i) => xScale(labels[i]))
+        .y(d => yScale(d))
+        .curve(d3.curveMonotoneX);  // Smooth curve similar to Chart.js tension
+
+    // Create area generators for filled areas
+    const area = d3.area()
+        .defined(d => d !== null && d !== undefined)
+        .x((d, i) => xScale(labels[i]))
+        .y0(height)
+        .y1(d => yScale(d))
+        .curve(d3.curveMonotoneX);
+
+    // Draw grid lines (subtle)
+    g.append("g")
+        .attr("class", "grid")
+        .attr("opacity", 0.1)
+        .call(d3.axisLeft(yScale)
+            .tickSize(-width)
+            .tickFormat("")
+        );
+
+    // Draw Total line and area
+    g.append("path")
+        .datum(total)
+        .attr("fill", "rgba(51, 51, 51, 0.1)")
+        .attr("d", area);
+
+    g.append("path")
+        .datum(total)
+        .attr("fill", "none")
+        .attr("stroke", "#333333")
+        .attr("stroke-width", 3)
+        .attr("d", line);
+
+    // Draw Outbound line and area
+    g.append("path")
+        .datum(outbound)
+        .attr("fill", "rgba(255, 153, 51, 0.1)")
+        .attr("d", area);
+
+    g.append("path")
+        .datum(outbound)
+        .attr("fill", "none")
+        .attr("stroke", "#ff9933")
+        .attr("stroke-width", 3)
+        .attr("d", line);
+
+    // Draw Inbound line and area
+    g.append("path")
+        .datum(inbound)
+        .attr("fill", "rgba(255, 102, 0, 0.1)")
+        .attr("d", area);
+
+    g.append("path")
+        .datum(inbound)
+        .attr("fill", "none")
+        .attr("stroke", "#ff6600")
+        .attr("stroke-width", 3)
+        .attr("d", line);
+
+    // Add X axis with time labels
+    const xAxis = d3.axisBottom(xScale)
+        .tickValues(xScale.domain().filter((d, i) => i % Math.ceil(labels.length / 10) === 0));
+
+    g.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(xAxis)
+        .selectAll("text")
+        .style("font-size", "10px")
+        .attr("transform", "rotate(0)");
+
+    // Add Y axis
+    const yAxis = d3.axisLeft(yScale)
+        .ticks(6)
+        .tickFormat(d => {
+            // Format based on value magnitude for cleaner labels
+            if (d >= 100) {
+                return d.toFixed(0) + ' Mbps';
+            } else if (d >= 10) {
+                return d.toFixed(1) + ' Mbps';
+            } else {
+                return d.toFixed(2) + ' Mbps';
+            }
+        });
+
+    g.append("g")
+        .call(yAxis)
+        .selectAll("text")
+        .style("font-size", "12px");
+}
+
+// Initialize on load
+const chart = initializeD3Chart();
+window.chart = chart;
+window.throughputChart = chart;
 
 // Calculate trend from historical data
 function calculateTrend(dataArray) {
@@ -609,14 +651,8 @@ function updateChart(data, source = 'unknown') {
         chartData.total.shift();
     }
 
-    // Update chart datasets directly
-    chart.data.labels = chartData.labels.slice();
-    chart.data.datasets[0].data = chartData.inbound.slice();
-    chart.data.datasets[1].data = chartData.outbound.slice();
-    chart.data.datasets[2].data = chartData.total.slice();
-
-    // Update chart
-    chart.update('none'); // No animation for smoother updates
+    // Update D3 line chart with new data
+    updateD3Chart(chartData);
 }
 
 // Update stat cards
@@ -1272,8 +1308,8 @@ async function preloadChartData() {
                 miniChartData.udp.push(sample.sessions_udp || 0);
             });
 
-            // Update main chart with preloaded data
-            chart.update();
+            // Update main D3 line chart with preloaded data
+            updateD3Chart(window.chartData);
 
             // Update mini charts with preloaded data
             if (ppsChart) {
@@ -1795,13 +1831,8 @@ function appendSnapshotToChart(data) {
         window.chartData.total.splice(0, removeCount);
     }
 
-    // Update chart
-    window.chart.data.labels = window.chartData.labels.slice();
-    window.chart.data.datasets[0].data = window.chartData.inbound.slice();
-    window.chart.data.datasets[1].data = window.chartData.outbound.slice();
-    window.chart.data.datasets[2].data = window.chartData.total.slice();
-
-    window.chart.update('none'); // Update without animation for smoother real-time updates
+    // Update D3 line chart
+    updateD3Chart(window.chartData);
 
     console.log(`[CHART] Chart updated with ${window.chartData.labels.length} total points`);
 }
@@ -1902,18 +1933,13 @@ async function loadHistoricalThroughput(range) {
             window.chartData.total.push(sample.total_mbps || 0);
         });
 
-        // Update chart from chartData
-        window.chart.data.labels = window.chartData.labels.slice();
-        window.chart.data.datasets[0].data = window.chartData.inbound.slice();
-        window.chart.data.datasets[1].data = window.chartData.outbound.slice();
-        window.chart.data.datasets[2].data = window.chartData.total.slice();
-
+        // Update D3 line chart from chartData
         console.log(`[CHART] Updating chart with ${window.chartData.labels.length} data points`);
         console.log(`[CHART] First label: ${window.chartData.labels[0]}, Last label: ${window.chartData.labels[window.chartData.labels.length - 1]}`);
         console.log(`[CHART] Inbound range: ${Math.min(...window.chartData.inbound).toFixed(2)} - ${Math.max(...window.chartData.inbound).toFixed(2)} Mbps`);
         console.log(`[CHART] Outbound range: ${Math.min(...window.chartData.outbound).toFixed(2)} - ${Math.max(...window.chartData.outbound).toFixed(2)} Mbps`);
 
-        window.chart.update();
+        updateD3Chart(window.chartData);
 
         // Auto-load statistics and display them inline
         loadHistoricalStats(range);
@@ -2299,11 +2325,10 @@ async function refreshAllDataForDevice() {
     chartData.outbound = [];
     chartData.total = [];
 
-    chart.data.labels = [];
-    chart.data.datasets[0].data = [];
-    chart.data.datasets[1].data = [];
-    chart.data.datasets[2].data = [];
-    chart.update('none');
+    // Clear D3 line chart
+    if (window.d3Chart) {
+        window.d3Chart.g.selectAll("*").remove();
+    }
     console.log('Main chart cleared');
 
     // ========================================================================
