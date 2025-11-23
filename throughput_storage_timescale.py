@@ -333,10 +333,11 @@ class TimescaleStorage:
 
             # Reconstruct license object for frontend compatibility
             # Database stores as 'license_expired' and 'license_active', but frontend expects nested object
+            license_active = sample.pop('license_active', True)
             sample['license'] = {
                 'expired': sample.pop('license_expired', False),
-                'licensed': sample.pop('license_active', True),
-                'active': sample.get('license_active', True)
+                'licensed': license_active,
+                'active': license_active
             }
 
             # Add panos_version alias (database stores as 'pan_os_version', frontend expects 'panos_version')
