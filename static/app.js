@@ -1634,20 +1634,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Then run normal initialization
     await init();  // Fixed: await the async function
 
-    // Setup tag filter event listener for chord diagrams
-    const tagFilterSelect = document.getElementById('chordTagFilter');
-    if (tagFilterSelect) {
-        tagFilterSelect.addEventListener('change', async function() {
-            console.log('[CHORD-TAG] Tag selection changed');
-
-            // Save selected tags to settings (persistent across restarts)
-            const selectedTags = Array.from(this.selectedOptions).map(opt => opt.value);
-            await saveTagFilterSelection(selectedTags);
-
-            await loadTagFilteredChordDiagram();
-        });
-        console.log('[CHORD-TAG] Event listener attached to tag filter dropdown');
-    }
+    // Note: Tag filter event listener removed - now using modal interface
+    // Modal functions: openChordTagFilterModal(), applyChordTagFilter()
 
     console.log('[APP.JS] Initialization complete');
 });
@@ -3427,83 +3415,35 @@ async function loadTagFilterSelection() {
 }
 
 /**
- * Populate tag filter dropdown with available tags from device metadata
+ * Auto-load saved tag filter on page load
  * Called on page load and when device changes
+ * Note: Dropdown removed - now using modal interface (openChordTagFilterModal)
  */
 async function populateTagFilterDropdown() {
-    console.log('[CHORD-TAG] Populating tag filter dropdown');
+    console.log('[CHORD-TAG] Checking for saved tag filter selection');
 
     try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        // Restore previously saved tag selection and auto-load diagram
+        const savedTags = await loadTagFilterSelection();
+        if (savedTags.length > 0) {
+            console.log(`[CHORD-TAG] Found ${savedTags.length} saved tag selections`);
 
-        const response = await fetch('/api/device-metadata/tags', {
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.status === 'success' && data.tags && data.tags.length > 0) {
-            const tagSelect = document.getElementById('chordTagFilter');
-            if (!tagSelect) {
-                console.warn('[CHORD-TAG] Tag filter dropdown not found in DOM');
-                return;
-            }
-
-            // Clear existing options
-            tagSelect.innerHTML = '';
-
-            // Add tags as options
-            data.tags.forEach(tag => {
-                const option = document.createElement('option');
-                option.value = tag;
-                option.textContent = tag;
-                tagSelect.appendChild(option);
-            });
-
-            console.log(`[CHORD-TAG] Loaded ${data.tags.length} tags: ${data.tags.join(', ')}`);
-
-            // Restore previously saved tag selection
-            const savedTags = await loadTagFilterSelection();
-            if (savedTags.length > 0) {
-                // Select the saved tags
-                Array.from(tagSelect.options).forEach(option => {
-                    if (savedTags.includes(option.value)) {
-                        option.selected = true;
-                    }
-                });
-                console.log(`[CHORD-TAG] Restored ${savedTags.length} saved tag selections`);
-
-                // Load the diagram with saved tags
-                if (typeof loadTagFilteredChordDiagram === 'function') {
-                    await loadTagFilteredChordDiagram();
-                }
+            // Load the diagram with saved tags
+            if (typeof loadTagFilteredChordDiagram === 'function') {
+                await loadTagFilteredChordDiagram();
             }
         } else {
-            console.log('[CHORD-TAG] No tags available');
-            const tagSelect = document.getElementById('chordTagFilter');
-            if (tagSelect) {
-                tagSelect.innerHTML = '<option value="" disabled>No tags available</option>';
-            }
+            console.log('[CHORD-TAG] No saved tag selections found');
         }
     } catch (error) {
-        console.error('[CHORD-TAG] Error loading tags:', error);
-        const tagSelect = document.getElementById('chordTagFilter');
-        if (tagSelect) {
-            tagSelect.innerHTML = '<option value="" disabled>Error loading tags</option>';
-        }
+        console.error('[CHORD-TAG] Error loading saved tags:', error);
     }
 }
 
 /**
  * Load and render tag-filtered chord diagram
  * Called when tag selection changes or on auto-refresh
+ * Note: Gets tags from saved settings (not from old dropdown)
  */
 async function loadTagFilteredChordDiagram() {
     console.log('[CHORD-TAG] Loading tag-filtered chord diagram');
@@ -3515,17 +3455,10 @@ async function loadTagFilteredChordDiagram() {
     }
 
     try {
-        const tagSelect = document.getElementById('chordTagFilter');
-        if (!tagSelect) {
-            console.warn('[CHORD-TAG] Tag filter dropdown not found');
-            return;
-        }
+        // Get selected tags from saved settings (not from dropdown)
+        const selectedTags = await loadTagFilterSelection();
 
-        // Get selected tags
-        const selectedOptions = Array.from(tagSelect.selectedOptions);
-        const selectedTags = selectedOptions.map(option => option.value).filter(v => v);
-
-        console.log(`[CHORD-TAG] Selected tags: ${selectedTags.join(', ')}`);
+        console.log(`[CHORD-TAG] Selected tags from settings: ${selectedTags.join(', ')}`);
 
         // If no tags selected, show empty state
         if (selectedTags.length === 0) {
@@ -3537,12 +3470,12 @@ async function loadTagFilteredChordDiagram() {
             const loadingElement = document.getElementById('chordTagLoading');
             if (loadingElement) {
                 loadingElement.style.display = 'block';
-                loadingElement.textContent = 'Select tags to view traffic';
+                loadingElement.textContent = 'Click ⚙️ to select tags...';
                 loadingElement.style.color = 'rgba(255,255,255,0.7)';
             }
             const countElement = document.getElementById('chordTagCount');
             if (countElement) {
-                countElement.textContent = '--';
+                countElement.textContent = 'Select tags';
             }
             return;
         }
