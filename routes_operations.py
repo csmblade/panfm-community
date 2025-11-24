@@ -66,9 +66,12 @@ def register_operations_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds
     @login_required
     def system_logs_api():
-        """API endpoint for system logs - reads from database (Phase 3: Database-First)"""
+        """API endpoint for system logs - reads from database (v2.1.1 Database-First)"""
         debug("=== System Logs API endpoint called (DATABASE-FIRST) ===")
         try:
+            from firewall_api_logs import get_system_logs
+            from firewall_api import get_firewall_config
+
             settings = load_settings()
             device_id = settings.get('selected_device_id')
             debug(f"Selected device ID from settings: {device_id or 'NONE'}")
@@ -80,35 +83,41 @@ def register_operations_routes(app, csrf, limiter):
                     'logs': []
                 })
 
-            # Get collector instance
-            collector = get_collector()
-            if not collector:
-                debug("Collector not initialized, returning empty logs")
+            # Get firewall config for API call
+            firewall_config = get_firewall_config(device_id)
+            if not firewall_config:
                 return jsonify({
                     'status': 'error',
-                    'message': 'Collector not initialized',
+                    'message': 'Device configuration not found',
                     'logs': []
                 })
 
-            # Read logs from database
+            # Fetch logs directly from firewall API
             limit = request.args.get('limit', 50, type=int)
-            logs = collector.storage.get_system_logs(device_id, limit=limit)
+            result = get_system_logs(firewall_config, max_logs=limit)
 
-            debug(f"Retrieved {len(logs)} system logs from database")
+            # get_system_logs returns {'status': 'success', 'logs': [...]}
+            logs = result.get('logs', []) if isinstance(result, dict) else []
+
+            debug(f"Retrieved {len(logs)} system logs from firewall API")
 
             return jsonify({
                 'status': 'success',
                 'logs': logs,
                 'total': len(logs),
                 'timestamp': datetime.now().isoformat(),
-                'source': 'database'  # Indicate data source
-            }), 200, {'Cache-Control': 'max-age=60', 'X-Data-Source': 'database'}
+                'source': 'firewall'  # Direct from firewall
+            }), 200, {'Cache-Control': 'max-age=60', 'X-Data-Source': 'firewall'}
 
         except Exception as e:
-            error(f"Error retrieving system logs from database: {str(e)}")
+            error(f"Error retrieving system logs from firewall: {str(e)}")
+            # TEMP: Print to stdout for debugging
+            print(f"[SYSTEM LOGS ERROR] {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return jsonify({
                 'status': 'error',
-                'message': str(e),
+                'message': f"Failed to load system logs: {str(e)}",
                 'logs': []
             })
 
@@ -116,9 +125,12 @@ def register_operations_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")  # Support auto-refresh every 5 seconds
     @login_required
     def traffic_logs_api():
-        """API endpoint for traffic logs - reads from database (Phase 3: Database-First)"""
+        """API endpoint for traffic logs - reads from firewall (v2.1.1 Database-First)"""
         debug("=== Traffic Logs API endpoint called (DATABASE-FIRST) ===")
         try:
+            from firewall_api_logs import get_traffic_logs
+            from firewall_api import get_firewall_config
+
             settings = load_settings()
             device_id = settings.get('selected_device_id')
             debug(f"Selected device ID from settings: {device_id or 'NONE'}")
@@ -130,35 +142,41 @@ def register_operations_routes(app, csrf, limiter):
                     'logs': []
                 })
 
-            # Get collector instance
-            collector = get_collector()
-            if not collector:
-                debug("Collector not initialized, returning empty logs")
+            # Get firewall config for API call
+            firewall_config = get_firewall_config(device_id)
+            if not firewall_config:
                 return jsonify({
                     'status': 'error',
-                    'message': 'Collector not initialized',
+                    'message': 'Device configuration not found',
                     'logs': []
                 })
 
-            # Read logs from database
-            limit = request.args.get('limit', 50, type=int)
-            logs = collector.storage.get_traffic_logs(device_id, limit=limit)
+            # Fetch logs directly from firewall API
+            limit = request.args.get('max_logs', 100, type=int)
+            result = get_traffic_logs(firewall_config, max_logs=limit)
 
-            debug(f"Retrieved {len(logs)} traffic logs from database")
+            # get_traffic_logs returns {'status': 'success', 'logs': [...]}
+            logs = result.get('logs', []) if isinstance(result, dict) else []
+
+            debug(f"Retrieved {len(logs)} traffic logs from firewall API")
 
             return jsonify({
                 'status': 'success',
                 'logs': logs,
                 'total': len(logs),
                 'timestamp': datetime.now().isoformat(),
-                'source': 'database'  # Indicate data source
-            }), 200, {'Cache-Control': 'max-age=60', 'X-Data-Source': 'database'}
+                'source': 'firewall'  # Direct from firewall
+            }), 200, {'Cache-Control': 'max-age=60', 'X-Data-Source': 'firewall'}
 
         except Exception as e:
-            error(f"Error retrieving traffic logs from database: {str(e)}")
+            error(f"Error retrieving traffic logs from firewall: {str(e)}")
+            # TEMP: Print to stdout for debugging
+            print(f"[TRAFFIC LOGS ERROR] {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return jsonify({
                 'status': 'error',
-                'message': str(e),
+                'message': f"Failed to load traffic logs: {str(e)}",
                 'logs': []
             })
 
@@ -171,12 +189,12 @@ def register_operations_routes(app, csrf, limiter):
     @login_required
     def applications_api():
         """
-        API endpoint for application statistics - DATABASE ONLY
+        API endpoint for application statistics - FIREWALL API
 
-        Returns cached application data from database (collected every 15 seconds by APScheduler).
-        NO firewall fallback - forces use of database to ensure fast performance.
+        Returns application data from firewall API (includes protocols and ports).
+        Database doesn't store protocol/port information, so we query firewall directly.
         """
-        debug("=== Applications API endpoint called (database-only) ===")
+        debug("=== Applications API endpoint called (firewall-based) ===")
         try:
             settings = load_settings()
             device_id = settings.get('selected_device_id', '')
@@ -197,38 +215,28 @@ def register_operations_routes(app, csrf, limiter):
                     'source': 'none'
                 })
 
-            # Get data from database ONLY
-            from throughput_collector import get_collector
-            collector = get_collector()
+            # Get firewall config for API access
+            from firewall_api import get_firewall_config
+            from firewall_api_applications import get_application_statistics
 
-            if not collector or not collector.storage:
-                # Graceful degradation: Return waiting status instead of error (v1.14.0)
-                # This happens during the 30-60 second window after startup before clock
-                # process completes its first collection cycle
-                return jsonify({
-                    'status': 'waiting',
-                    'message': 'Waiting for first data collection (refresh in 30 seconds)',
-                    'applications': [],
-                    'summary': {
-                        'total_applications': 0,
-                        'total_sessions': 0,
-                        'total_bytes': 0,
-                        'vlans_detected': 0,
-                        'zones_detected': 0
-                    },
-                    'total': 0,
-                    'source': 'waiting',
-                    'retry_after_seconds': 30
-                }), 200  # Return HTTP 200, not 500!
+            firewall_config = get_firewall_config(device_id)
 
-            # Get latest application statistics from database
-            applications = collector.storage.get_application_statistics(device_id, limit=500)
-            summary = collector.storage.get_application_summary(device_id)
+            # Call firewall API to get application statistics with protocols and ports
+            result = get_application_statistics(firewall_config, max_logs=1000)
+
+            applications = result.get('applications', [])
+            summary = result.get('summary', {
+                'total_applications': 0,
+                'total_sessions': 0,
+                'total_bytes': 0,
+                'vlans_detected': 0,
+                'zones_detected': 0
+            })
 
             if applications:
-                debug(f"Retrieved {len(applications)} applications from DATABASE")
+                debug(f"Retrieved {len(applications)} applications from FIREWALL API")
             else:
-                debug("No application data in database yet - waiting for APScheduler collection")
+                debug("No application data from firewall API")
 
             return jsonify({
                 'status': 'success',
@@ -236,7 +244,7 @@ def register_operations_routes(app, csrf, limiter):
                 'summary': summary,
                 'total': len(applications),
                 'timestamp': datetime.now().isoformat(),
-                'source': 'database'
+                'source': 'firewall'
             })
 
         except Exception as e:
