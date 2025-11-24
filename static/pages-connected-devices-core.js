@@ -483,7 +483,7 @@ function renderConnectedDevicesTable() {
 
     // Create table HTML
     let html = `
-        <div style="background: #F2F0EF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #F2F0EF 0%, #E8E6E4 100%); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border: 3px solid #3c3c3c;">
             <div style="padding: 15px 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-primary);">
                 <div>
                     <strong style="font-size: 1.1em;">Connected Devices</strong>
@@ -494,26 +494,26 @@ function renderConnectedDevicesTable() {
                 </div>
             </div>
             <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary); font-size: 0.9em; background: #F2F0EF;">
+                <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary); font-size: 0.9em; background: transparent;">
                     <thead>
-                        <tr style="background: #F2F0EF; border-bottom: 2px solid #dee2e6;">
-                            <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); width: 30px;"></th>
-                            <th onclick="sortConnectedDevices('hostname')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Hostname${getSortIndicator('hostname')}</th>
-                            <th onclick="sortConnectedDevices('ip')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">IP Address${getSortIndicator('ip')}</th>
-                            <th onclick="sortConnectedDevices('mac')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">MAC Address${getSortIndicator('mac')}</th>
-                            <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary);">Tags</th>
-                            <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary);">Location</th>
-                            <th onclick="sortConnectedDevices('vlan')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">VLAN${getSortIndicator('vlan')}</th>
-                            <th onclick="sortConnectedDevices('zone')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Security Zone${getSortIndicator('zone')}</th>
-                            <th onclick="sortConnectedDevices('interface')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Interface${getSortIndicator('interface')}</th>
-                            <th onclick="sortConnectedDevices('age')" style="padding: 12px; text-align: left; font-weight: 600; color: #333; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Age (minutes)${getSortIndicator('age')}</th>
-                            <th onclick="sortConnectedDevices('total_volume')" style="padding: 12px; text-align: right; font-weight: 600; color: #FA582D; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none;">Total Volume${getSortIndicator('total_volume')}</th>
+                        <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 3px solid #FA582D; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); width: 30px;"></th>
+                            <th onclick="sortConnectedDevices('hostname')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Hostname${getSortIndicator('hostname')}</th>
+                            <th onclick="sortConnectedDevices('ip')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">IP Address${getSortIndicator('ip')}</th>
+                            <th onclick="sortConnectedDevices('mac')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">MAC Address${getSortIndicator('mac')}</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Tags</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Location</th>
+                            <th onclick="sortConnectedDevices('vlan')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">VLAN${getSortIndicator('vlan')}</th>
+                            <th onclick="sortConnectedDevices('zone')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Security Zone${getSortIndicator('zone')}</th>
+                            <th onclick="sortConnectedDevices('interface')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Interface${getSortIndicator('interface')}</th>
+                            <th onclick="sortConnectedDevices('age')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Age (minutes)${getSortIndicator('age')}</th>
+                            <th onclick="sortConnectedDevices('total_volume')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #FA582D; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Total Volume${getSortIndicator('total_volume')}</th>
                         </tr>
                     </thead>
                     <tbody>`;
 
     displayDevices.forEach((device, index) => {
-        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);' : 'background: linear-gradient(135deg, #f8f9fa 0%, #f0f0f0 100%);';
         const normalizedMac = device.mac.toLowerCase();
         const isExpanded = expandedRows.has(normalizedMac);
         const hasComment = device.comment && device.comment.trim();
@@ -534,7 +534,7 @@ function renderConnectedDevicesTable() {
         let tagsCell = '';
         if (device.tags && Array.isArray(device.tags) && device.tags.length > 0) {
             tagsCell = device.tags.map(tag => {
-                return `<span style="display: inline-block; background: #FA582D; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 500; margin: 2px 2px 2px 0; white-space: nowrap;">${escapeHtml(tag)}</span>`;
+                return `<span style="display: inline-block; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.75em; font-weight: 600; margin: 2px 2px 2px 0; white-space: nowrap; box-shadow: 0 2px 4px rgba(250, 88, 45, 0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.2);">${escapeHtml(tag)}</span>`;
             }).join('');
         } else {
             tagsCell = '<span style="color: #999;">-</span>';
@@ -543,7 +543,7 @@ function renderConnectedDevicesTable() {
         // Format location cell - show as colored badge chip (similar to tags)
         let locationCell = '';
         if (device.location && device.location.trim()) {
-            locationCell = `<span style="display: inline-block; background: #4A90E2; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 500; white-space: nowrap;">${escapeHtml(device.location)}</span>`;
+            locationCell = `<span style="display: inline-block; background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%); color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.75em; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 4px rgba(74, 144, 226, 0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.2);">${escapeHtml(device.location)}</span>`;
         } else {
             locationCell = '<span style="color: #999;">-</span>';
         }
@@ -588,7 +588,7 @@ function renderConnectedDevicesTable() {
         const rowId = `device-row-${normalizedMac.replace(/:/g, '-')}`;
         const deviceDataAttr = escapeHtml(JSON.stringify(device).replace(/"/g, '&quot;'));
         html += `
-            <tr id="${rowId}" onclick="window.openDeviceEditModal('${escapeHtml(device.mac)}')" data-device='${deviceDataAttr}' style="${rowStyle} border-bottom: 1px solid #dee2e6; cursor: pointer;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
+            <tr id="${rowId}" onclick="window.openDeviceEditModal('${escapeHtml(device.mac)}')" data-device='${deviceDataAttr}' style="${rowStyle} border-bottom: 1px solid #dee2e6; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #FFE8DF 0%, #FFD4C4 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #ffffff 0%, #fafafa 100%)' : 'linear-gradient(135deg, #f8f9fa 0%, #f0f0f0 100%)'}'; this.style.borderLeft='4px solid transparent';">
                 <td style="padding: 8px 12px;">${chevronCell}</td>
                 <td style="padding: 12px;">${hostnameCell}</td>
                 <td style="padding: 12px; color: #666; font-family: monospace;">
@@ -601,7 +601,7 @@ function renderConnectedDevicesTable() {
                 <td style="padding: 12px; color: #666;">${device.zone || '-'}</td>
                 <td style="padding: 12px; color: #666; font-family: monospace;">${device.interface}</td>
                 <td style="padding: 12px; color: #666;">${device.ttl}</td>
-                <td onclick="openSankeyDiagram('${device.ip}')" style="padding: 12px; text-align: right; color: #FA582D; font-weight: 600; cursor: pointer; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'" title="Click to view traffic flow breakdown">${formatBytesHuman(device.total_volume || 0)}</td>
+                <td onclick="event.stopPropagation(); window.openSankeyDiagram('${device.ip}', ${device.total_volume || 0})" style="padding: 12px; text-align: right; color: #FA582D; font-weight: 700; font-size: 1.05em; text-shadow: 0 1px 2px rgba(250, 88, 45, 0.2); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'" title="Click to view traffic flow breakdown">${formatBytesHuman(device.total_volume || 0)}</td>
             </tr>`;
 
         // Add expandable row detail for location/comments (if either exists)

@@ -816,8 +816,10 @@ class ThroughputCollector:
                 for source in app.get('sources', []):
                     source_ip = source.get('ip')
 
-                    # Each source has multiple destinations
-                    for dest in app.get('destinations', []):
+                    # CRITICAL FIX: Use source-specific destinations, not app-level destinations
+                    # Each source has its own list of destinations (source.get('destinations'))
+                    # NOT app.get('destinations') which is all destinations for the entire app
+                    for dest in source.get('destinations', []):
                         dest_ip = dest.get('ip')
                         dest_port = dest.get('port')
                         dest_bytes = dest.get('bytes', 0)

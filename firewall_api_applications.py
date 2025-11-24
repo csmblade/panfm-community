@@ -389,16 +389,31 @@ def get_application_statistics(
             app_stats[app]['bytes_received'] += bytes_received
             if src:
                 app_stats[app]['source_ips'].add(src)
-                # Track bytes per source IP
+                # Track bytes per source IP with nested destinations
                 if src not in app_stats[app]['source_details']:
                     app_stats[app]['source_details'][src] = {
                         'ip': src,
-                        'bytes': 0
+                        'bytes': 0,
+                        'destinations': {}  # Track destinations per source
                     }
                 app_stats[app]['source_details'][src]['bytes'] += bytes_val
+
+                # Track destination INSIDE this source (preserves source→dest relationship)
+                if dst:
+                    dest_key = f"{dst}:{dport}" if dport else dst
+                    if dest_key not in app_stats[app]['source_details'][src]['destinations']:
+                        app_stats[app]['source_details'][src]['destinations'][dest_key] = {
+                            'ip': dst,
+                            'port': dport,
+                            'bytes': 0,
+                            'sessions': 0
+                        }
+                    app_stats[app]['source_details'][src]['destinations'][dest_key]['bytes'] += bytes_val
+                    app_stats[app]['source_details'][src]['destinations'][dest_key]['sessions'] += 1
+
             if dst:
                 app_stats[app]['dest_ips'].add(dst)
-                # Track bytes per destination with port
+                # Keep app-level dest_details for backward compatibility (Applications page)
                 dest_key = f"{dst}:{dport}" if dport else dst
                 if dest_key not in app_stats[app]['dest_details']:
                     app_stats[app]['dest_details'][dest_key] = {
@@ -438,12 +453,25 @@ def get_application_statistics(
                     custom_name = device_info.get('custom_name')
                     original_hostname = device_info.get('original_hostname', hostname)
 
+                # Phase 2: Convert nested destinations dict to sorted list
+                dest_list_for_source = []
+                for dest_key, dest_info in src_info.get('destinations', {}).items():
+                    dest_list_for_source.append({
+                        'ip': dest_info['ip'],
+                        'port': dest_info['port'],
+                        'bytes': dest_info['bytes'],
+                        'sessions': dest_info.get('sessions', 1)
+                    })
+                # Sort destinations by bytes descending
+                dest_list_for_source.sort(key=lambda x: x['bytes'], reverse=True)
+
                 source_list.append({
                     'ip': src_info['ip'],
                     'bytes': src_info['bytes'],
                     'hostname': hostname,  # DHCP hostname (fallback)
                     'custom_name': custom_name,  # Custom name from metadata (highest priority)
-                    'original_hostname': original_hostname  # Original hostname (fallback if no custom_name)
+                    'original_hostname': original_hostname,  # Original hostname (fallback if no custom_name)
+                    'destinations': dest_list_for_source[:50]  # Phase 2: Top 50 destinations per source
                 })
             # Sort sources by bytes descending
             source_list.sort(key=lambda x: x['bytes'], reverse=True)

@@ -386,10 +386,34 @@ function initializeD3Chart() {
     const svg = d3.select("#throughputChart");
     const margin = {top: 10, right: 10, bottom: 35, left: 75};
     const width = svg.node().getBoundingClientRect().width - margin.left - margin.right;
-    const height = 300 - margin.top - margin.bottom;
+    const height = 240 - margin.top - margin.bottom;  // Reduced from 300 to 240
 
     // Clear any existing chart
     svg.selectAll("*").remove();
+
+    // Define drop shadow filter for depth (only once during initialization)
+    const defs = svg.append("defs");
+    const filter = defs.append("filter")
+        .attr("id", "drop-shadow")
+        .attr("height", "130%");
+
+    filter.append("feGaussianBlur")
+        .attr("in", "SourceAlpha")
+        .attr("stdDeviation", 2);
+
+    filter.append("feOffset")
+        .attr("dx", 0)
+        .attr("dy", 1);
+
+    filter.append("feComponentTransfer")
+        .append("feFuncA")
+        .attr("type", "linear")
+        .attr("slope", 0.3);
+
+    const feMerge = filter.append("feMerge");
+    feMerge.append("feMergeNode");
+    feMerge.append("feMergeNode")
+        .attr("in", "SourceGraphic");
 
     // Create chart group
     const g = svg.append("g")
@@ -430,7 +454,7 @@ function updateD3Chart(data) {
     const xScale = d3.scalePoint()
         .domain(labels)
         .range([0, width])
-        .padding(0.5);
+        .padding(0);
 
     const allValues = [...inbound, ...outbound, ...total].filter(v => v !== null && v !== undefined);
     const maxY = d3.max(allValues) || 10;
@@ -455,64 +479,120 @@ function updateD3Chart(data) {
         .y1(d => yScale(d))
         .curve(d3.curveMonotoneX);
 
-    // Draw grid lines (subtle)
+    // Draw grid lines (subtle but visible)
     g.append("g")
         .attr("class", "grid")
-        .attr("opacity", 0.1)
+        .attr("opacity", 0.15)
         .call(d3.axisLeft(yScale)
             .tickSize(-width)
             .tickFormat("")
-        );
+        )
+        .selectAll("line")
+        .style("stroke", "#F2F0EF");
 
-    // Draw Total line and area
+    // Draw Total line and area (light cream color)
     g.append("path")
         .datum(total)
-        .attr("fill", "rgba(51, 51, 51, 0.1)")
+        .attr("fill", "rgba(242, 240, 239, 0.15)")
         .attr("d", area);
 
     g.append("path")
         .datum(total)
         .attr("fill", "none")
-        .attr("stroke", "#333333")
+        .attr("stroke", "#F2F0EF")
         .attr("stroke-width", 3)
+        .attr("filter", "url(#drop-shadow)")
         .attr("d", line);
 
-    // Draw Outbound line and area
+    // Draw Outbound line and area (lighter orange/peach)
     g.append("path")
         .datum(outbound)
-        .attr("fill", "rgba(255, 153, 51, 0.1)")
+        .attr("fill", "rgba(242, 166, 90, 0.15)")
         .attr("d", area);
 
     g.append("path")
         .datum(outbound)
         .attr("fill", "none")
-        .attr("stroke", "#ff9933")
+        .attr("stroke", "#F2A65A")
         .attr("stroke-width", 3)
+        .attr("filter", "url(#drop-shadow)")
         .attr("d", line);
 
-    // Draw Inbound line and area
+    // Draw Inbound line and area (PANfm brand orange)
     g.append("path")
         .datum(inbound)
-        .attr("fill", "rgba(255, 102, 0, 0.1)")
+        .attr("fill", "rgba(250, 88, 45, 0.15)")
         .attr("d", area);
 
     g.append("path")
         .datum(inbound)
         .attr("fill", "none")
-        .attr("stroke", "#ff6600")
+        .attr("stroke", "#FA582D")
         .attr("stroke-width", 3)
+        .attr("filter", "url(#drop-shadow)")
         .attr("d", line);
+
+    // Add data point dots (Total - cream color)
+    const totalData = total.map((value, i) => ({value, index: i}))
+        .filter(d => d.value !== null && d.value !== undefined);
+
+    g.selectAll(".dot-total")
+        .data(totalData)
+        .enter().append("circle")
+        .attr("class", "dot-total")
+        .attr("cx", d => xScale(labels[d.index]))
+        .attr("cy", d => yScale(d.value))
+        .attr("r", 3)
+        .attr("fill", "#F2F0EF")
+        .attr("stroke", "#FFFFFF")
+        .attr("stroke-width", 1.5);
+
+    // Add data point dots (Outbound - peach color)
+    const outboundData = outbound.map((value, i) => ({value, index: i}))
+        .filter(d => d.value !== null && d.value !== undefined);
+
+    g.selectAll(".dot-outbound")
+        .data(outboundData)
+        .enter().append("circle")
+        .attr("class", "dot-outbound")
+        .attr("cx", d => xScale(labels[d.index]))
+        .attr("cy", d => yScale(d.value))
+        .attr("r", 3)
+        .attr("fill", "#F2A65A")
+        .attr("stroke", "#FFFFFF")
+        .attr("stroke-width", 1.5);
+
+    // Add data point dots (Inbound - PANfm orange)
+    const inboundData = inbound.map((value, i) => ({value, index: i}))
+        .filter(d => d.value !== null && d.value !== undefined);
+
+    g.selectAll(".dot-inbound")
+        .data(inboundData)
+        .enter().append("circle")
+        .attr("class", "dot-inbound")
+        .attr("cx", d => xScale(labels[d.index]))
+        .attr("cy", d => yScale(d.value))
+        .attr("r", 3)
+        .attr("fill", "#FA582D")
+        .attr("stroke", "#FFFFFF")
+        .attr("stroke-width", 1.5);
 
     // Add X axis with time labels
     const xAxis = d3.axisBottom(xScale)
         .tickValues(xScale.domain().filter((d, i) => i % Math.ceil(labels.length / 10) === 0));
 
-    g.append("g")
+    const xAxisGroup = g.append("g")
         .attr("transform", `translate(0,${height})`)
-        .call(xAxis)
-        .selectAll("text")
+        .call(xAxis);
+
+    xAxisGroup.selectAll("text")
         .style("font-size", "10px")
+        .style("fill", "#F2F0EF")  // Light text color for dark background
         .attr("transform", "rotate(0)");
+
+    xAxisGroup.selectAll("line, path")
+        .style("stroke", "#F2F0EF")  // Light color for axis lines
+        .style("opacity", "0.4");  // Increased from 0.3 for better visibility
 
     // Add Y axis
     const yAxis = d3.axisLeft(yScale)
@@ -528,10 +608,59 @@ function updateD3Chart(data) {
             }
         });
 
-    g.append("g")
-        .call(yAxis)
-        .selectAll("text")
-        .style("font-size", "12px");
+    const yAxisGroup = g.append("g")
+        .call(yAxis);
+
+    yAxisGroup.selectAll("text")
+        .style("font-size", "12px")
+        .style("fill", "#F2F0EF");  // Light text color for dark background
+
+    yAxisGroup.selectAll("line, path")
+        .style("stroke", "#F2F0EF")  // Light color for axis lines
+        .style("opacity", "0.4");  // Increased from 0.3 for better visibility
+
+    // Add legend in top-right corner
+    const legend = g.append("g")
+        .attr("class", "legend")
+        .attr("transform", `translate(${width - 120}, 10)`);
+
+    const legendData = [
+        {label: "Inbound", color: "#FA582D"},
+        {label: "Outbound", color: "#F2A65A"},
+        {label: "Total", color: "#F2F0EF"}
+    ];
+
+    legendData.forEach((item, i) => {
+        const legendRow = legend.append("g")
+            .attr("transform", `translate(0, ${i * 20})`);
+
+        // Legend dot
+        legendRow.append("circle")
+            .attr("cx", 5)
+            .attr("cy", 0)
+            .attr("r", 3)
+            .attr("fill", item.color)
+            .attr("stroke", "#FFFFFF")
+            .attr("stroke-width", 1.5);
+
+        // Legend line
+        legendRow.append("line")
+            .attr("x1", 12)
+            .attr("y1", 0)
+            .attr("x2", 28)
+            .attr("y2", 0)
+            .attr("stroke", item.color)
+            .attr("stroke-width", 2);
+
+        // Legend text
+        legendRow.append("text")
+            .attr("x", 32)
+            .attr("y", 4)
+            .attr("fill", "#F2F0EF")
+            .style("font-size", "11px")
+            .style("font-family", "var(--font-secondary)")
+            .text(item.label);
+    });
 }
 
 // Initialize on load
@@ -1668,6 +1797,93 @@ async function initializeCurrentDevice() {
 // Export for use by other modules
 window.initializeCurrentDevice = initializeCurrentDevice;
 
+// ============================================================================
+// Sidebar Separator Auto-Hide Functionality
+// ============================================================================
+
+/**
+ * Initialize auto-hide behavior for the sidebar separator line
+ * - Hides the orange separator line after 3 seconds of inactivity
+ * - Shows it on hover over the sidebar
+ * - Resets the timer on any mouse movement or interaction
+ */
+function initSidebarSeparatorAutoHide() {
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    let hideTimeout;
+    const HIDE_DELAY = 3000; // 3 seconds
+
+    // Function to show the separator
+    function showSeparator() {
+        sidebar.classList.remove('separator-hidden');
+        resetHideTimer();
+    }
+
+    // Function to hide the separator
+    function hideSeparator() {
+        sidebar.classList.add('separator-hidden');
+    }
+
+    // Function to reset the hide timer
+    function resetHideTimer() {
+        clearTimeout(hideTimeout);
+        hideTimeout = setTimeout(hideSeparator, HIDE_DELAY);
+    }
+
+    // Show on any mouse movement
+    document.addEventListener('mousemove', showSeparator);
+
+    // Show on sidebar interaction
+    sidebar.addEventListener('mouseenter', showSeparator);
+    sidebar.addEventListener('click', showSeparator);
+
+    // Initial hide after delay
+    resetHideTimer();
+
+    console.log('[APP.JS] Sidebar separator auto-hide initialized');
+}
+
+/**
+ * Initialize sidebar collapse/expand toggle functionality
+ * - Collapses sidebar to maximize screen space
+ * - Persists state in localStorage
+ * - Updates toggle button icon based on state
+ */
+function initSidebarToggle() {
+    const sidebar = document.querySelector('.sidebar');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const toggleIcon = document.getElementById('toggleIcon');
+
+    if (!sidebar || !toggleBtn || !toggleIcon) return;
+
+    // Load saved state from localStorage
+    const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    if (isCollapsed) {
+        sidebar.classList.add('collapsed');
+        toggleIcon.textContent = '▶';
+    }
+
+    // Toggle sidebar on button click
+    toggleBtn.addEventListener('click', () => {
+        const willCollapse = !sidebar.classList.contains('collapsed');
+
+        if (willCollapse) {
+            sidebar.classList.add('collapsed');
+            toggleIcon.textContent = '▶';
+            localStorage.setItem('sidebarCollapsed', 'true');
+        } else {
+            sidebar.classList.remove('collapsed');
+            toggleIcon.textContent = '◀';
+            localStorage.setItem('sidebarCollapsed', 'false');
+        }
+
+        console.log(`[APP.JS] Sidebar ${willCollapse ? 'collapsed' : 'expanded'}`);
+    });
+
+    console.log('[APP.JS] Sidebar toggle initialized');
+}
+
 // Start the app when DOM is ready (initialize device first!)
 console.log('[APP.JS] Script loaded - DOMContentLoaded listener registered');
 
@@ -1682,6 +1898,12 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Note: Tag filter event listener removed - now using modal interface
     // Modal functions: openChordTagFilterModal(), applyChordTagFilter()
+
+    // Initialize auto-hide sidebar separator
+    initSidebarSeparatorAutoHide();
+
+    // Initialize sidebar collapse/expand toggle
+    initSidebarToggle();
 
     console.log('[APP.JS] Initialization complete');
 });
@@ -3237,7 +3459,14 @@ function renderChordDiagram(svgId, data, type) {
 
     // Calculate outer and inner radius - reduced to 0.32 to leave room for IP labels
     const outerRadius = Math.min(width, height) * 0.32;
-    const innerRadius = outerRadius - 35;
+    const innerRadius = Math.max(outerRadius - 35, 10); // Ensure innerRadius is at least 10px
+
+    // Safety check: ensure minimum dimensions for chord diagram
+    if (outerRadius < 50) {
+        console.warn(`[CHORD] Container too small for ${type} chord diagram (outer radius: ${outerRadius}px)`);
+        showChordMessage(svg, width, height, 'Container too small');
+        return;
+    }
 
     // Create chord layout
     const chord = d3.chord()

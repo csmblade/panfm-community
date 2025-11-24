@@ -2298,11 +2298,12 @@ class TimescaleStorage:
 
             query = '''
                 SELECT
+                    source_ip::text AS source_ip,
+                    dest_ip::text AS dest_ip,
+                    dest_port,
                     application,
-                    dest_ip::text AS destination_ip,
-                    dest_port AS destination_port,
-                    SUM(bytes_total) AS bytes,
-                    SUM(sessions) AS sessions,
+                    SUM(bytes_total)::bigint AS bytes,
+                    SUM(sessions)::integer AS sessions,
                     MAX(category) AS category,
                     MAX(protocol) AS protocol,
                     MAX(dest_zone) AS destination_zone,
@@ -2311,7 +2312,7 @@ class TimescaleStorage:
                 WHERE device_id = %s
                   AND source_ip = %s::inet
                   AND time >= NOW() - INTERVAL '%s minutes'
-                GROUP BY application, dest_ip, dest_port
+                GROUP BY source_ip, dest_ip, dest_port, application
                 ORDER BY bytes DESC
                 LIMIT 50
             '''

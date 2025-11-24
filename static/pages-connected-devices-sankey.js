@@ -72,8 +72,9 @@ function initSankeyModal() {
 /**
  * Open Sankey diagram modal for a specific client IP
  * @param {string} clientIp - Client IP address
+ * @param {number} expectedTotalVolume - Total volume from client_bandwidth table (bytes)
  */
-async function openSankeyDiagram(clientIp) {
+async function openSankeyDiagram(clientIp, expectedTotalVolume = null) {
     if (!sankeyModal) {
         console.error('Sankey modal not initialized');
         return;
@@ -109,13 +110,26 @@ async function openSankeyDiagram(clientIp) {
             return;
         }
 
-        // Update summary stats
-        updateSankeyStats(flowData);
+        // Debug: Log actual API response
+        console.log('[SANKEY DEBUG] API Response:', flowData);
+        console.log('[SANKEY DEBUG] First flow:', flowData.flows[0]);
+        console.log('[SANKEY DEBUG] Expected total volume (from client_bandwidth):', expectedTotalVolume);
 
-        // Render diagram
-        renderSankeyDiagram(flowData.flows);
+        // Update summary stats (pass expectedTotalVolume to display correct value)
+        updateSankeyStats(flowData, expectedTotalVolume);
 
+        // CRITICAL FIX: Hide loading spinner BEFORE rendering diagram
+        // The loading spinner may be hiding the diagram container
         hideSankeyLoading();
+
+        // Defer diagram rendering to ensure modal is fully displayed
+        // Using setTimeout to ensure the browser has fully rendered the modal and computed styles
+        console.log('[SANKEY] Waiting for modal to fully render before creating diagram...');
+        setTimeout(() => {
+            // Now the modal container should have non-zero dimensions
+            console.log('[SANKEY] Modal should now be fully rendered, attempting to create diagram');
+            renderSankeyDiagram(flowData.flows);
+        }, 100);  // 100ms delay to ensure modal layout is complete
     } catch (error) {
         console.error('Error loading Sankey diagram:', error);
         showSankeyError(`Failed to load traffic flow data: ${error.message}`);
@@ -191,14 +205,33 @@ async function fetchTrafficFlows(deviceId, clientIp) {
 /**
  * Update summary statistics in modal
  * @param {Object} flowData - Flow data object
+ * @param {number|null} expectedTotalVolume - Expected total volume from client_bandwidth (bytes)
  */
-function updateSankeyStats(flowData) {
+function updateSankeyStats(flowData, expectedTotalVolume = null) {
+    const totalFlowCount = (flowData.flows || []).length;
+    const displayedFlowCount = Math.min(totalFlowCount, 10);  // Updated to match 10-flow limit
+
     if (sankeyTotalFlows) {
-        sankeyTotalFlows.textContent = (flowData.flows || []).length.toLocaleString();
+        if (totalFlowCount > 10) {
+            sankeyTotalFlows.innerHTML = `<span style="font-size: 0.9em;">Top ${displayedFlowCount} of ${totalFlowCount.toLocaleString()}</span>`;
+        } else {
+            sankeyTotalFlows.textContent = totalFlowCount.toLocaleString();
+        }
     }
 
     if (sankeyTotalVolume) {
-        const totalBytes = (flowData.flows || []).reduce((sum, flow) => sum + (flow.bytes || 0), 0);
+        // Use expectedTotalVolume if provided (from client_bandwidth table - matches Connected Devices table)
+        // Otherwise fall back to summing flows from traffic_flows table
+        let totalBytes;
+        if (expectedTotalVolume !== null && expectedTotalVolume !== undefined) {
+            totalBytes = expectedTotalVolume;
+            console.log('[SANKEY] Using expected total volume from client_bandwidth:', totalBytes);
+        } else {
+            totalBytes = (flowData.flows || []).reduce((sum, flow) => {
+                return sum + (flow.bytes || 0);
+            }, 0);
+            console.log('[SANKEY] Calculated total volume from traffic_flows:', totalBytes);
+        }
         sankeyTotalVolume.textContent = formatBytesHuman(totalBytes);
     }
 
@@ -217,32 +250,61 @@ function renderSankeyDiagram(flows) {
     // Clear previous diagram
     clearSankeyDiagram();
 
+    // Limit to top 10 flows by bytes to prevent layout issues with too many nodes
+    const originalFlowCount = flows.length;
+    flows.sort((a, b) => (b.bytes || 0) - (a.bytes || 0));
+    const limitedFlows = flows.slice(0, 10);
+    const totalOriginalBytes = flows.reduce((sum, f) => sum + (f.bytes || 0), 0);
+    const totalLimitedBytes = limitedFlows.reduce((sum, f) => sum + (f.bytes || 0), 0);
+    const percentageRepresented = totalOriginalBytes > 0
+        ? ((totalLimitedBytes / totalOriginalBytes) * 100).toFixed(1)
+        : 100;
+
+    console.log(`[SANKEY] Showing top 10 of ${originalFlowCount} flows (${percentageRepresented}% of traffic)`);
+    flows = limitedFlows;
+
     // Check if d3 and d3.sankey are available
     if (typeof d3 === 'undefined') {
+        console.error('[SANKEY] D3.js library not loaded');
         showSankeyError('D3.js library not loaded. Please refresh the page.');
         return;
     }
+    console.log('[SANKEY] D3.js loaded successfully');
 
     if (typeof d3.sankey === 'undefined') {
+        console.error('[SANKEY] d3-sankey library not loaded');
         showSankeyError('d3-sankey library not loaded. Please refresh the page.');
         return;
     }
+    console.log('[SANKEY] d3-sankey loaded successfully');
 
     // Build nodes and links for Sankey diagram
+    console.log('[SANKEY] Building Sankey data from flows...');
     const { nodes, links } = buildSankeyData(flows);
+    console.log(`[SANKEY] Built ${nodes.length} nodes and ${links.length} links`);
 
     if (nodes.length === 0 || links.length === 0) {
+        console.error('[SANKEY] No nodes or links to visualize');
         showSankeyError('No flow data to visualize.');
         return;
     }
 
     // Diagram dimensions
     const container = sankeyDiagram;
+
+    // Debug: Check container properties
+    console.log('[SANKEY] Container element:', container);
+    console.log('[SANKEY] Container offsetParent:', container.offsetParent);
+    console.log('[SANKEY] Container display style:', window.getComputedStyle(container).display);
+    console.log('[SANKEY] Container width style:', window.getComputedStyle(container).width);
+    console.log('[SANKEY] Container height style:', window.getComputedStyle(container).height);
+
     const width = container.clientWidth;
     const height = container.clientHeight;
     const margin = { top: 10, right: 10, bottom: 10, left: 10 };
     const chartWidth = width - margin.left - margin.right;
     const chartHeight = height - margin.top - margin.bottom;
+    console.log(`[SANKEY] Container dimensions: ${width}x${height}, Chart: ${chartWidth}x${chartHeight}`);
 
     // Create SVG
     const svg = d3.select(container)
@@ -254,20 +316,26 @@ function renderSankeyDiagram(flows) {
 
     // Create Sankey layout
     const sankey = d3.sankey()
-        .nodeWidth(15)
-        .nodePadding(10)
+        .nodeWidth(20)  // Increased from 15 to 20 for better proportions
+        .nodePadding(3)  // Reduced from 5 to 3 for maximum vertical space
         .extent([[1, 1], [chartWidth - 1, chartHeight - 5]]);
 
     // Generate Sankey data
+    console.log('[SANKEY] Computing Sankey layout...');
     const { nodes: sankeyNodes, links: sankeyLinks } = sankey({
         nodes: nodes.map(d => Object.assign({}, d)),
         links: links.map(d => Object.assign({}, d))
     });
+    console.log(`[SANKEY] Layout computed: ${sankeyNodes.length} nodes, ${sankeyLinks.length} links`);
 
-    // Color scale for nodes
+    // Color scale for nodes - PANfm brand theme
     const colorScale = d3.scaleOrdinal()
         .domain(['source', 'application', 'destination'])
-        .range(['#FA582D', '#2196F3', '#4CAF50']);
+        .range([
+            '#FA582D',  // Source: PANfm brand orange
+            '#666666',  // Application: Professional dark gray
+            '#999999'   // Destination: Medium gray
+        ]);
 
     // Draw links
     svg.append('g')
@@ -276,7 +344,7 @@ function renderSankeyDiagram(flows) {
         .enter()
         .append('path')
         .attr('d', d3.sankeyLinkHorizontal())
-        .attr('stroke-width', d => Math.max(1, d.width))
+        .attr('stroke-width', d => Math.max(0.5, d.width))  // Prevent zero/negative widths
         .attr('fill', 'none')
         .attr('stroke', d => {
             // Gradient from source to target color
@@ -290,7 +358,13 @@ function renderSankeyDiagram(flows) {
             d3.select(this).attr('opacity', 0.4);
         })
         .append('title')
-        .text(d => `${d.source.name} → ${d.target.name}\n${formatBytesHuman(d.value)}`);
+        .text(d => {
+            const apps = d.applications || ['Unknown'];
+            const appList = apps.length > 3
+                ? apps.slice(0, 3).join(', ') + ` (+${apps.length - 3} more)`
+                : apps.join(', ');
+            return `${d.source.name} → ${d.target.name}\nApplications: ${appList}\n${formatBytesHuman(d.value)}`;
+        });
 
     // Draw nodes
     const node = svg.append('g')
@@ -302,7 +376,7 @@ function renderSankeyDiagram(flows) {
     node.append('rect')
         .attr('x', d => d.x0)
         .attr('y', d => d.y0)
-        .attr('height', d => d.y1 - d.y0)
+        .attr('height', d => Math.max(1, d.y1 - d.y0))  // Defensive check to prevent negative heights
         .attr('width', d => d.x1 - d.x0)
         .attr('fill', d => colorScale(d.type))
         .attr('opacity', 0.8)
@@ -348,7 +422,7 @@ function buildSankeyData(flows) {
         return nodeMap.get(key);
     }
 
-    // Process each flow
+    // Use 3-layer Sankey: source → application → destination
     flows.forEach(flow => {
         const sourceIp = flow.source_ip || 'unknown';
         const destIp = flow.dest_ip || 'unknown';
@@ -362,29 +436,23 @@ function buildSankeyData(flows) {
         // Create destination label with port (e.g., "192.168.1.100:443")
         const destLabel = destPort ? `${destIp}:${destPort}` : destIp;
 
-        // Get or create nodes
+        // Get or create nodes for all three layers
         const sourceIdx = getOrCreateNode(sourceIp, 'source');
         const appIdx = getOrCreateNode(application, 'application');
         const destIdx = getOrCreateNode(destLabel, 'destination');
 
-        // Create links: source → application → destination
-        // Link 1: source → application
-        const link1Key = `${sourceIdx}_${appIdx}`;
-        let link1 = links.find(l => l.source === sourceIdx && l.target === appIdx);
-        if (!link1) {
-            link1 = { source: sourceIdx, target: appIdx, value: 0 };
-            links.push(link1);
-        }
-        link1.value += bytes;
+        // Create two links: source → application, application → destination
+        links.push({
+            source: sourceIdx,
+            target: appIdx,
+            value: bytes
+        });
 
-        // Link 2: application → destination
-        const link2Key = `${appIdx}_${destIdx}`;
-        let link2 = links.find(l => l.source === appIdx && l.target === destIdx);
-        if (!link2) {
-            link2 = { source: appIdx, target: destIdx, value: 0 };
-            links.push(link2);
-        }
-        link2.value += bytes;
+        links.push({
+            source: appIdx,
+            target: destIdx,
+            value: bytes
+        });
     });
 
     return { nodes, links };
@@ -438,22 +506,17 @@ function clearSankeyDiagram() {
 }
 
 /**
- * Get selected device ID from settings
+ * Get selected device ID from device selector
  * @returns {string|null} Device ID or null
  */
 function getSelectedDeviceId() {
-    // Try to get from global window.settings object (set by app.js)
-    if (typeof window.settings !== 'undefined' && window.settings.selected_device_id) {
-        return window.settings.selected_device_id;
+    // Get from device selector dropdown (most reliable source)
+    const deviceSelector = document.getElementById('deviceSelector');
+    if (deviceSelector && deviceSelector.value) {
+        return deviceSelector.value;
     }
 
-    // Fallback: try to get from localStorage (if devices.js stores it)
-    const storedDeviceId = localStorage.getItem('selected_device_id');
-    if (storedDeviceId) {
-        return storedDeviceId;
-    }
-
-    console.warn('No device ID found in settings or localStorage');
+    console.warn('No device selected in device selector');
     return null;
 }
 
@@ -486,6 +549,10 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// Export functions to global scope for inline onclick handlers
+window.openSankeyDiagram = openSankeyDiagram;
+window.closeSankeyModal = closeSankeyModal;
 
 // Initialize modal when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {

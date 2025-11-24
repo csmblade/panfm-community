@@ -10,16 +10,16 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 2
 VERSION_MINOR = 1
-VERSION_PATCH = 3
+VERSION_PATCH = 4
 
 # Build metadata (optional)
-VERSION_BUILD = "20251123"  # YYYYMMDD format
+VERSION_BUILD = "20251124"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
 VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Performance Boost"
+VERSION_CODENAME = "Visual Polish"
 
 
 def get_version():
@@ -75,6 +75,54 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '2.1.4',
+        'codename': 'Visual Polish',
+        'date': '2025-11-24',
+        'type': 'patch',
+        'changes': [
+            '✨ UI ENHANCEMENT: Brand-Themed Visual Overhaul',
+            '',
+            'ENHANCED: Throughput Graph (D3.js)',
+            '- CHANGED: Line colors to brand palette (#FA582D, #F2A65A, #F2F0EF)',
+            '- ADDED: Data point dots with white outlines (Chart.js parity)',
+            '- ADDED: Drop shadow filter for visual depth',
+            '- ADDED: Legend in top-right corner',
+            '- INCREASED: Grid and axis opacity (0.1→0.15, 0.3→0.4)',
+            '- FIXED: Graph gaps at start/end (padding 0.5→0)',
+            '- IMPACT: Professional appearance matching dashboard tiles',
+            '',
+            'ENHANCED: Connected Devices Page',
+            '- CHANGED: Table header to dark gradient (#3c3c3c→#2d2d2d) with orange accent',
+            '- ADDED: Table container gradient and dark border (3px solid #3c3c3c)',
+            '- ENHANCED: Total Volume column (font-weight 700, text-shadow)',
+            '- UPDATED: Search/filter bar with gradient and enhanced border',
+            '- ADDED: Badge gradients (tags: orange, location: blue)',
+            '- ADDED: Subtle row gradients for depth',
+            '- CHANGED: Hover state to soft peach (#FFE8DF→#FFD4C4) with orange border',
+            '- FIXED: Row shake on hover (transparent border reservation)',
+            '- IMPACT: Cohesive professional theme across entire page',
+            '',
+            'ENHANCED: Dashboard Visual Consistency',
+            '- CHANGED: Cyber Health background to match Internal Traffic (rgba(255,180,150,0.12))',
+            '- ADDED: White top border to Cyber Health bar (4px solid #F2F0EF)',
+            '- UPDATED: Top Category/Clients modals to match parent background',
+            '- ADDED: White top borders to modals (2px solid white)',
+            '- IMPACT: Unified soft peachy theme throughout dashboard',
+            '',
+            'FILES MODIFIED:',
+            '- static/app.js: Throughput graph enhancements (colors, dots, legend, shadow)',
+            '- static/pages-connected-devices-core.js: Table styling, badges, rows, hover',
+            '- static/pages-connected-devices-sankey.js: Brand color alignment',
+            '- templates/index.html: Search bar, Cyber Health, modal backgrounds',
+            '- version.py: Updated to v2.1.4 "Visual Polish"',
+            '',
+            'SANKEY DIAGRAM FIX (Completed):',
+            '- PHASE 1: Added destinations[] field to source objects (firewall_api_applications.py)',
+            '- PHASE 2: Implemented source→destination correlation',
+            '- RESULT: 836 traffic flows successfully collected and displayed'
+        ]
+    },
     {
         'version': '2.1.3',
         'codename': 'Performance Boost',

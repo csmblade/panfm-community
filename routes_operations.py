@@ -6,7 +6,7 @@ from flask import jsonify, request, render_template, send_from_directory
 from datetime import datetime
 import os
 from auth import login_required
-from config import load_settings, save_settings, load_notification_channels, save_notification_channels
+from config import load_settings, save_settings, load_notification_channels, save_notification_channels, TIMESCALE_DSN
 from firewall_api import (
     get_software_updates,
     get_license_info,
@@ -310,20 +310,13 @@ def register_operations_routes(app, csrf, limiter):
                 debug(f"Cache MISS for {cache_key}")
 
             # Query database for traffic flows
-            collector = get_collector()
-            if not collector or not collector.storage:
-                debug("No collector or storage available")
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Database not initialized',
-                    'flows': [],
-                    'total_flows': 0,
-                    'client_ip': client_ip,
-                    'device_id': device_id
-                }), 503
+            # PANfm v2.1.1: Database-First Pattern - Web process queries TimescaleDB directly
+            # No collector needed, use direct TimescaleDB connection
+            from throughput_storage_timescale import TimescaleStorage
+            storage = TimescaleStorage(TIMESCALE_DSN)
 
             # Get flows from TimescaleDB (indexed query, <100ms)
-            flows = collector.storage.get_traffic_flows_for_client(device_id, client_ip, minutes)
+            flows = storage.get_traffic_flows_for_client(device_id, client_ip, minutes)
 
             debug(f"Retrieved {len(flows)} traffic flows from database for {client_ip} ({minutes}min window)")
 
