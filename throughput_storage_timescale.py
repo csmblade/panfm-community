@@ -161,7 +161,8 @@ class TimescaleStorage:
                     top_category_wan_json, top_category_lan_json, top_category_internet_json,
                     app_version, threat_version, wildfire_version, url_version,
                     wan_ip, wan_speed, hostname, uptime_seconds, pan_os_version, license_expired, license_active,
-                    threats_count, interface_errors
+                    threats_count, interface_errors,
+                    cpu_temp, cpu_temp_max, cpu_temp_alarm
                 ) VALUES (
                     %s, %s,
                     %s, %s, %s,
@@ -175,7 +176,8 @@ class TimescaleStorage:
                     %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s
+                    %s, %s,
+                    %s, %s, %s
                 )
                 ON CONFLICT (time, device_id) DO NOTHING
             ''', (
@@ -196,7 +198,8 @@ class TimescaleStorage:
                 sample_data.get('panos_version') or sample_data.get('pan_os_version'),
                 (sample_data.get('license', {}) or {}).get('expired', 0),
                 (sample_data.get('license', {}) or {}).get('licensed', 0),
-                sample_data.get('threats_count', 0), sample_data.get('interface_errors', 0)
+                sample_data.get('threats_count', 0), sample_data.get('interface_errors', 0),
+                sample_data.get('cpu_temp'), sample_data.get('cpu_temp_max'), sample_data.get('cpu_temp_alarm', False)
             ))
 
             conn.commit()
@@ -246,7 +249,8 @@ class TimescaleStorage:
                     internal_mbps, internet_mbps,
                     top_category_wan_json, top_category_lan_json, top_category_internet_json,
                     app_version, threat_version, wildfire_version, url_version,
-                    wan_ip, wan_speed, hostname, uptime_seconds, pan_os_version, license_expired, license_active
+                    wan_ip, wan_speed, hostname, uptime_seconds, pan_os_version, license_expired, license_active,
+                    cpu_temp, cpu_temp_max, cpu_temp_alarm
                 FROM throughput_samples
                 WHERE device_id = %s AND time >= %s
                 ORDER BY time DESC
