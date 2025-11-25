@@ -1,165 +1,62 @@
-# PANfm Community Edition
+# PANfm Core Development (PRIVATE)
 
-![Version](https://img.shields.io/badge/Version-1.0.0--ce-brightgreen?style=for-the-badge)
-![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue?style=for-the-badge)
-![Docker](https://img.shields.io/badge/Docker-Required-2496ED?style=for-the-badge&logo=docker)
+**⚠️ CONFIDENTIAL - DO NOT DISTRIBUTE ⚠️**
 
-**Free & Open-Source Firewall Management for Palo Alto Networks**
+This is the private development repository for PANfm containing the complete codebase.
 
-Self-hosted web dashboard for real-time monitoring, automated upgrades, and intelligent alerting. Built with Flask, PostgreSQL/TimescaleDB, and Redis.
+## Repository Purpose
 
----
+This repository contains:
+- ✅ Community Edition features
+- ✅ Enterprise Edition features
+- ✅ Internal development tools
+- ✅ License generation tools
+- ✅ Private encryption keys
+- ✅ All experimental features
 
-## 🎯 Features (Community Edition - FREE)
+## Repository Structure
 
-✅ Monitor up to **2 firewall devices** (free forever)
-✅ Real-time throughput monitoring (1-minute granularity)
-✅ Automated PAN-OS upgrade management
-✅ Alert system with SMTP/webhook notifications
-✅ Connected device tracking with custom metadata
-✅ Traffic flow visualization (Sankey diagrams)
-✅ Application statistics & threat analysis
-✅ Production-grade security (encryption, CSRF, rate limiting)
-
----
-
-## 🚀 Quick Start (Docker)
-
-### Prerequisites
-- Docker & Docker Compose
-- Palo Alto Networks firewall with API access
-
-### Installation (2 minutes)
-
-```bash
-# 1. Clone repository
-git clone https://github.com/csmblade/panfm-community.git
-cd panfm-community
-
-# 2. Run setup script (creates required files)
-chmod +x setup.sh
-./setup.sh
-
-# 3. Start containers
-docker compose up -d
-
-# 4. Access dashboard
-open http://localhost:3000
+```
+📁 panfm-core (PRIVATE)
+├── Community Edition code (syncs to public repo)
+├── Enterprise Edition code (license validation, RBAC, SSO)
+├── Internal tools (license generator, deployment scripts)
+└── Development documentation
 ```
 
-**Default Login:**
-Username: `admin` | Password: `admin` **⚠️ CHANGE IMMEDIATELY**
+## Development Workflow
 
----
+### Daily Development
+Work on this repository (`core-development` branch)
 
-## 🛠️ Configuration
-
-### Add Your First Firewall
-
-1. Log in to dashboard
-2. Navigate to **Settings → Devices**
-3. Click **Add Device**
-4. Enter firewall details:
-   - Name: `My Firewall`
-   - IP: `192.168.1.1`
-   - API Key: _(generate on firewall)_
-5. Click **Test Connection** → **Save**
-
-### Generate API Key
-
-On your Palo Alto firewall:
-
+### Syncing to Community Edition
 ```bash
-curl -k "https://FIREWALL-IP/api/?type=keygen&user=USERNAME&password=PASSWORD"
+# Push Community Edition updates (respects .gitignore)
+./sync-to-community.bat
 ```
 
----
+### Syncing to Enterprise Edition
+```bash
+# Push Enterprise Edition updates (includes all features)
+git push enterprise core-development
+```
 
-## 📖 Architecture
+## Branch Strategy
 
-PANfm uses a **dual-process architecture** for reliability:
+- **core-development** - Active development branch (use this)
+- **main** - Stable releases
 
-- **panfm** - Web server (Flask/Gunicorn on port 3000)
-- **panfm-clock** - Background scheduler (throughput collection, alerts)
-- **panfm-timescaledb** - PostgreSQL/TimescaleDB (time-series data)
-- **panfm-redis** - Session store (24-hour TTL)
+## Related Repositories
 
-**Data Retention:**
-- Throughput history: 30 days
-- Alert history: 90 days
-- Connected devices: 30 days
+- **panfm-community** (PUBLIC) - Community Edition for public users
+- **panfm-enterprise** (PRIVATE) - Enterprise Edition for customer deployments
 
----
+## License
 
-## 🔒 Security
+**Proprietary - All Rights Reserved**
 
-- ✅ Encryption at rest (Fernet AES-128 + HMAC)
-- ✅ CSRF protection (Flask-WTF)
-- ✅ Rate limiting (Flask-Limiter)
-- ✅ Bcrypt password hashing (cost factor: 12)
-- ✅ Secure sessions (Redis with signing)
-- ✅ HTTPOnly cookies (XSS prevention)
+This software is proprietary and confidential. See LICENSE file for details.
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Quick Contribution Guide
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-**Contributor License Agreement:** By submitting a PR, you agree to license your contribution under Apache 2.0. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
----
-
-## 📄 License
-
-Licensed under [Apache License 2.0](LICENSE) - use commercially, modify, distribute.
-
-Third-party attributions: see [NOTICE](NOTICE)
-
----
-
-## 🆘 Support
-
-- **GitHub Issues**: [Report bugs](https://github.com/csmblade/panfm-community/issues)
-- **Documentation**: [panfm.io/docs](https://panfm.io/docs)
-- **Reddit**: [r/paloaltonetworks](https://reddit.com/r/paloaltonetworks)
-
----
-
-## 🗺️ Roadmap
-
-- [x] TimescaleDB migration (v2.0.0)
-- [x] Community Edition launch (v1.0.0-ce)
-- [ ] Mobile-responsive UI (v1.1.0)
-- [ ] Dark mode (v1.2.0)
-- [ ] Multi-user support
-- [ ] Custom dashboards
-
----
-
-## ⭐ Star This Project
-
-If PANfm helps you manage firewalls, **star the repo**! ⭐
-
----
-
-## 📞 Contact
-
-- Website: [panfm.io](https://panfm.io)
-- Email: support@panfm.io
-- GitHub: [csmblade/panfm-community](https://github.com/csmblade/panfm-community)
-
----
-
-**Made with ❤️ for network engineers**
-
-[Get Started](https://github.com/csmblade/panfm-community) | [Documentation](https://panfm.io/docs)
+**For internal use only - PANfm Development Team**
