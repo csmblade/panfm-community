@@ -860,7 +860,7 @@ def register_throughput_routes(app, csrf, limiter):
             traffic_logs = traffic_data.get('logs', [])
             debug(f"Processing {len(traffic_logs)} traffic logs for chord diagram")
 
-            # Helper function to check if IP is private
+            # Helper function to check if IP is private (RFC 1918)
             def is_private_ip(ip):
                 if not ip or ip == 'N/A':
                     return False
@@ -879,8 +879,13 @@ def register_throughput_routes(app, csrf, limiter):
                     return False
 
             # Aggregate flows by source-destination pairs
-            internal_flows = {}  # {(src, dst): bytes}
-            internet_flows = {}  # {(src, dst): bytes}
+            # Internal traffic categories
+            rfc1918_flows = {}   # {(src, dst): bytes} - Both private (RFC1918)
+            all_flows = {}       # {(src, dst): bytes} - All traffic regardless of IP type
+            # Internet traffic categories
+            outbound_flows = {}  # {(src, dst): bytes} - Private → Public
+            inbound_flows = {}   # {(src, dst): bytes} - Public → Private
+            transit_flows = {}   # {(src, dst): bytes} - Public → Public
 
             for log in traffic_logs:
                 src_ip = log.get('src', '')
@@ -891,21 +896,30 @@ def register_throughput_routes(app, csrf, limiter):
                 if not src_ip or not dst_ip or src_ip == 'N/A' or dst_ip == 'N/A':
                     continue
 
-                # Determine flow category
+                flow_key = (src_ip, dst_ip)
+
+                # Always add to all_flows (for "All Traffic" filter option)
+                all_flows[flow_key] = all_flows.get(flow_key, 0) + bytes_total
+
+                # Determine flow category for RFC1918 and internet traffic
                 src_private = is_private_ip(src_ip)
                 dst_private = is_private_ip(dst_ip)
 
-                flow_key = (src_ip, dst_ip)
-
                 if src_private and dst_private:
-                    # Internal traffic (both IPs private)
-                    internal_flows[flow_key] = internal_flows.get(flow_key, 0) + bytes_total
+                    # RFC1918 internal traffic (both IPs private)
+                    rfc1918_flows[flow_key] = rfc1918_flows.get(flow_key, 0) + bytes_total
                 elif src_private and not dst_private:
-                    # Internet traffic (private source to public destination)
-                    internet_flows[flow_key] = internet_flows.get(flow_key, 0) + bytes_total
+                    # Outbound traffic (private source to public destination)
+                    outbound_flows[flow_key] = outbound_flows.get(flow_key, 0) + bytes_total
+                elif not src_private and dst_private:
+                    # Inbound traffic (public source to private destination)
+                    inbound_flows[flow_key] = inbound_flows.get(flow_key, 0) + bytes_total
+                else:
+                    # Transit traffic (both IPs public)
+                    transit_flows[flow_key] = transit_flows.get(flow_key, 0) + bytes_total
 
             # Convert to chord diagram format (nodes + flows) - LIMITED TO TOP 5 SOURCE IPS
-            def build_chord_data(flows_dict):
+            def build_chord_data(flows_dict, direction=None):
                 # Aggregate total bytes per source IP
                 source_totals = {}
                 for (src, dst), bytes_val in flows_dict.items():
@@ -915,7 +929,7 @@ def register_throughput_routes(app, csrf, limiter):
                 top_sources = sorted(source_totals.items(), key=lambda x: x[1], reverse=True)[:5]
                 top_source_ips = set([ip for ip, _ in top_sources])
 
-                debug(f"Top 5 source IPs: {[f'{ip} ({bytes_val:,} bytes)' for ip, bytes_val in top_sources]}")
+                debug(f"Top 5 source IPs ({direction or 'all'}): {[f'{ip} ({bytes_val:,} bytes)' for ip, bytes_val in top_sources]}")
 
                 # Filter flows to only include top 5 sources
                 filtered_flows = {k: v for k, v in flows_dict.items() if k[0] in top_source_ips}
@@ -929,12 +943,13 @@ def register_throughput_routes(app, csrf, limiter):
                 # Sort nodes for consistent ordering
                 nodes_list = sorted(list(nodes))
 
-                # Build flow list from filtered flows
+                # Build flow list from filtered flows with direction metadata
                 flows_list = [
                     {
                         'source': src,
                         'target': dst,
-                        'value': value
+                        'value': value,
+                        'direction': direction
                     }
                     for (src, dst), value in filtered_flows.items()
                 ]
@@ -947,16 +962,32 @@ def register_throughput_routes(app, csrf, limiter):
                     'flows': flows_list
                 }
 
-            internal_data = build_chord_data(internal_flows)
-            internet_data = build_chord_data(internet_flows)
+            # Build chord data for internal traffic (RFC1918 and All)
+            rfc1918_data = build_chord_data(rfc1918_flows, 'rfc1918')
+            all_data = build_chord_data(all_flows, 'all')
 
-            debug(f"Internal flows: {len(internal_flows)} pairs, {len(internal_data['nodes'])} nodes")
-            debug(f"Internet flows: {len(internet_flows)} pairs, {len(internet_data['nodes'])} nodes")
+            # Build chord data for internet traffic
+            outbound_data = build_chord_data(outbound_flows, 'outbound')
+            inbound_data = build_chord_data(inbound_flows, 'inbound')
+            transit_data = build_chord_data(transit_flows, 'transit')
+
+            debug(f"RFC1918 flows: {len(rfc1918_flows)} pairs, {len(rfc1918_data['nodes'])} nodes")
+            debug(f"All flows: {len(all_flows)} pairs, {len(all_data['nodes'])} nodes")
+            debug(f"Outbound flows: {len(outbound_flows)} pairs, {len(outbound_data['nodes'])} nodes")
+            debug(f"Inbound flows: {len(inbound_flows)} pairs, {len(inbound_data['nodes'])} nodes")
+            debug(f"Transit flows: {len(transit_flows)} pairs, {len(transit_data['nodes'])} nodes")
 
             return jsonify({
                 'status': 'success',
-                'internal': internal_data,
-                'internet': internet_data
+                'internal': {
+                    'rfc1918': rfc1918_data,
+                    'all': all_data
+                },
+                'internet': {
+                    'outbound': outbound_data,
+                    'inbound': inbound_data,
+                    'transit': transit_data
+                }
             })
 
         except Exception as e:

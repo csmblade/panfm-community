@@ -187,7 +187,18 @@ DEFAULT_SETTINGS = {
     'throughput_retention_days': 90,  # Historical throughput data retention (90 days)
     'throughput_collection_enabled': True,  # Enable/disable background collection
     'alerts_enabled': True,  # Enable/disable alert system (v1.9.0)
-    'alert_retention_days': 90  # Alert history retention (90 days)
+    'alert_retention_days': 90,  # Alert history retention (90 days)
+    # Internet Traffic chord diagram filters (v2.1.14)
+    'internet_traffic_filters': {
+        'outbound': True,   # Private → Public (default: ON)
+        'inbound': True,    # Public → Private (default: ON)
+        'transit': False    # Public → Public (default: OFF)
+    },
+    # Internal Traffic chord diagram filters (v2.1.14)
+    'internal_traffic_filters': {
+        'rfc1918': True,    # RFC1918 private-to-private only (default: ON)
+        'all': False        # All traffic regardless of IP type (default: OFF)
+    }
 }
 
 # Lazy import to avoid circular dependency

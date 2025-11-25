@@ -1474,7 +1474,7 @@ async function init() {
 
     const [settingsResult, devicesResult, metadataResult] = await Promise.allSettled([
         initSettings(),
-        (typeof loadDevices === 'function') ? loadDevices() : Promise.resolve(),
+        (typeof initDeviceSelector === 'function') ? initDeviceSelector() : Promise.resolve(),
         loadDeviceMetadataCache()
     ]);
 
@@ -3302,6 +3302,258 @@ function updateActiveAlertsCount() {
 // Chord Diagram Functions - Client-to-Destination Traffic Visualization
 // ===================================================================================
 
+// Cache for traffic data (so we can re-filter without re-fetching)
+let cachedInternetTrafficData = null;
+let cachedInternalTrafficData = null;
+
+/**
+ * Load internal traffic filter preferences from settings
+ */
+async function loadInternalTrafficFilters() {
+    try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+            const settings = await response.json();
+            const filters = settings.internal_traffic_filters || {rfc1918: true, all: false};
+
+            const rfc1918El = document.getElementById('filterRfc1918');
+            const allEl = document.getElementById('filterAllInternal');
+
+            if (rfc1918El) rfc1918El.checked = filters.rfc1918;
+            if (allEl) allEl.checked = filters.all;
+
+            console.log('[CHORD] Loaded internal traffic filters:', filters);
+        }
+    } catch (error) {
+        console.error('[CHORD] Error loading internal filter preferences:', error);
+    }
+}
+
+/**
+ * Save internal traffic filter preferences to settings
+ */
+async function saveInternalTrafficFilters() {
+    const filters = {
+        rfc1918: document.getElementById('filterRfc1918')?.checked ?? true,
+        all: document.getElementById('filterAllInternal')?.checked ?? false
+    };
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // Get current settings first
+        const settingsResponse = await fetch('/api/settings');
+        const currentSettings = settingsResponse.ok ? await settingsResponse.json() : {};
+
+        // Update with new filter values
+        currentSettings.internal_traffic_filters = filters;
+
+        // Save back
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(currentSettings)
+        });
+
+        console.log('[CHORD] Saved internal traffic filters:', filters);
+    } catch (error) {
+        console.error('[CHORD] Error saving internal filter preferences:', error);
+    }
+}
+
+/**
+ * Handle internal traffic filter checkbox change
+ */
+function onInternalFilterChange() {
+    // Save preferences
+    saveInternalTrafficFilters();
+
+    // Re-render with cached data if available
+    if (cachedInternalTrafficData) {
+        renderFilteredInternalTraffic(cachedInternalTrafficData);
+    }
+}
+
+/**
+ * Get filtered internal flows based on checkbox selections
+ */
+function getFilteredInternalFlows(internalData) {
+    const combined = {nodes: [], flows: []};
+
+    const showRfc1918 = document.getElementById('filterRfc1918')?.checked ?? true;
+    const showAll = document.getElementById('filterAllInternal')?.checked ?? false;
+
+    if (showRfc1918 && internalData.rfc1918) {
+        mergeFlowData(combined, internalData.rfc1918);
+    }
+    if (showAll && internalData.all) {
+        mergeFlowData(combined, internalData.all);
+    }
+
+    // Sort nodes for consistent ordering
+    combined.nodes.sort();
+
+    // Sort flows by value descending
+    combined.flows.sort((a, b) => b.value - a.value);
+
+    return combined;
+}
+
+/**
+ * Render filtered internal traffic diagram
+ */
+function renderFilteredInternalTraffic(internalData) {
+    const filteredData = getFilteredInternalFlows(internalData);
+
+    // Update flow count
+    const internalCount = document.getElementById('chordInternalCount');
+    if (internalCount) {
+        internalCount.textContent = `${filteredData.flows.length} flows`;
+    }
+
+    // Render the filtered chord diagram
+    renderChordDiagram('chordInternalSvg', filteredData, 'internal');
+}
+
+/**
+ * Load internet traffic filter preferences from settings
+ */
+async function loadInternetTrafficFilters() {
+    try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+            const settings = await response.json();
+            const filters = settings.internet_traffic_filters || {outbound: true, inbound: true, transit: false};
+
+            const outboundEl = document.getElementById('filterOutbound');
+            const inboundEl = document.getElementById('filterInbound');
+            const transitEl = document.getElementById('filterTransit');
+
+            if (outboundEl) outboundEl.checked = filters.outbound;
+            if (inboundEl) inboundEl.checked = filters.inbound;
+            if (transitEl) transitEl.checked = filters.transit;
+
+            console.log('[CHORD] Loaded internet traffic filters:', filters);
+        }
+    } catch (error) {
+        console.error('[CHORD] Error loading filter preferences:', error);
+    }
+}
+
+/**
+ * Save internet traffic filter preferences to settings
+ */
+async function saveInternetTrafficFilters() {
+    const filters = {
+        outbound: document.getElementById('filterOutbound')?.checked ?? true,
+        inbound: document.getElementById('filterInbound')?.checked ?? true,
+        transit: document.getElementById('filterTransit')?.checked ?? false
+    };
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        // Get current settings first
+        const settingsResponse = await fetch('/api/settings');
+        const currentSettings = settingsResponse.ok ? await settingsResponse.json() : {};
+
+        // Update with new filter values
+        currentSettings.internet_traffic_filters = filters;
+
+        // Save back
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(currentSettings)
+        });
+
+        console.log('[CHORD] Saved internet traffic filters:', filters);
+    } catch (error) {
+        console.error('[CHORD] Error saving filter preferences:', error);
+    }
+}
+
+/**
+ * Handle internet traffic filter checkbox change
+ */
+function onInternetFilterChange() {
+    // Save preferences
+    saveInternetTrafficFilters();
+
+    // Re-render with cached data if available
+    if (cachedInternetTrafficData) {
+        renderFilteredInternetTraffic(cachedInternetTrafficData);
+    }
+}
+
+/**
+ * Merge flow data from multiple sources into combined data
+ */
+function mergeFlowData(combined, source) {
+    if (!source || !source.flows) return;
+
+    // Add unique nodes
+    source.nodes.forEach(node => {
+        if (!combined.nodes.includes(node)) {
+            combined.nodes.push(node);
+        }
+    });
+
+    // Add all flows
+    combined.flows.push(...source.flows);
+}
+
+/**
+ * Get filtered internet flows based on checkbox selections
+ */
+function getFilteredInternetFlows(internetData) {
+    const combined = {nodes: [], flows: []};
+
+    const showOutbound = document.getElementById('filterOutbound')?.checked ?? true;
+    const showInbound = document.getElementById('filterInbound')?.checked ?? true;
+    const showTransit = document.getElementById('filterTransit')?.checked ?? false;
+
+    if (showOutbound && internetData.outbound) {
+        mergeFlowData(combined, internetData.outbound);
+    }
+    if (showInbound && internetData.inbound) {
+        mergeFlowData(combined, internetData.inbound);
+    }
+    if (showTransit && internetData.transit) {
+        mergeFlowData(combined, internetData.transit);
+    }
+
+    // Sort nodes for consistent ordering
+    combined.nodes.sort();
+
+    // Sort flows by value descending
+    combined.flows.sort((a, b) => b.value - a.value);
+
+    return combined;
+}
+
+/**
+ * Render filtered internet traffic diagram
+ */
+function renderFilteredInternetTraffic(internetData) {
+    const filteredData = getFilteredInternetFlows(internetData);
+
+    // Update flow count
+    const internetCount = document.getElementById('chordInternetCount');
+    if (internetCount) {
+        internetCount.textContent = `${filteredData.flows.length} flows`;
+    }
+
+    // Render the filtered chord diagram
+    renderChordDiagram('chordInternetSvg', filteredData, 'internet');
+}
+
 /**
  * Fetch and render chord diagrams for client-destination traffic flows
  * Displays two separate diagrams: Internal traffic and Internet traffic
@@ -3310,6 +3562,10 @@ async function loadChordDiagrams() {
     console.log('[CHORD] Loading chord diagrams for client-destination traffic flow');
 
     try {
+        // Load both filter preferences first
+        await loadInternalTrafficFilters();
+        await loadInternetTrafficFilters();
+
         // Get CSRF token from meta tag
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
@@ -3327,26 +3583,23 @@ async function loadChordDiagrams() {
         const data = await response.json();
 
         if (data.status === 'success') {
+            // Cache both datasets for re-filtering without API calls
+            cachedInternalTrafficData = data.internal;
+            cachedInternetTrafficData = data.internet;
+
             console.log('[CHORD] Flow data received:', {
-                internal_nodes: data.internal.nodes.length,
-                internal_flows: data.internal.flows.length,
-                internet_nodes: data.internet.nodes.length,
-                internet_flows: data.internet.flows.length
+                rfc1918_flows: data.internal.rfc1918?.flows?.length || 0,
+                all_flows: data.internal.all?.flows?.length || 0,
+                outbound_flows: data.internet.outbound?.flows?.length || 0,
+                inbound_flows: data.internet.inbound?.flows?.length || 0,
+                transit_flows: data.internet.transit?.flows?.length || 0
             });
 
-            // Update flow counts
-            const internalCount = document.getElementById('chordInternalCount');
-            const internetCount = document.getElementById('chordInternetCount');
-            if (internalCount) {
-                internalCount.textContent = `${data.internal.flows.length} flows`;
-            }
-            if (internetCount) {
-                internetCount.textContent = `${data.internet.flows.length} flows`;
-            }
+            // Render filtered internal traffic diagram
+            renderFilteredInternalTraffic(data.internal);
 
-            // Render both chord diagrams
-            renderChordDiagram('chordInternalSvg', data.internal, 'internal');
-            renderChordDiagram('chordInternetSvg', data.internet, 'internet');
+            // Render filtered internet traffic diagram
+            renderFilteredInternetTraffic(data.internet);
         } else {
             console.error('[CHORD] API returned error status:', data.message);
             showChordError('chordInternalLoading', 'No internal flow data');
@@ -3449,13 +3702,44 @@ function renderChordDiagram(svgId, data, type) {
         // Purple/blue theme for tagged traffic
         colorScheme = ['#9C27B0', '#AB47BC', '#BA68C8', '#CE93D8', '#7B1FA2', '#8E24AA', '#9C27B0', '#AA00FF'];
     } else {
-        // Green/cool theme for internet traffic
+        // Green/cool theme for internet traffic (fallback)
         colorScheme = ['#4CAF50', '#66BB6A', '#81C784', '#A5D6A7', '#26A69A', '#00ACC1', '#00BCD4', '#0097A7'];
     }
 
     const color = d3.scaleOrdinal()
         .domain(d3.range(data.nodes.length))
         .range(colorScheme);
+
+    // Direction-based colors for internet traffic flows
+    const directionColors = {
+        'outbound': '#4CAF50',  // Green - Private → Public
+        'inbound': '#2196F3',   // Blue - Public → Private
+        'transit': '#9C27B0',   // Purple - Public → Public
+        'internal': '#FA582D'   // Orange - Private → Private (fallback)
+    };
+
+    // Build a lookup map for flow directions: "source->target" -> direction
+    const flowDirectionMap = {};
+    if (data.flows) {
+        data.flows.forEach(flow => {
+            if (flow.direction) {
+                const key = `${flow.source}->${flow.target}`;
+                flowDirectionMap[key] = flow.direction;
+            }
+        });
+    }
+
+    // Function to get ribbon color based on flow direction (for internet traffic)
+    const getRibbonColor = (sourceIdx, targetIdx) => {
+        if (type !== 'internet') {
+            return color(sourceIdx);  // Use standard color scheme for non-internet diagrams
+        }
+        const sourceNode = data.nodes[sourceIdx];
+        const targetNode = data.nodes[targetIdx];
+        const key = `${sourceNode}->${targetNode}`;
+        const direction = flowDirectionMap[key];
+        return directionColors[direction] || color(sourceIdx);
+    };
 
     // Create SVG group centered
     const g = svg.append('g')
@@ -3470,7 +3754,7 @@ function renderChordDiagram(svgId, data, type) {
         .data(chords)
         .join('path')
         .attr('d', ribbon)
-        .style('fill', d => color(d.source.index))
+        .style('fill', d => getRibbonColor(d.source.index, d.target.index))
         .style('opacity', 0.7)
         .style('stroke', 'none')
         .on('mouseover', function(event, d) {
@@ -3486,8 +3770,23 @@ function renderChordDiagram(svgId, data, type) {
             const value = matrix[d.source.index][d.target.index];
             const valueText = formatBytes(value);
 
+            // Get direction label for internet traffic
+            let directionLabel = '';
+            if (type === 'internet') {
+                const key = `${sourceNode}->${targetNode}`;
+                const direction = flowDirectionMap[key];
+                if (direction) {
+                    const directionLabels = {
+                        'outbound': '<span style="color: #4CAF50;">Outbound</span> (Private→Public)',
+                        'inbound': '<span style="color: #2196F3;">Inbound</span> (Public→Private)',
+                        'transit': '<span style="color: #9C27B0;">Transit</span> (Public→Public)'
+                    };
+                    directionLabel = `<br/><em>${directionLabels[direction] || direction}</em>`;
+                }
+            }
+
             tooltip.style('opacity', 1)
-                .html(`<strong>${sourceNode}</strong> → <strong>${targetNode}</strong><br/>${valueText}`)
+                .html(`<strong>${sourceNode}</strong> → <strong>${targetNode}</strong><br/>${valueText}${directionLabel}`)
                 .style('left', `${event.pageX + 10}px`)
                 .style('top', `${event.pageY - 28}px`);
         })

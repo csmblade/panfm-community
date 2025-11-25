@@ -10,16 +10,16 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 0
-VERSION_PATCH = 0
+VERSION_PATCH = 1
 
 # Build metadata (optional)
-VERSION_BUILD = "20251125"  # YYYYMMDD format
+VERSION_BUILD = "20251126"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
 VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Community Edition"
+VERSION_CODENAME = "Dark Theme & UI Polish"
 
 
 def get_version():
@@ -75,6 +75,50 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.0.1',
+        'codename': 'Dark Theme & UI Polish',
+        'date': '2025-11-26',
+        'type': 'patch',
+        'changes': [
+            'UI/UX: Comprehensive Dark Theme Updates',
+            '',
+            'SETTINGS PAGE - DARK THEME:',
+            '- Backup & Restore tab: Dark gradient backgrounds, light accents',
+            '- Debug tab: Warning notices, log info section styled',
+            '- Databases tab: MAC Vendor and Service Port sections updated',
+            '- Consistent info boxes (blue #1a3d4d) and warning boxes (amber #3d3520)',
+            '- Form inputs with dark backgrounds (#2a2a2a) and visible borders',
+            '',
+            'DEVICE INFO PAGE - DARK THEME:',
+            '- Interfaces table: Dark alternating rows with hover effects',
+            '- DHCP table: Dark theme with orange accent on hover',
+            '- Software Updates section: Loading states and sub-tabs styled',
+            '- Tech Support section: Status and download areas updated',
+            '- Reboot section: Warning and success state styling',
+            '',
+            'TRAFFIC FLOW CHORD DIAGRAMS:',
+            '- Internet traffic filter checkboxes (Outbound/Inbound/Transit)',
+            '- Settings persistence for filter preferences',
+            '- Cached data for instant filter switching',
+            '',
+            'CONNECTED DEVICES IMPROVEMENTS:',
+            '- Location dropdown with autocomplete support',
+            '- Tag management with bulk operations',
+            '- Export functionality enhancements',
+            '',
+            'SECURITY:',
+            '- Added defusedxml for XXE protection in XML parsing',
+            '- Service port database upload uses safe XML parsing',
+            '',
+            'STYLING PATTERNS ESTABLISHED:',
+            '- Primary background: linear-gradient(135deg, #2d2d2d, #1a1a1a)',
+            '- Border accent: border-top: 4px solid #F2F0EF',
+            '- Text colors: #F2F0EF (primary), #bbb/#888 (secondary)',
+            '- Orange accent: #FA582D for interactive elements',
+            '- Checkbox accent: accent-color: #FA582D',
+        ]
+    },
     {
         'version': '1.0.0',
         'codename': 'Community Edition',

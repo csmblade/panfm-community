@@ -19,7 +19,9 @@ from backup_restore import (
     get_backup_info
 )
 from logger import debug, info, error, exception
-import xml.etree.ElementTree as ET
+# Use defusedxml to prevent XXE (XML External Entity) attacks
+# Standard xml.etree.ElementTree is vulnerable to XXE injection
+import defusedxml.ElementTree as ET
 
 
 def register_databases_backup_routes(app, csrf, limiter):

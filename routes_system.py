@@ -2,7 +2,7 @@
 Flask route handlers for system health and services
 Handles health checks, version info, services status, and database management
 """
-from flask import jsonify, session
+from flask import jsonify, session, request
 from datetime import datetime
 import sqlite3
 from auth import login_required
@@ -423,6 +423,63 @@ def register_system_routes(app, csrf, limiter):
                 'message': str(e)
             }), 500
 
+    @app.route('/api/database/size', methods=['GET'])
+    @limiter.limit("60 per hour")
+    @login_required
+    def get_database_size():
+        """Get TimescaleDB database size information"""
+        from config import TIMESCALE_DSN
+        import psycopg2
+
+        debug("=== Database Size API endpoint called ===")
+
+        try:
+            conn = psycopg2.connect(TIMESCALE_DSN)
+            cursor = conn.cursor()
+
+            # Get total database size
+            cursor.execute("SELECT pg_size_pretty(pg_database_size(current_database()))")
+            total_size = cursor.fetchone()[0]
+
+            # Get table sizes
+            cursor.execute("""
+                SELECT
+                    relname as table_name,
+                    pg_size_pretty(pg_total_relation_size(relid)) as total_size
+                FROM pg_catalog.pg_statio_user_tables
+                WHERE schemaname = 'public'
+                ORDER BY pg_total_relation_size(relid) DESC
+                LIMIT 10
+            """)
+            table_sizes = [{'table': row[0], 'size': row[1]} for row in cursor.fetchall()]
+
+            # Get row counts for main tables
+            table_counts = {}
+            main_tables = ['throughput_samples', 'connected_devices', 'traffic_flows', 'alert_history']
+            for table in main_tables:
+                try:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                    table_counts[table] = cursor.fetchone()[0]
+                except:
+                    table_counts[table] = 0
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                'status': 'success',
+                'total_size': total_size,
+                'table_sizes': table_sizes,
+                'row_counts': table_counts
+            })
+
+        except Exception as e:
+            exception(f"Failed to get database size: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
     @app.route('/api/system/collect-now', methods=['POST'])
     @limiter.limit("20 per hour")  # Allow manual triggers for testing
     @login_required
@@ -540,6 +597,286 @@ def register_system_routes(app, csrf, limiter):
             return jsonify({
                 'status': 'error',
                 'message': str(e)
+            }), 500
+
+    # ============================================================================
+    # Tag Management Endpoints (Settings/Maintenance Tab)
+    # ============================================================================
+
+    @app.route('/api/tags', methods=['GET'])
+    @limiter.limit("600 per hour")
+    @login_required
+    def get_tags_with_usage():
+        """
+        Get all tags with usage counts for the Settings/Maintenance tab.
+
+        Query parameters:
+            - device_id: Filter by specific device (optional, defaults to all devices globally)
+
+        Response:
+            {
+                "status": "success",
+                "tags": [
+                    {"tag": "finance", "count": 15},
+                    {"tag": "employee", "count": 42},
+                    ...
+                ],
+                "device_id": null (or specific device_id if filtered)
+            }
+        """
+        debug("=== Get tags with usage API endpoint called ===")
+        try:
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+
+            # Get optional device_id filter from query params
+            device_id = request.args.get('device_id')
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            tags_raw = storage.get_tags_with_usage(device_id=device_id)
+
+            # Transform usage_count to count for frontend compatibility
+            tags = [{'tag': t['tag'], 'count': t.get('usage_count', 0)} for t in tags_raw]
+
+            debug(f"Retrieved {len(tags)} tags (device_id filter: {device_id or 'all'})")
+
+            return jsonify({
+                'status': 'success',
+                'tags': tags,
+                'device_id': device_id,
+                'total_tags': len(tags)
+            })
+        except Exception as e:
+            exception(f"Error getting tags with usage: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'tags': []
+            }), 500
+
+    @app.route('/api/tags/all', methods=['GET'])
+    @limiter.limit("600 per hour")
+    @login_required
+    def get_all_tags_global():
+        """
+        Get all unique tags across all devices globally (no device filter).
+        Returns simple list of tag names without counts.
+
+        Response:
+            {
+                "status": "success",
+                "tags": ["finance", "employee", "contractor", ...]
+            }
+        """
+        debug("=== Get all tags globally API endpoint called ===")
+        try:
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            tags = storage.get_all_tags_global()
+
+            debug(f"Retrieved {len(tags)} unique tags globally")
+
+            return jsonify({
+                'status': 'success',
+                'tags': tags,
+                'total_tags': len(tags)
+            })
+        except Exception as e:
+            exception(f"Error getting all tags globally: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'tags': []
+            }), 500
+
+    @app.route('/api/tags/<tag>', methods=['PUT'])
+    @limiter.limit("100 per hour")
+    @login_required
+    def rename_tag(tag):
+        """
+        Rename a tag across all metadata entries.
+
+        Path parameter:
+            - tag: The tag name to rename
+
+        Query parameters:
+            - device_id: Limit rename to specific device (optional, defaults to all devices)
+
+        Request body:
+            {
+                "new_name": "new-tag-name"
+            }
+
+        Response:
+            {
+                "status": "success",
+                "message": "Tag renamed successfully",
+                "old_name": "old-tag",
+                "new_name": "new-tag",
+                "affected_count": 15
+            }
+        """
+        debug(f"=== Rename tag API endpoint called: {tag} ===")
+        try:
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+
+            data = request.get_json()
+            if not data or 'new_name' not in data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'new_name is required'
+                }), 400
+
+            new_name = data['new_name'].strip()
+            if not new_name:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'new_name cannot be empty'
+                }), 400
+
+            # Optional device_id filter
+            device_id = request.args.get('device_id')
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            affected_count = storage.rename_tag(tag, new_name, device_id=device_id)
+
+            info(f"Tag '{tag}' renamed to '{new_name}' by {session.get('username', 'unknown')}, {affected_count} entries affected (device_id: {device_id or 'all'})")
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Tag renamed successfully',
+                'old_name': tag,
+                'new_name': new_name,
+                'affected_count': affected_count,
+                'device_id': device_id
+            })
+        except Exception as e:
+            exception(f"Error renaming tag '{tag}': {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/tags/<tag>', methods=['DELETE'])
+    @limiter.limit("100 per hour")
+    @login_required
+    def delete_tag(tag):
+        """
+        Delete a tag from all metadata entries.
+
+        Path parameter:
+            - tag: The tag name to delete
+
+        Query parameters:
+            - device_id: Limit deletion to specific device (optional, defaults to all devices)
+
+        Response:
+            {
+                "status": "success",
+                "message": "Tag deleted successfully",
+                "deleted_tag": "tag-name",
+                "affected_count": 15
+            }
+        """
+        debug(f"=== Delete tag API endpoint called: {tag} ===")
+        try:
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+
+            # Optional device_id filter
+            device_id = request.args.get('device_id')
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            affected_count = storage.delete_tag(tag, device_id=device_id)
+
+            info(f"Tag '{tag}' deleted by {session.get('username', 'unknown')}, {affected_count} entries affected (device_id: {device_id or 'all'})")
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Tag deleted successfully',
+                'deleted_tag': tag,
+                'affected_count': affected_count,
+                'device_id': device_id
+            })
+        except Exception as e:
+            exception(f"Error deleting tag '{tag}': {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/tags/devices', methods=['GET'])
+    @limiter.limit("600 per hour")
+    @login_required
+    def get_devices_for_tag_management():
+        """
+        Get list of devices with their tag counts for the device filter dropdown.
+
+        Response:
+            {
+                "status": "success",
+                "devices": [
+                    {"device_id": "uuid", "device_name": "PA440", "tag_count": 15},
+                    ...
+                ]
+            }
+        """
+        debug("=== Get devices for tag management API endpoint called ===")
+        try:
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+            from device_manager import device_manager
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+
+            # Get devices from device_manager
+            devices = device_manager.load_devices()
+            device_map = {d['id']: d['name'] for d in devices}
+
+            # Get tag counts per device from database
+            conn = storage._get_connection()
+            cursor = conn.cursor()
+            try:
+                # Count distinct tags per device_id
+                cursor.execute("""
+                    SELECT device_id, COUNT(DISTINCT tag) as tag_count
+                    FROM device_metadata, unnest(tags) as tag
+                    WHERE tags IS NOT NULL AND array_length(tags, 1) > 0
+                    GROUP BY device_id
+                """)
+                tag_counts = {row[0]: row[1] for row in cursor.fetchall()}
+            finally:
+                cursor.close()
+                storage._return_connection(conn)
+
+            # Build response with device info
+            result = []
+            for device in devices:
+                device_id = device['id']
+                result.append({
+                    'device_id': device_id,
+                    'device_name': device['name'],
+                    'tag_count': tag_counts.get(device_id, 0)
+                })
+
+            # Sort by name
+            result.sort(key=lambda x: x['device_name'].lower())
+
+            debug(f"Retrieved {len(result)} devices for tag management")
+
+            return jsonify({
+                'status': 'success',
+                'devices': result
+            })
+        except Exception as e:
+            exception(f"Error getting devices for tag management: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'devices': []
             }), 500
 
     debug("System health and services routes registered successfully")

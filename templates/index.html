@@ -45,8 +45,8 @@
             width: 250px;
             min-width: 250px;
             max-width: 250px;
-            background: linear-gradient(180deg, #2d2d2d 0%, #1a1a1a 100%);
-            border-right: 3px solid #FA582D;
+            background: #2b2b2b;
+            border-right: 1px solid #444;
             display: flex;
             flex-direction: column;
             position: relative;
@@ -57,7 +57,7 @@
 
         /* Collapsed sidebar state - use transform to slide out of view */
         .sidebar.collapsed {
-            transform: translateX(-253px);  /* 250px width + 3px border */
+            transform: translateX(-251px);  /* 250px width + 1px border */
             border-right-width: 0;
         }
 
@@ -68,18 +68,18 @@
 
         /* Show separator on hover */
         .sidebar:hover {
-            border-right-color: #FA582D !important;
+            border-right-color: #555 !important;
         }
 
-        /* Sidebar toggle button - positioned on orange border */
+        /* Sidebar toggle button - positioned on border */
         .sidebar-toggle {
             position: fixed;
-            left: 247px;
+            left: 248px;
             top: 50%;
             transform: translateY(-50%);
             width: 6px;
             height: 60px;
-            background: linear-gradient(180deg, #FA582D 0%, #C64620 100%);
+            background: linear-gradient(180deg, #555 0%, #444 100%);
             border: none;
             border-radius: 0 4px 4px 0;
             cursor: pointer;
@@ -89,29 +89,29 @@
             justify-content: center;
             color: transparent;
             font-size: 0px;
-            box-shadow: 2px 0 8px rgba(250, 88, 45, 0.4);
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
         }
 
         .sidebar-toggle:hover {
             width: 10px;
-            box-shadow: 2px 0 12px rgba(250, 88, 45, 0.6);
+            background: linear-gradient(180deg, #D4A017 0%, #B8860B 100%);
+            box-shadow: 2px 0 12px rgba(212, 160, 23, 0.4);
         }
 
         /* When sidebar is collapsed, move toggle button to left edge */
         .sidebar.collapsed + .sidebar-toggle {
-            left: -3px;
+            left: -1px;
             border-radius: 0 4px 4px 0;
         }
 
         .sidebar-header {
             padding: 20px;
-            border-bottom: 2px solid rgba(255, 102, 0, 0.3);
-            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            background: #2b2b2b;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 8px 8px 0 0;
         }
 
         .sidebar-logo {
@@ -127,39 +127,38 @@
         }
 
         .sidebar-menu {
-            padding: 15px 0;
+            padding: 0;
         }
 
         .menu-item {
-            padding: 10px 20px;
-            color: #cccccc;
+            padding: 12px 20px;
+            color: #b0b0b0;
             text-decoration: none;
             display: flex;
             align-items: center;
             gap: 12px;
             cursor: pointer;
-            transition: all 0.25s ease;
-            border-left: 4px solid transparent;
-            font-size: 0.82em;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+            font-size: 0.85em;
             font-family: var(--font-primary);
             letter-spacing: 0.3px;
-            background: linear-gradient(90deg, rgba(255,180,150,0.03) 0%, rgba(255,180,150,0.08) 100%);
-            margin: 2px 0;
+            background: transparent;
+            margin: 0;
+            border-bottom: 1px solid #333;
         }
 
         .menu-item:hover {
-            background: linear-gradient(90deg, rgba(255,180,150,0.12) 0%, rgba(255,180,150,0.18) 100%);
-            border-left-color: #F2F0EF;
+            background: #333;
+            border-left-color: #D4A017;
             color: #F2F0EF;
-            box-shadow: inset 4px 0 0 #FA582D, 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .menu-item.active {
-            background: linear-gradient(90deg, rgba(250,88,45,0.2) 0%, rgba(250,88,45,0.3) 100%);
-            border-left-color: #F2F0EF;
-            color: #F2F0EF;
+            background: #333;
+            border-left-color: #D4A017;
+            color: #D4A017;
             font-weight: 600;
-            box-shadow: inset 4px 0 0 #FA582D, 0 2px 6px rgba(250,88,45,0.2);
         }
 
         .menu-icon {
@@ -167,14 +166,18 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #FA582D 0%, #F2A65A 100%);
+            background: #555;
             box-shadow: 0 1px 3px rgba(0,0,0,0.3);
             display: inline-block;
         }
 
+        .menu-item:hover .menu-icon {
+            background: #D4A017;
+        }
+
         .menu-item.active .menu-icon {
-            background: linear-gradient(135deg, #F2F0EF 0%, #FA582D 100%);
-            box-shadow: 0 2px 4px rgba(250,88,45,0.4);
+            background: #D4A017;
+            box-shadow: 0 0 6px rgba(212, 160, 23, 0.5);
         }
 
         .resize-handle {
@@ -506,12 +509,15 @@
         }
 
         .error-message {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            background: #2a2a2a;
+            color: #F2F0EF;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 3px solid #FA582D;
+            margin-bottom: 10px;
             display: none;
+            font-size: 0.85em;
+            font-family: var(--font-secondary);
         }
 
         .loading {
@@ -739,8 +745,8 @@
                         <span style="color: #F2F0EF; font-size: 0.8em; font-family: var(--font-secondary); font-weight: 500;">Connected</span>
                     </div>
 
-                    <!-- Device Name -->
-                    <div id="deviceName" style="text-align: center; color: #F2F0EF; font-size: 0.9em; font-family: var(--font-secondary); font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    <!-- Device Name Display (sidebar) -->
+                    <div id="deviceNameDisplay" style="text-align: center; color: #F2F0EF; font-size: 0.9em; font-family: var(--font-secondary); font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                     </div>
 
                     <!-- Device IP Address -->
@@ -790,8 +796,8 @@
         </div>
 
         <!-- System Stats -->
-        <div style="padding: 20px 15px; border-top: 1px solid rgba(255, 102, 0, 0.2);">
-            <div style="font-size: 0.75em; color: #F2F0EF; font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; font-family: var(--font-primary);">System Info</div>
+        <div style="padding: 20px 15px; border-top: 1px solid #444;">
+            <div style="font-size: 0.75em; color: #D4A017; font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; font-family: var(--font-primary);">System Info</div>
             <div style="margin-bottom: 15px;">
                 <div style="color: #999; font-size: 0.7em; font-family: var(--font-secondary);">WAN IP Address</div>
                 <div id="sidebarWanIp" style="color: #F2F0EF; font-size: 0.75em; font-weight: 600; font-family: var(--font-primary);">-</div>
@@ -822,11 +828,11 @@
         <div style="flex-grow: 1;"></div>
 
         <!-- Logout Button -->
-        <div style="padding: 10px 15px; border-top: 1px solid rgba(255, 102, 0, 0.2);">
+        <div style="padding: 10px 15px; border-top: 1px solid #444;">
             <button id="logoutBtn"
-                    style="width: 100%; padding: 8px 12px; background: transparent; color: #F2F0EF; border: 1px solid #FA582D; border-radius: 6px; font-family: var(--font-primary); font-size: 0.8em; font-weight: 600; cursor: pointer; transition: all 0.2s;"
-                    onmouseover="this.style.background='#FA582D'; this.style.color='white'"
-                    onmouseout="this.style.background='transparent'; this.style.color='#FA582D'">
+                    style="width: 100%; padding: 8px 12px; background: transparent; color: #b0b0b0; border: 1px solid #555; border-radius: 4px; font-family: var(--font-primary); font-size: 0.8em; font-weight: 500; cursor: pointer; transition: all 0.2s;"
+                    onmouseover="this.style.background='#D4A017'; this.style.color='#1a1a1a'; this.style.borderColor='#D4A017'"
+                    onmouseout="this.style.background='transparent'; this.style.color='#b0b0b0'; this.style.borderColor='#555'">
                 Logout
             </button>
         </div>
@@ -846,8 +852,9 @@
         <div id="homepage-content" class="page-content">
             <div class="container">
 
-        <div id="debugAlert" style="display: none; margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); border-left: 5px solid #C44520; border-radius: 8px; color: #F2F0EF; font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            ⚠️ Debug Logging is Enabled - All API responses are being logged to debug.log
+        <div id="debugAlert" style="display: none; background: #3d3520; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <strong style="color: #ffc107;">⚠️ Debug Logging Enabled</strong>
+            <p style="color: #e0c74f; margin: 5px 0 0 0; font-size: 0.9em;">All API responses are being logged to debug.log. Disable in Settings when not needed.</p>
         </div>
 
         <div class="error-message" id="errorMessage"></div>
@@ -860,9 +867,8 @@
                     <!-- Time Range Selector -->
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <label style="color: #F2F0EF; font-weight: 500; font-size: 0.85em; font-family: var(--font-secondary);">Time Range:</label>
-                        <select id="timeRangeSelect" style="padding: 8px 16px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: var(--font-primary);"
-                                onmouseover="this.style.borderColor='#FA582D'; this.style.transform='scale(1.02)'"
-                                onmouseout="this.style.borderColor='#555'; this.style.transform='scale(1)'">
+                        <select id="timeRangeSelect" style="padding: 8px 16px; background: #2a2a2a; color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);"
+                                onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
                             <option value="5m">5 Minutes</option>
                             <option value="15m">15 Minutes</option>
                             <option value="30m" selected>30 Minutes</option>
@@ -873,9 +879,8 @@
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <label style="color: #F2F0EF; font-weight: 500; font-size: 0.85em; font-family: var(--font-secondary);">Interface:</label>
                         <input type="text" id="monitoredInterfaceInput" placeholder="ethernet1/12" value="ethernet1/12"
-                               style="padding: 8px 16px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-size: 0.85em; font-weight: 600; width: 140px; transition: all 0.2s; font-family: var(--font-primary);"
-                               onmouseover="this.style.borderColor='#FA582D'; this.style.transform='scale(1.02)'"
-                               onmouseout="this.style.borderColor='#555'; this.style.transform='scale(1)'">
+                               style="padding: 8px 16px; background: #2a2a2a; color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-size: 0.85em; font-weight: 600; width: 140px; font-family: var(--font-primary);"
+                               onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
                         <button id="updateInterfaceBtn"
                                 style="padding: 6px 14px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 6px; font-size: 0.85em; font-weight: 600; cursor: pointer; font-family: var(--font-primary);">
                             Update
@@ -1057,9 +1062,20 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 20px;">
             <!-- Internal Traffic Flow -->
             <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid #F2F0EF;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="color: #F2F0EF; margin: 0; font-size: 1.2em; font-family: var(--font-primary);">Internal Traffic</h3>
                     <span id="chordInternalCount" style="color: rgba(255, 255, 255, 0.7); font-size: 0.75em; font-family: var(--font-secondary);">Loading...</span>
+                </div>
+                <!-- Internal Traffic Filter Checkboxes -->
+                <div id="internalTrafficFilters" style="display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.85em; font-family: var(--font-secondary);">
+                    <label style="display: flex; align-items: center; gap: 5px; color: #FA582D; cursor: pointer;">
+                        <input type="checkbox" id="filterRfc1918" checked onchange="onInternalFilterChange()" style="accent-color: #FA582D;">
+                        <span>RFC1918 Traffic</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; color: #FFD700; cursor: pointer;">
+                        <input type="checkbox" id="filterAllInternal" onchange="onInternalFilterChange()" style="accent-color: #FFD700;">
+                        <span>All Traffic</span>
+                    </label>
                 </div>
                 <div style="position: relative; height: 400px;">
                     <svg id="chordInternalSvg" style="width: 100%; height: 100%;"></svg>
@@ -1069,9 +1085,24 @@
 
             <!-- Internet Traffic Flow -->
             <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid #F2F0EF;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="color: #F2F0EF; margin: 0; font-size: 1.2em; font-family: var(--font-primary);">Internet Traffic</h3>
                     <span id="chordInternetCount" style="color: rgba(255, 255, 255, 0.7); font-size: 0.75em; font-family: var(--font-secondary);">Loading...</span>
+                </div>
+                <!-- Traffic Direction Filter Checkboxes -->
+                <div id="internetTrafficFilters" style="display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.85em; font-family: var(--font-secondary);">
+                    <label style="display: flex; align-items: center; gap: 5px; color: #4CAF50; cursor: pointer;">
+                        <input type="checkbox" id="filterOutbound" checked onchange="onInternetFilterChange()" style="accent-color: #4CAF50;">
+                        <span>Outbound</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; color: #2196F3; cursor: pointer;">
+                        <input type="checkbox" id="filterInbound" checked onchange="onInternetFilterChange()" style="accent-color: #2196F3;">
+                        <span>Inbound</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; color: #9C27B0; cursor: pointer;">
+                        <input type="checkbox" id="filterTransit" onchange="onInternetFilterChange()" style="accent-color: #9C27B0;">
+                        <span>Transit</span>
+                    </label>
                 </div>
                 <div style="position: relative; height: 400px;">
                     <svg id="chordInternetSvg" style="width: 100%; height: 100%;"></svg>
@@ -1148,15 +1179,15 @@
         </div>
 
         <!-- Critical Threats Modal -->
-        <div id="criticalThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div id="criticalThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: #2b2b2b; border: 1px solid #404040; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
                 <!-- Modal Header -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                     <div>
-                        <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Critical Threats</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
+                        <h2 style="color: #F2F0EF; margin: 0 0 5px 0; font-family: var(--font-primary);">Critical Threats</h2>
+                        <p style="color: #b0b0b0; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
                     </div>
-                    <button onclick="closeCriticalThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                    <button onclick="closeCriticalThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
                 </div>
 
                 <!-- Summary Stats -->
@@ -1168,7 +1199,7 @@
                 </div>
 
                 <!-- Threats Table -->
-                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
+                <div style="background: #363636; border: 1px solid #404040; border-radius: 8px; padding: 20px;">
                     <div style="max-height: 500px; overflow-y: auto;" id="criticalThreatsTableContainer">
                         <!-- Will be populated by JavaScript -->
                     </div>
@@ -1177,15 +1208,15 @@
         </div>
 
         <!-- High Threats Modal (NEW v1.10.14) -->
-        <div id="highThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div id="highThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: #2b2b2b; border: 1px solid #404040; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
                 <!-- Modal Header -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #E04F26; padding-bottom: 15px;">
                     <div>
-                        <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">High Threats</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
+                        <h2 style="color: #F2F0EF; margin: 0 0 5px 0; font-family: var(--font-primary);">High Threats</h2>
+                        <p style="color: #b0b0b0; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
                     </div>
-                    <button onclick="closeHighThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                    <button onclick="closeHighThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
                 </div>
 
                 <!-- Summary Stats -->
@@ -1197,7 +1228,7 @@
                 </div>
 
                 <!-- Threats Table -->
-                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
+                <div style="background: #363636; border: 1px solid #404040; border-radius: 8px; padding: 20px;">
                     <div style="max-height: 500px; overflow-y: auto;" id="highThreatsTableContainer">
                         <!-- Will be populated by JavaScript -->
                     </div>
@@ -1206,15 +1237,15 @@
         </div>
 
         <!-- Medium Threats Modal -->
-        <div id="mediumThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div id="mediumThreatsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: #2b2b2b; border: 1px solid #404040; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
                 <!-- Modal Header -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #C64620; padding-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #E04F26; padding-bottom: 15px;">
                     <div>
-                        <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Medium Threats</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
+                        <h2 style="color: #F2F0EF; margin: 0 0 5px 0; font-family: var(--font-primary);">Medium Threats</h2>
+                        <p style="color: #b0b0b0; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
                     </div>
-                    <button onclick="closeMediumThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                    <button onclick="closeMediumThreatsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
                 </div>
 
                 <!-- Summary Stats -->
@@ -1226,7 +1257,7 @@
                 </div>
 
                 <!-- Threats Table -->
-                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
+                <div style="background: #363636; border: 1px solid #404040; border-radius: 8px; padding: 20px;">
                     <div style="max-height: 500px; overflow-y: auto;" id="mediumThreatsTableContainer">
                         <!-- Will be populated by JavaScript -->
                     </div>
@@ -1235,15 +1266,15 @@
         </div>
 
         <!-- Blocked URLs Modal -->
-        <div id="blockedUrlsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div id="blockedUrlsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: #2b2b2b; border: 1px solid #404040; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
                 <!-- Modal Header -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #C64620; padding-bottom: 15px;">
                     <div>
-                        <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Blocked URLs</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
+                        <h2 style="color: #F2F0EF; margin: 0 0 5px 0; font-family: var(--font-primary);">Blocked URLs</h2>
+                        <p style="color: #b0b0b0; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Last 10 entries</p>
                     </div>
-                    <button onclick="closeBlockedUrlsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                    <button onclick="closeBlockedUrlsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
                 </div>
 
                 <!-- Summary Stats -->
@@ -1255,7 +1286,7 @@
                 </div>
 
                 <!-- URLs Table -->
-                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
+                <div style="background: #363636; border: 1px solid #404040; border-radius: 8px; padding: 20px;">
                     <div style="max-height: 500px; overflow-y: auto;" id="blockedUrlsTableContainer">
                         <!-- Will be populated by JavaScript -->
                     </div>
@@ -1264,15 +1295,15 @@
         </div>
 
         <!-- Top Applications Modal -->
-        <div id="topAppsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div id="topAppsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: #2b2b2b; border: 1px solid #404040; border-radius: 12px; padding: 30px; max-width: 1200px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
                 <!-- Modal Header -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #AD3D1A; padding-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                     <div>
-                        <h2 style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Top Applications</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Most active applications by bandwidth usage</p>
+                        <h2 style="color: #F2F0EF; margin: 0 0 5px 0; font-family: var(--font-primary);">Top Applications</h2>
+                        <p style="color: #b0b0b0; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Most active applications by bandwidth usage</p>
                     </div>
-                    <button onclick="closeTopAppsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                    <button onclick="closeTopAppsModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
                 </div>
 
                 <!-- Summary Stats -->
@@ -1284,7 +1315,7 @@
                 </div>
 
                 <!-- Applications Table -->
-                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
+                <div style="background: #363636; border: 1px solid #404040; border-radius: 8px; padding: 20px;">
                     <div style="max-height: 500px; overflow-y: auto;" id="topAppsTableContainer">
                         <!-- Will be populated by JavaScript -->
                     </div>
@@ -1518,15 +1549,15 @@
         </div>
 
         <!-- Application Destinations Modal -->
-        <div id="appDestinationsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div id="appDestinationsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
                 <!-- Modal Header -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                     <div>
-                        <h2 id="appDestModalTitle" style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary);">Application Destinations</h2>
-                        <p id="appDestModalSubtitle" style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Traffic destinations</p>
+                        <h2 id="appDestModalTitle" style="color: #F2F0EF; margin: 0 0 5px 0; font-family: var(--font-primary);">Application Destinations</h2>
+                        <p id="appDestModalSubtitle" style="color: #b0b0b0; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Traffic destinations</p>
                     </div>
-                    <button id="closeAppDestModalBtn" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                    <button id="closeAppDestModalBtn" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
                 </div>
 
                 <!-- Summary Stats -->
@@ -1546,8 +1577,8 @@
                 </div>
 
                 <!-- Destinations Table -->
-                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
-                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1em; font-family: var(--font-primary);">Destination IP Addresses / Hosts</h3>
+                <div style="background: #2a2a2a; border-radius: 8px; padding: 20px; border: 1px solid #444;">
+                    <h3 style="margin: 0 0 15px 0; color: #F2F0EF; font-size: 1.1em; font-family: var(--font-primary);">Destination IP Addresses / Hosts</h3>
                     <div style="max-height: 400px; overflow-y: auto;">
                         <div id="appDestinationsList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
                             <!-- Will be populated by JavaScript -->
@@ -1556,8 +1587,8 @@
                 </div>
 
                 <!-- Note -->
-                <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
-                    <p id="appDestNote" style="margin: 0; color: #856404; font-size: 0.9em; font-family: var(--font-secondary);">
+                <div style="margin-top: 15px; padding: 10px; background: #3a3520; border-left: 4px solid #D4A017; border-radius: 4px;">
+                    <p id="appDestNote" style="margin: 0; color: #D4A017; font-size: 0.9em; font-family: var(--font-secondary);">
                         Showing top destinations by volume
                     </p>
                 </div>
@@ -1565,15 +1596,15 @@
         </div>
 
         <!-- Application Details Modal -->
-        <div id="appDetailsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div id="appDetailsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; max-width: 1000px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
                 <!-- Modal Header -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
                     <div style="flex: 1;">
-                        <h2 id="appDetailsName" style="color: #333; margin: 0 0 5px 0; font-family: var(--font-primary); font-size: 1.8em;">-</h2>
-                        <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Category: <span id="appDetailsCategory" style="color: #F2F0EF; font-weight: 600;">-</span></p>
+                        <h2 id="appDetailsName" style="color: #F2F0EF; margin: 0 0 5px 0; font-family: var(--font-primary); font-size: 1.8em;">-</h2>
+                        <p style="color: #b0b0b0; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Category: <span id="appDetailsCategory" style="color: #FA582D; font-weight: 600;">-</span></p>
                     </div>
-                    <button id="closeAppDetailsModalBtn" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; font-family: var(--font-primary);">&times;</button>
+                    <button id="closeAppDetailsModalBtn" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
                 </div>
 
                 <!-- Summary Stats -->
@@ -1593,8 +1624,8 @@
                 </div>
 
                 <!-- Source IP Addresses Section -->
-                <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1em; font-family: var(--font-primary); font-weight: 600;">Source IP Addresses</h3>
+                <div style="background: #2a2a2a; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #444;">
+                    <h3 style="margin: 0 0 15px 0; color: #F2F0EF; font-size: 1.1em; font-family: var(--font-primary); font-weight: 600;">Source IP Addresses</h3>
                     <div id="appDetailsSourceList" style="display: flex; flex-wrap: wrap; gap: 10px;">
                         <!-- Will be populated by JavaScript -->
                     </div>
@@ -1603,21 +1634,21 @@
                 <!-- Three Column Section: Protocols, Top Ports, VLANs -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
                     <!-- Protocols -->
-                    <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
-                        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1em; font-family: var(--font-primary); font-weight: 600; text-transform: uppercase;">Protocols</h3>
-                        <div id="appDetailsProtocols" style="font-family: monospace; color: #666; font-size: 0.95em;">-</div>
+                    <div style="background: #2a2a2a; border-radius: 8px; padding: 20px; border: 1px solid #444;">
+                        <h3 style="margin: 0 0 15px 0; color: #F2F0EF; font-size: 1em; font-family: var(--font-primary); font-weight: 600; text-transform: uppercase;">Protocols</h3>
+                        <div id="appDetailsProtocols" style="font-family: monospace; color: #b0b0b0; font-size: 0.95em;">-</div>
                     </div>
 
                     <!-- Top Ports -->
-                    <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
-                        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1em; font-family: var(--font-primary); font-weight: 600; text-transform: uppercase;">Top Ports</h3>
-                        <div id="appDetailsTopPorts" style="font-family: monospace; color: #666; font-size: 0.95em;">-</div>
+                    <div style="background: #2a2a2a; border-radius: 8px; padding: 20px; border: 1px solid #444;">
+                        <h3 style="margin: 0 0 15px 0; color: #F2F0EF; font-size: 1em; font-family: var(--font-primary); font-weight: 600; text-transform: uppercase;">Top Ports</h3>
+                        <div id="appDetailsTopPorts" style="font-family: monospace; color: #b0b0b0; font-size: 0.95em;">-</div>
                     </div>
 
                     <!-- VLANs -->
-                    <div style="background: #f9f9f9; border-radius: 8px; padding: 20px;">
-                        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1em; font-family: var(--font-primary); font-weight: 600; text-transform: uppercase;">VLANs</h3>
-                        <div id="appDetailsVLANs" style="font-family: monospace; color: #666; font-size: 0.95em;">-</div>
+                    <div style="background: #2a2a2a; border-radius: 8px; padding: 20px; border: 1px solid #444;">
+                        <h3 style="margin: 0 0 15px 0; color: #F2F0EF; font-size: 1em; font-family: var(--font-primary); font-weight: 600; text-transform: uppercase;">VLANs</h3>
+                        <div id="appDetailsVLANs" style="font-family: monospace; color: #b0b0b0; font-size: 0.95em;">-</div>
                     </div>
                 </div>
             </div>
@@ -1711,9 +1742,9 @@
                 <div id="interfaces-tab" class="device-info-tab-content" style="display: block;">
                     <div class="error-message" id="interfacesErrorMessage"></div>
 
-                    <div id="interfacesLoading" style="display: none; text-align: center; padding: 60px 20px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div class="spinner" style="margin: 0 auto 20px auto; width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #F7D9BC; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                        <p style="color: #666; font-size: 1.1em; font-family: var(--font-secondary);">Loading interface information...</p>
+                    <div id="interfacesLoading" style="display: none; text-align: center; padding: 60px 20px; background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
+                        <div class="spinner" style="margin: 0 auto 20px auto; width: 50px; height: 50px; border: 4px solid #444; border-top: 4px solid #FA582D; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <p style="color: #bbb; font-size: 1.1em; font-family: var(--font-secondary);">Loading interface information...</p>
                     </div>
 
                     <div id="interfacesContent" style="display: none;">
@@ -1734,10 +1765,10 @@
                         </div>
 
                         <!-- Interfaces Table -->
-                        <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 3px solid #FA582D;">
+                        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 25px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
                                 <div style="display: flex; align-items: center; gap: 15px;">
-                                    <h3 style="color: #333; margin: 0; font-size: 1.2em; font-weight: 600; font-family: var(--font-primary);">Interface Details</h3>
+                                    <h3 style="color: #F2F0EF; margin: 0; font-size: 1.2em; font-weight: 600; font-family: var(--font-primary);">Interface Details</h3>
                                     <select id="interfaceStateFilter" onchange="applyInterfaceFilter()" style="padding: 8px 12px; border: 2px solid #555; border-radius: 6px; font-size: 0.9em; font-family: var(--font-primary); color: #F2F0EF; cursor: pointer; background: #2a2a2a;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
                                         <option value="all">All Interfaces</option>
                                         <option value="up" selected>Up Only</option>
@@ -1759,53 +1790,55 @@
                 <div id="dhcp-tab" class="device-info-tab-content" style="display: none;">
                     <div class="error-message" id="dhcpErrorMessage"></div>
 
-                    <div id="dhcpLoading" style="display: none; text-align: center; padding: 60px 20px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div class="spinner" style="margin: 0 auto 20px auto; width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #F7D9BC; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                        <p style="color: #666; font-family: var(--font-secondary); font-size: 1em;">Loading DHCP leases...</p>
+                    <div id="dhcpLoading" style="display: none; text-align: center; padding: 60px 20px; background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
+                        <div class="spinner" style="margin: 0 auto 20px auto; width: 50px; height: 50px; border: 4px solid #444; border-top: 4px solid #FA582D; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <p style="color: #bbb; font-family: var(--font-secondary); font-size: 1em;">Loading DHCP leases...</p>
                     </div>
 
                     <div id="dhcpContent" style="display: none;">
                         <!-- Summary Section -->
-                        <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 10px 0;">DHCP Summary</h3>
+                        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
+                            <h3 style="color: #F2F0EF; font-family: var(--font-primary); margin: 0 0 10px 0;">DHCP Summary</h3>
                             <div style="display: flex; gap: 30px; flex-wrap: wrap;">
                                 <div>
-                                    <p style="color: #999; font-size: 0.85em; margin: 0; font-family: var(--font-secondary);">Total Active Leases</p>
+                                    <p style="color: #bbb; font-size: 0.85em; margin: 0; font-family: var(--font-secondary);">Total Active Leases</p>
                                     <p id="dhcpTotalLeases" style="color: #F2F0EF; font-size: 1.8em; font-weight: 700; margin: 5px 0 0 0; font-family: var(--font-primary);">0</p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- DHCP Leases Table -->
-                        <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 20px 0;">Active DHCP Leases</h3>
+                        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
+                            <h3 style="color: #F2F0EF; font-family: var(--font-primary); margin: 0 0 20px 0;">Active DHCP Leases</h3>
 
                             <!-- Search and Filter Controls (v1.10.13) -->
                             <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                                 <div>
-                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Search</label>
+                                    <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Search</label>
                                     <input type="text"
                                         id="dhcpSearchInput"
                                         placeholder="Search by IP, MAC, hostname..."
                                         oninput="renderDhcpTable()"
-                                        style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s; font-family: var(--font-secondary);"
+                                        style="width: 100%; padding: 10px 12px; border: 2px solid #555; border-radius: 6px; background: #2a2a2a; color: #F2F0EF; font-size: 0.95em; box-sizing: border-box; transition: border-color 0.3s; font-family: var(--font-secondary);"
                                         onfocus="this.style.borderColor='#FA582D'"
-                                        onblur="this.style.borderColor='#ddd'"
+                                        onblur="this.style.borderColor='#555'"
                                     />
                                 </div>
                                 <div>
-                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Filter by Interface</label>
+                                    <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Filter by Interface</label>
                                     <select id="dhcpInterfaceFilter"
                                         onchange="renderDhcpTable()"
-                                        style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer; font-family: var(--font-secondary);">
+                                        style="width: 100%; padding: 10px 12px; border: 2px solid #555; border-radius: 6px; background: #2a2a2a; color: #F2F0EF; font-size: 0.95em; cursor: pointer; font-family: var(--font-secondary);"
+                                        onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
                                         <option value="">All Interfaces</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Filter by State</label>
+                                    <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; font-family: var(--font-primary);">Filter by State</label>
                                     <select id="dhcpStateFilter"
                                         onchange="renderDhcpTable()"
-                                        style="width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; background: white; color: #333; font-size: 0.95em; cursor: pointer; font-family: var(--font-secondary);">
+                                        style="width: 100%; padding: 10px 12px; border: 2px solid #555; border-radius: 6px; background: #2a2a2a; color: #F2F0EF; font-size: 0.95em; cursor: pointer; font-family: var(--font-secondary);"
+                                        onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
                                         <option value="">All States</option>
                                         <option value="BOUND">BOUND</option>
                                         <option value="OFFERED">OFFERED</option>
@@ -1818,23 +1851,23 @@
                             <div style="overflow-x: auto;">
                                 <table id="dhcpLeasesTable" style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary);">
                                     <thead>
-                                        <tr style="background: linear-gradient(135deg, #FA582D 0%, #ff7849 100%); color: #F2F0EF;">
-                                            <th onclick="sortDhcpLeases('ip')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                        <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 2px solid #555; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                            <th onclick="sortDhcpLeases('ip')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em; cursor: pointer; user-select: none;">
                                                 <span id="dhcpHeaderIp">IP Address ▲</span>
                                             </th>
-                                            <th onclick="sortDhcpLeases('mac')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                            <th onclick="sortDhcpLeases('mac')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em; cursor: pointer; user-select: none;">
                                                 <span id="dhcpHeaderMac">MAC Address</span>
                                             </th>
-                                            <th onclick="sortDhcpLeases('hostname')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                            <th onclick="sortDhcpLeases('hostname')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em; cursor: pointer; user-select: none;">
                                                 <span id="dhcpHeaderHostname">Hostname</span>
                                             </th>
-                                            <th onclick="sortDhcpLeases('state')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                            <th onclick="sortDhcpLeases('state')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em; cursor: pointer; user-select: none;">
                                                 <span id="dhcpHeaderState">State</span>
                                             </th>
-                                            <th onclick="sortDhcpLeases('expiration')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                            <th onclick="sortDhcpLeases('expiration')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em; cursor: pointer; user-select: none;">
                                                 <span id="dhcpHeaderExpiration">Expiration</span>
                                             </th>
-                                            <th onclick="sortDhcpLeases('interface')" style="padding: 12px; text-align: left; font-weight: 600; font-family: var(--font-primary); cursor: pointer; user-select: none;">
+                                            <th onclick="sortDhcpLeases('interface')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em; cursor: pointer; user-select: none;">
                                                 <span id="dhcpHeaderInterface">Interface</span>
                                             </th>
                                         </tr>
@@ -1868,17 +1901,17 @@
                         </button>
                     </div>
 
-                    <div id="softwareLoading" style="display: none; text-align: center; padding: 60px 20px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div class="spinner" style="margin: 0 auto 20px auto; width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #F7D9BC; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                        <p style="color: #666; font-size: 1.1em;">Loading software updates...</p>
+                    <div id="softwareLoading" style="display: none; text-align: center; padding: 60px 20px; background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
+                        <div class="spinner" style="margin: 0 auto 20px auto; width: 50px; height: 50px; border: 4px solid #444; border-top: 4px solid #FA582D; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <p style="color: #bbb; font-size: 1.1em;">Loading software updates...</p>
                     </div>
 
                     <!-- PAN-OS Sub-tab Content -->
                     <div id="panos-sub-tab" class="software-sub-tab-content" style="display: block;">
                         <!-- Version Check Section -->
-                        <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 15px 0;">PAN-OS Upgrade</h3>
-                            <p style="color: #666; font-family: var(--font-secondary); margin: 0 0 15px 0; font-size: 0.95em;">
+                        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
+                            <h3 style="color: #F2F0EF; font-family: var(--font-primary); margin: 0 0 15px 0;">PAN-OS Upgrade</h3>
+                            <p style="color: #bbb; font-family: var(--font-secondary); margin: 0 0 15px 0; font-size: 0.95em;">
                                 Check for available PAN-OS updates and upgrade your firewall to the latest version.
                             </p>
                             <button id="checkPanosVersionBtn" style="padding: 10px 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-family: var(--font-primary); box-shadow: 0 2px 4px rgba(250, 88, 45, 0.3); transition: all 0.3s;">
@@ -1888,15 +1921,15 @@
                         </div>
 
                         <!-- Current Version Table -->
-                        <div id="panosTable" style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+                        <div id="panosTable" style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;"></div>
                     </div>
 
                     <!-- Components Sub-tab Content -->
                     <div id="components-sub-tab" class="software-sub-tab-content" style="display: none;">
                         <!-- Content Update Management Section -->
-                        <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 10px 0;">Content Updates</h3>
-                            <p style="color: #666; font-family: var(--font-secondary); margin: 0 0 15px 0; font-size: 0.95em;">
+                        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
+                            <h3 style="color: #F2F0EF; font-family: var(--font-primary); margin: 0 0 10px 0;">Content Updates</h3>
+                            <p style="color: #bbb; font-family: var(--font-secondary); margin: 0 0 15px 0; font-size: 0.95em;">
                                 Manage content updates for Applications & Threats, Antivirus, and WildFire. No reboot required.
                             </p>
                             <button id="checkContentUpdatesBtn" style="padding: 10px 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-family: var(--font-primary); box-shadow: 0 2px 4px rgba(250, 88, 45, 0.3); transition: all 0.3s;">
@@ -1906,8 +1939,8 @@
                         </div>
 
                         <!-- Current Components Table -->
-                        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 15px 0;">Current Software Components</h3>
+                        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
+                            <h3 style="color: #F2F0EF; font-family: var(--font-primary); margin: 0 0 15px 0;">Current Software Components</h3>
                             <div id="componentsTable"></div>
                         </div>
                     </div>
@@ -1917,36 +1950,36 @@
                 <div id="tech-support-tab" class="device-info-tab-content" style="display: none;">
                     <div class="error-message" id="techSupportErrorMessage"></div>
 
-                    <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
                         <div style="margin-bottom: 20px;">
-                            <h3 style="color: #333; font-family: 'Roboto', sans-serif; margin: 0 0 10px 0;">Generate Tech Support File</h3>
-                            <p style="color: #666; font-family: 'Open Sans', sans-serif; margin: 0 0 20px 0;">
+                            <h3 style="color: #F2F0EF; font-family: var(--font-primary); margin: 0 0 10px 0;">Generate Tech Support File</h3>
+                            <p style="color: #bbb; font-family: var(--font-secondary); margin: 0 0 20px 0;">
                                 Generate a comprehensive technical support file from your Palo Alto firewall. This file contains diagnostic information that can be shared with support teams.
                             </p>
-                            <button id="generateTechSupportBtn" onclick="generateTechSupport()" style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; padding: 12px 30px; border-radius: 6px; font-size: 1em; font-weight: 600; cursor: pointer; font-family: 'Roboto', sans-serif; box-shadow: 0 2px 4px rgba(250, 88, 45, 0.3); transition: all 0.3s;">
+                            <button id="generateTechSupportBtn" onclick="generateTechSupport()" style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; padding: 12px 30px; border-radius: 6px; font-size: 1em; font-weight: 600; cursor: pointer; font-family: var(--font-primary); box-shadow: 0 2px 4px rgba(250, 88, 45, 0.3); transition: all 0.3s;">
                                 Generate Tech Support File
                             </button>
                         </div>
 
                         <!-- Progress/Status Area -->
-                        <div id="techSupportStatus" style="display: none; margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; border-left: 4px solid #FA582D;">
+                        <div id="techSupportStatus" style="display: none; margin-top: 30px; padding: 20px; background: #363636; border-radius: 8px; border-left: 4px solid #FA582D;">
                             <div style="display: flex; align-items: center; gap: 15px;">
-                                <div class="spinner" id="techSupportSpinner" style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #F7D9BC; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                                <div class="spinner" id="techSupportSpinner" style="width: 40px; height: 40px; border: 4px solid #444; border-top: 4px solid #FA582D; border-radius: 50%; animation: spin 1s linear infinite;"></div>
                                 <div style="flex: 1;">
-                                    <p id="techSupportStatusText" style="color: #333; font-weight: 600; margin: 0 0 5px 0; font-family: 'Roboto', sans-serif;">Generating tech support file...</p>
-                                    <p id="techSupportProgressText" style="color: #666; margin: 0; font-size: 0.9em; font-family: 'Open Sans', sans-serif;">Please wait, this may take several minutes.</p>
+                                    <p id="techSupportStatusText" style="color: #F2F0EF; font-weight: 600; margin: 0 0 5px 0; font-family: var(--font-primary);">Generating tech support file...</p>
+                                    <p id="techSupportProgressText" style="color: #bbb; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">Please wait, this may take several minutes.</p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Download Area -->
-                        <div id="techSupportDownload" style="display: none; margin-top: 30px; padding: 20px; background: #e8f5e9; border-radius: 8px; border-left: 4px solid #28a745;">
+                        <div id="techSupportDownload" style="display: none; margin-top: 30px; padding: 20px; background: #1a3d1a; border-radius: 8px; border-left: 4px solid #28a745;">
                             <div style="display: flex; align-items: center; justify-content: space-between;">
                                 <div>
-                                    <p style="color: #28a745; font-weight: 600; margin: 0 0 5px 0; font-family: 'Roboto', sans-serif;">✓ Tech support file ready!</p>
-                                    <p id="techSupportFileName" style="color: #666; margin: 0; font-size: 0.9em; font-family: 'Open Sans', sans-serif;"></p>
+                                    <p style="color: #4caf50; font-weight: 600; margin: 0 0 5px 0; font-family: var(--font-primary);">✓ Tech support file ready!</p>
+                                    <p id="techSupportFileName" style="color: #bbb; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);"></p>
                                 </div>
-                                <a id="techSupportDownloadLink" href="#" target="_blank" style="background: #28a745; color: #F2F0EF; border: none; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-family: 'Roboto', sans-serif; box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);">
+                                <a id="techSupportDownloadLink" href="#" target="_blank" style="background: #28a745; color: #F2F0EF; border: none; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-family: var(--font-primary); box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);">
                                     Download File
                                 </a>
                             </div>
@@ -1958,20 +1991,20 @@
                 <div id="reboot-tab" class="device-info-tab-content" style="display: none;">
                     <div class="error-message" id="rebootErrorMessage"></div>
 
-                    <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
                         <div style="margin-bottom: 20px;">
-                            <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 10px 0;">Reboot Firewall</h3>
-                            <p style="color: #666; font-family: var(--font-secondary); margin: 0 0 20px 0;">
+                            <h3 style="color: #F2F0EF; font-family: var(--font-primary); margin: 0 0 10px 0;">Reboot Firewall</h3>
+                            <p style="color: #bbb; font-family: var(--font-secondary); margin: 0 0 20px 0;">
                                 Restart the Palo Alto firewall to apply configuration changes or resolve issues. The firewall will be unavailable for several minutes during the reboot process.
                             </p>
 
                             <!-- Warning Box -->
-                            <div style="padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 20px;">
-                                <strong style="color: #856404; font-family: var(--font-primary);">Warning:</strong>
-                                <p style="margin: 5px 0 0 0; color: #856404; font-family: var(--font-secondary); font-size: 0.95em;">
+                            <div style="padding: 15px; background: #3d3520; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 20px;">
+                                <strong style="color: #ffc107; font-family: var(--font-primary);">Warning:</strong>
+                                <p style="margin: 5px 0 0 0; color: #e0c74f; font-family: var(--font-secondary); font-size: 0.95em;">
                                     Rebooting the firewall will:
                                 </p>
-                                <ul style="margin: 8px 0 0 20px; color: #856404; font-family: var(--font-secondary); font-size: 0.95em;">
+                                <ul style="margin: 8px 0 0 20px; color: #e0c74f; font-family: var(--font-secondary); font-size: 0.95em;">
                                     <li>Disconnect all active network traffic</li>
                                     <li>Interrupt all VPN connections</li>
                                     <li>Make the firewall management interface unavailable</li>
@@ -1986,20 +2019,20 @@
                         </div>
 
                         <!-- Status Area -->
-                        <div id="rebootStatus" style="display: none; margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; border-left: 4px solid #FA582D;">
+                        <div id="rebootStatus" style="display: none; margin-top: 30px; padding: 20px; background: #363636; border-radius: 8px; border-left: 4px solid #FA582D;">
                             <div style="display: flex; align-items: center; gap: 15px;">
-                                <div class="spinner" id="rebootSpinner" style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #F7D9BC; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                                <div class="spinner" id="rebootSpinner" style="width: 40px; height: 40px; border: 4px solid #444; border-top: 4px solid #FA582D; border-radius: 50%; animation: spin 1s linear infinite;"></div>
                                 <div style="flex: 1;">
-                                    <p id="rebootStatusText" style="color: #333; font-weight: 600; margin: 0 0 5px 0; font-family: var(--font-primary);">Rebooting firewall...</p>
-                                    <p id="rebootProgressText" style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">The firewall is restarting. This page will be unavailable for several minutes.</p>
+                                    <p id="rebootStatusText" style="color: #F2F0EF; font-weight: 600; margin: 0 0 5px 0; font-family: var(--font-primary);">Rebooting firewall...</p>
+                                    <p id="rebootProgressText" style="color: #bbb; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">The firewall is restarting. This page will be unavailable for several minutes.</p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Success Area -->
-                        <div id="rebootSuccess" style="display: none; margin-top: 30px; padding: 20px; background: #d4edda; border-radius: 8px; border-left: 4px solid #28a745;">
-                            <p style="color: #28a745; font-weight: 600; margin: 0 0 5px 0; font-family: var(--font-primary);">✓ Reboot command sent successfully!</p>
-                            <p style="color: #666; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">The firewall is now rebooting. You may lose connection shortly.</p>
+                        <div id="rebootSuccess" style="display: none; margin-top: 30px; padding: 20px; background: #1a3d1a; border-radius: 8px; border-left: 4px solid #28a745;">
+                            <p style="color: #4caf50; font-weight: 600; margin: 0 0 5px 0; font-family: var(--font-primary);">✓ Reboot command sent successfully!</p>
+                            <p style="color: #bbb; margin: 0; font-size: 0.9em; font-family: var(--font-secondary);">The firewall is now rebooting. You may lose connection shortly.</p>
                         </div>
                     </div>
                 </div>
@@ -2087,13 +2120,12 @@
                     <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center;">
                         <div>
                             <label style="color: #F2F0EF; font-weight: 600; font-family: var(--font-primary); margin-right: 10px;">Time Range:</label>
-                            <select id="analyticsTimeRange" onchange="saveAnalyticsTimeRange(); loadAnalyticsData()" style="padding: 10px 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-size: 1em; font-family: var(--font-secondary); cursor: pointer;">
+                            <select id="analyticsTimeRange" onchange="saveAnalyticsTimeRange(); loadAnalyticsData()" style="padding: 10px 15px; background: #2a2a2a; color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-size: 1em; font-family: var(--font-secondary); cursor: pointer;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
                                 <option value="1h">Last 1 Hour</option>
                                 <option value="6h" selected>Last 6 Hours</option>
                                 <option value="24h">Last 24 Hours</option>
                                 <option value="7d">Last 7 Days</option>
                                 <option value="30d">Last 30 Days</option>
-                                <option value="90d">Last 90 Days</option>
                             </select>
                         </div>
                         <div style="text-align: center;">
@@ -2101,10 +2133,10 @@
                         </div>
                         <div>
                             <button onclick="exportAnalyticsCSV()" style="padding: 10px 20px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary); margin-right: 10px; transition: all 0.2s;" onmouseover="this.style.borderColor='#FA582D'; this.style.transform='scale(1.02)'" onmouseout="this.style.borderColor='#555'; this.style.transform='scale(1)'">
-                                📥 Export CSV
+                                Export CSV
                             </button>
                             <button onclick="refreshAnalyticsData()" style="padding: 10px 20px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-weight: 600; cursor: pointer; font-family: var(--font-primary); transition: all 0.2s;" onmouseover="this.style.borderColor='#FA582D'; this.style.transform='scale(1.02)'" onmouseout="this.style.borderColor='#555'; this.style.transform='scale(1)'">
-                                🔄 Refresh
+                                Refresh
                             </button>
                         </div>
                     </div>
@@ -2139,55 +2171,6 @@
                     <h2 style="color: #F2F0EF; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Throughput History</h2>
                     <div style="position: relative; height: 400px;">
                         <canvas id="analyticsChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- CPU & Memory Charts -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 25px;">
-                    <!-- CPU Chart -->
-                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
-                        <h2 style="color: #F2F0EF; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">CPU Usage History</h2>
-                        <div style="position: relative; height: 300px;">
-                            <canvas id="analyticsCpuChart"></canvas>
-                        </div>
-                        <!-- CPU Stats -->
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
-                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
-                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">AVG DATA PLANE</div>
-                                <div id="avgCpuDataPlane" style="font-size: 1.5em; font-weight: 700; color: #E04F26; font-family: var(--font-primary);">--</div>
-                            </div>
-                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
-                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">PEAK DATA PLANE</div>
-                                <div id="peakCpuDataPlane" style="font-size: 1.5em; font-weight: 700; color: #E04F26; font-family: var(--font-primary);">--</div>
-                            </div>
-                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
-                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">AVG MGMT PLANE</div>
-                                <div id="avgCpuMgmt" style="font-size: 1.5em; font-weight: 700; color: #B8541E; font-family: var(--font-primary);">--</div>
-                            </div>
-                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
-                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">PEAK MGMT PLANE</div>
-                                <div id="peakCpuMgmt" style="font-size: 1.5em; font-weight: 700; color: #B8541E; font-family: var(--font-primary);">--</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Memory Chart -->
-                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
-                        <h2 style="color: #F2F0EF; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Memory Usage History</h2>
-                        <div style="position: relative; height: 300px;">
-                            <canvas id="analyticsMemoryChart"></canvas>
-                        </div>
-                        <!-- Memory Stats -->
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
-                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
-                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">AVG MEMORY</div>
-                                <div id="avgMemory" style="font-size: 1.5em; font-weight: 700; color: #C23C14; font-family: var(--font-primary);">--</div>
-                            </div>
-                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
-                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">PEAK MEMORY</div>
-                                <div id="peakMemory" style="font-size: 1.5em; font-weight: 700; color: #C23C14; font-family: var(--font-primary);">--</div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -2301,6 +2284,55 @@
                     </div>
                 </div>
 
+                <!-- CPU & Memory Charts -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 25px;">
+                    <!-- CPU Chart -->
+                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
+                        <h2 style="color: #F2F0EF; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">CPU Usage History</h2>
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="analyticsCpuChart"></canvas>
+                        </div>
+                        <!-- CPU Stats -->
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
+                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">AVG DATA PLANE</div>
+                                <div id="avgCpuDataPlane" style="font-size: 1.5em; font-weight: 700; color: #E04F26; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
+                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">PEAK DATA PLANE</div>
+                                <div id="peakCpuDataPlane" style="font-size: 1.5em; font-weight: 700; color: #E04F26; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
+                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">AVG MGMT PLANE</div>
+                                <div id="avgCpuMgmt" style="font-size: 1.5em; font-weight: 700; color: #B8541E; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
+                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">PEAK MGMT PLANE</div>
+                                <div id="peakCpuMgmt" style="font-size: 1.5em; font-weight: 700; color: #B8541E; font-family: var(--font-primary);">--</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Memory Chart -->
+                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
+                        <h2 style="color: #F2F0EF; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Memory Usage History</h2>
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="analyticsMemoryChart"></canvas>
+                        </div>
+                        <!-- Memory Stats -->
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
+                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">AVG MEMORY</div>
+                                <div id="avgMemory" style="font-size: 1.5em; font-weight: 700; color: #C23C14; font-family: var(--font-primary);">--</div>
+                            </div>
+                            <div style="text-align: center; padding: 15px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; border: 1px solid #555;">
+                                <div style="color: #ccc; font-size: 0.85em; font-family: var(--font-primary);">PEAK MEMORY</div>
+                                <div id="peakMemory" style="font-size: 1.5em; font-weight: 700; color: #C23C14; font-family: var(--font-primary);">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Top Bandwidth Clients Section -->
                 <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF; margin-bottom: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -2335,42 +2367,48 @@
 
                 <div class="error-message" id="devicesErrorMessage"></div>
 
-                <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF;">
+                <!-- Community Edition Notice -->
+                <div style="background: #3d3520; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                    <strong style="color: #ffc107;">⚠️ Community Edition</strong>
+                    <p style="color: #e0c74f; margin: 5px 0 0 0; font-size: 0.9em;">Maximum 2 firewalls supported. Upgrade to Enterprise Edition for unlimited devices.</p>
+                </div>
+
+                <div style="background: #2b2b2b; border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border: 1px solid #404040;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="color: #333; margin: 0;">Firewall Devices</h2>
-                        <button id="addDeviceBtn" style="padding: 12px 24px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;">
+                        <h2 style="color: #ffffff; margin: 0; font-family: 'Roboto', sans-serif; font-weight: 500; font-size: 1.5em;">Firewall Devices</h2>
+                        <button id="addDeviceBtn" style="padding: 12px 24px; background: #FA582D; color: #ffffff; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Roboto', sans-serif; transition: background 0.2s;" onmouseover="this.style.background='#ff6b35'" onmouseout="this.style.background='#FA582D'">
                             + Add Device
                         </button>
                     </div>
 
                     <div id="devicesTableContainer">
-                        <table id="devicesTable" style="width: 100%; border-collapse: collapse;">
+                        <table id="devicesTable" style="width: 100%; border-collapse: collapse; background: #2b2b2b;">
                             <thead>
-                                <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
-                                    <th onclick="sortDevices('name')" style="padding: 12px; text-align: left; color: #333; font-weight: 600; cursor: pointer; user-select: none;" title="Click to sort">
+                                <tr style="background: #363636; border-bottom: 2px solid #FA582D;">
+                                    <th onclick="sortDevices('name')" style="padding: 12px; text-align: left; color: #ffffff; font-weight: 500; cursor: pointer; user-select: none; font-family: 'Roboto', sans-serif; border: 1px solid #404040;" title="Click to sort">
                                         Name <span id="sort-name"></span>
                                     </th>
-                                    <th onclick="sortDevices('ip')" style="padding: 12px; text-align: left; color: #333; font-weight: 600; cursor: pointer; user-select: none;" title="Click to sort">
+                                    <th onclick="sortDevices('ip')" style="padding: 12px; text-align: left; color: #ffffff; font-weight: 500; cursor: pointer; user-select: none; font-family: 'Roboto', sans-serif; border: 1px solid #404040;" title="Click to sort">
                                         IP Address <span id="sort-ip"></span>
                                     </th>
-                                    <th onclick="sortDevices('group')" style="padding: 12px; text-align: left; color: #333; font-weight: 600; cursor: pointer; user-select: none;" title="Click to sort">
+                                    <th onclick="sortDevices('group')" style="padding: 12px; text-align: left; color: #ffffff; font-weight: 500; cursor: pointer; user-select: none; font-family: 'Roboto', sans-serif; border: 1px solid #404040;" title="Click to sort">
                                         Group <span id="sort-group"></span>
                                     </th>
-                                    <th onclick="sortDevices('uptime')" style="padding: 12px; text-align: left; color: #333; font-weight: 600; cursor: pointer; user-select: none;" title="Click to sort">
+                                    <th onclick="sortDevices('uptime')" style="padding: 12px; text-align: left; color: #ffffff; font-weight: 500; cursor: pointer; user-select: none; font-family: 'Roboto', sans-serif; border: 1px solid #404040;" title="Click to sort">
                                         Uptime <span id="sort-uptime"></span>
                                     </th>
-                                    <th onclick="sortDevices('version')" style="padding: 12px; text-align: left; color: #333; font-weight: 600; cursor: pointer; user-select: none;" title="Click to sort">
+                                    <th onclick="sortDevices('version')" style="padding: 12px; text-align: left; color: #ffffff; font-weight: 500; cursor: pointer; user-select: none; font-family: 'Roboto', sans-serif; border: 1px solid #404040;" title="Click to sort">
                                         PAN-OS Version <span id="sort-version"></span>
                                     </th>
-                                    <th onclick="sortDevices('status')" style="padding: 12px; text-align: left; color: #333; font-weight: 600; cursor: pointer; user-select: none;" title="Click to sort">
+                                    <th onclick="sortDevices('status')" style="padding: 12px; text-align: left; color: #ffffff; font-weight: 500; cursor: pointer; user-select: none; font-family: 'Roboto', sans-serif; border: 1px solid #404040;" title="Click to sort">
                                         Status <span id="sort-status"></span>
                                     </th>
-                                    <th style="padding: 12px; text-align: center; color: #333; font-weight: 600;">Actions</th>
+                                    <th style="padding: 12px; text-align: center; color: #ffffff; font-weight: 500; font-family: 'Roboto', sans-serif; border: 1px solid #404040;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="devicesTableBody">
                                 <tr>
-                                    <td colspan="7" style="padding: 40px; text-align: center; color: #999;">
+                                    <td colspan="7" style="padding: 40px; text-align: center; color: #b0b0b0; font-family: 'Open Sans', sans-serif;">
                                         Loading devices...
                                     </td>
                                 </tr>
@@ -2382,62 +2420,62 @@
         </div>
 
         <!-- Device Add/Edit Modal -->
-        <div id="deviceModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 id="deviceModalTitle" style="color: #333; margin: 0;">Add Device</h2>
-                    <button id="closeModalBtn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+        <div id="deviceModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+            <div style="background: #2b2b2b; border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 1px solid #404040;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                    <h2 id="deviceModalTitle" style="color: #F2F0EF; margin: 0; font-family: var(--font-primary); font-weight: 500;">Add Device</h2>
+                    <button id="closeModalBtn" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
                 </div>
 
                 <form id="deviceForm">
                     <input type="hidden" id="deviceId" value="">
 
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">Device Name *</label>
-                        <input type="text" id="deviceName" required style="width: 100%; padding: 12px; border: 2px solid #555; border-radius: 8px; font-size: 1em; background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
+                        <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">Device Name *</label>
+                        <input type="text" id="deviceName" required style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; background: #1e1e1e; color: #F2F0EF; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';">
                     </div>
 
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">IP Address *</label>
-                        <input type="text" id="deviceIp" required placeholder="192.168.1.1" style="width: 100%; padding: 12px; border: 2px solid #555; border-radius: 8px; font-size: 1em; background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
+                        <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">IP Address *</label>
+                        <input type="text" id="deviceIp" required placeholder="192.168.1.1" style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; background: #1e1e1e; color: #F2F0EF; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';">
                     </div>
 
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">API Key *</label>
-                        <input type="password" id="deviceApiKey" required style="width: 100%; padding: 12px; border: 2px solid #555; border-radius: 8px; font-size: 1em; font-family: monospace; background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
+                        <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">API Key *</label>
+                        <input type="password" id="deviceApiKey" required style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; font-family: monospace; background: #1e1e1e; color: #F2F0EF; transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';">
                     </div>
 
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">Group</label>
-                        <select id="deviceGroup" style="width: 100%; padding: 12px; border: 2px solid #555; border-radius: 8px; font-size: 1em; background: #2a2a2a; color: #F2F0EF; cursor: pointer;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
+                        <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">Group</label>
+                        <select id="deviceGroup" style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; background: #1e1e1e; color: #F2F0EF; cursor: pointer; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';">
                             <option value="Default">Default</option>
                         </select>
                     </div>
 
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">Description</label>
-                        <textarea id="deviceDescription" rows="3" style="width: 100%; padding: 12px; border: 2px solid #555; border-radius: 8px; font-size: 1em; resize: vertical; background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'"></textarea>
+                        <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">Description</label>
+                        <textarea id="deviceDescription" rows="3" style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; resize: vertical; background: #1e1e1e; color: #F2F0EF; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';"></textarea>
                     </div>
 
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">WAN Interface</label>
-                        <input type="text" id="deviceWanInterface" placeholder="ethernet1/1" style="width: 100%; padding: 12px; border: 2px solid #555; border-radius: 8px; font-size: 1em; background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
-                        <p style="color: #999; font-size: 0.85em; margin: 5px 0 0 0;">Interface name to monitor for WAN IP (e.g., ethernet1/1)</p>
+                        <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">WAN Interface</label>
+                        <input type="text" id="deviceWanInterface" placeholder="ethernet1/1" style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; background: #1e1e1e; color: #F2F0EF; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';">
+                        <p style="color: #b0b0b0; font-size: 0.85em; margin: 5px 0 0 0; font-family: var(--font-secondary);">Interface name to monitor for WAN IP (e.g., ethernet1/1)</p>
                     </div>
 
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                        <button type="button" id="testConnectionBtn" style="flex: 1; padding: 12px; background: #666; color: #F2F0EF; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer;">
+                        <button type="button" id="testConnectionBtn" style="flex: 1; padding: 12px; background: #404040; color: #F2F0EF; border: 1px solid #555555; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#4a4a4a'" onmouseout="this.style.background='#404040'">
                             Test Connection
                         </button>
                     </div>
 
-                    <div id="connectionTestResult" style="display: none; padding: 12px; border-radius: 8px; margin-bottom: 20px;"></div>
+                    <div id="connectionTestResult" style="display: none; padding: 12px; border-radius: 4px; margin-bottom: 20px; font-family: var(--font-secondary);"></div>
 
-                    <div style="display: flex; gap: 15px;">
-                        <button type="submit" style="flex: 1; padding: 15px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer;">
+                    <div style="display: flex; gap: 15px; padding-top: 10px; border-top: 1px solid #404040;">
+                        <button type="submit" style="flex: 1; padding: 15px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 4px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: var(--font-primary); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
                             Save Device
                         </button>
-                        <button type="button" id="cancelModalBtn" style="flex: 1; padding: 15px; background: #666; color: #F2F0EF; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer;">
+                        <button type="button" id="cancelModalBtn" style="flex: 1; padding: 15px; background: #404040; color: #F2F0EF; border: 1px solid #555555; border-radius: 4px; font-size: 16px; font-weight: 500; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#4a4a4a'" onmouseout="this.style.background='#404040'">
                             Cancel
                         </button>
                     </div>
@@ -2471,7 +2509,7 @@
                             Databases
                         </div>
                         <div class="settings-tab" data-tab="services" style="flex: 1; padding: 15px 20px; text-align: center; cursor: pointer; font-weight: 600; color: rgba(242, 240, 239, 0.6); border-bottom: 3px solid transparent; transition: all 0.3s;">
-                            Services
+                            Maintenance
                         </div>
                         <div class="settings-tab" data-tab="debug" style="flex: 1; padding: 15px 20px; text-align: center; cursor: pointer; font-weight: 600; color: rgba(242, 240, 239, 0.6); border-bottom: 3px solid transparent; transition: all 0.3s;">
                             Debug
@@ -2606,20 +2644,20 @@
 
                         <!-- Backup & Restore Tab -->
                         <div id="backup-tab" class="settings-tab-content" style="display: none;">
-                            <h2 style="color: #333; margin-bottom: 20px; font-size: 1.3em;">Backup & Restore</h2>
+                            <h2 style="color: #F2F0EF; margin-bottom: 20px; font-size: 1.3em;">Backup & Restore</h2>
 
                             <!-- Backup Section -->
-                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
+                            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; padding: 25px; margin-bottom: 20px; border-top: 4px solid #F2F0EF;">
+                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
                                     <span style="font-size: 1.3em;">💾</span>
                                     Create Backup
                                 </h3>
 
-                                <p style="color: #666; margin: 0 0 10px 0; font-size: 0.95em;">
+                                <p style="color: #bbb; margin: 0 0 10px 0; font-size: 0.95em;">
                                     Create a comprehensive backup of your Settings, Devices, and Device Metadata. The backup file will be downloaded to your computer.
                                 </p>
 
-                                <p style="color: #999; margin: 0 0 20px 0; font-size: 0.85em; font-style: italic;">
+                                <p style="color: #888; margin: 0 0 20px 0; font-size: 0.85em; font-style: italic;">
                                     Note: Optional databases (MAC Vendor DB, Service Port DB) are not included in backups. They can be re-uploaded via the Databases tab if needed.
                                 </p>
 
@@ -2627,60 +2665,60 @@
                                         style="width: 100%; padding: 15px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); color: #F2F0EF; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;"
                                         onmouseover="this.style.transform='scale(1.02)'"
                                         onmouseout="this.style.transform='scale(1)'">
-                                    📥 Create & Download Backup
+                                    Create & Download Backup
                                 </button>
 
                                 <div id="backupMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
                             </div>
 
                             <!-- Restore Section -->
-                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
+                            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; padding: 25px; margin-bottom: 20px; border-top: 4px solid #F2F0EF;">
+                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
                                     <span style="font-size: 1.3em;">📤</span>
                                     Restore from Backup
                                 </h3>
 
-                                <p style="color: #666; margin: 0 0 20px 0; font-size: 0.95em;">
+                                <p style="color: #bbb; margin: 0 0 20px 0; font-size: 0.95em;">
                                     Restore your configuration from a previously created backup file. You can choose which components to restore.
                                 </p>
 
                                 <!-- File Upload -->
                                 <div style="margin-bottom: 20px;">
-                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px;">Select Backup File</label>
+                                    <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">Select Backup File</label>
                                     <input type="file"
                                            id="backupFileInput"
                                            accept=".json"
-                                           style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1em; transition: border-color 0.3s;"
+                                           style="width: 100%; padding: 12px; border: 2px solid #555; border-radius: 8px; font-size: 1em; transition: border-color 0.3s; background: #2a2a2a; color: #F2F0EF;"
                                            onfocus="this.style.borderColor='#FA582D'"
-                                           onblur="this.style.borderColor='#ddd'">
+                                           onblur="this.style.borderColor='#555'">
                                 </div>
 
                                 <!-- Backup Info (shown after file selected) -->
-                                <div id="backupInfo" style="display: none; background: #e7f3ff; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                                    <strong style="color: #0c5460;">📋 Backup Information</strong>
-                                    <ul style="color: #0c5460; margin: 10px 0 0 20px; font-size: 0.9em;" id="backupInfoList"></ul>
+                                <div id="backupInfo" style="display: none; background: #1a3d4d; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                                    <strong style="color: #64b5f6;">📋 Backup Information</strong>
+                                    <ul style="color: #90caf9; margin: 10px 0 0 20px; font-size: 0.9em;" id="backupInfoList"></ul>
                                 </div>
 
                                 <!-- Selective Restore Checkboxes -->
-                                <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
-                                    <strong style="color: #333; display: block; margin-bottom: 10px;">Components to Restore:</strong>
+                                <div style="background: #363636; border: 1px solid #404040; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
+                                    <strong style="color: #F2F0EF; display: block; margin-bottom: 10px;">Components to Restore:</strong>
 
                                     <label style="display: block; margin-bottom: 10px; cursor: pointer;">
-                                        <input type="checkbox" id="restoreSettings" checked style="margin-right: 8px;">
-                                        <span style="color: #333; font-weight: 500;">Settings</span>
-                                        <span style="color: #666; font-size: 0.85em; margin-left: 5px;">(refresh intervals, monitored interface)</span>
+                                        <input type="checkbox" id="restoreSettings" checked style="margin-right: 8px; accent-color: #FA582D;">
+                                        <span style="color: #F2F0EF; font-weight: 500;">Settings</span>
+                                        <span style="color: #bbb; font-size: 0.85em; margin-left: 5px;">(refresh intervals, monitored interface)</span>
                                     </label>
 
                                     <label style="display: block; margin-bottom: 10px; cursor: pointer;">
-                                        <input type="checkbox" id="restoreDevices" checked style="margin-right: 8px;">
-                                        <span style="color: #333; font-weight: 500;">Devices</span>
-                                        <span style="color: #666; font-size: 0.85em; margin-left: 5px;">(firewall configurations and credentials)</span>
+                                        <input type="checkbox" id="restoreDevices" checked style="margin-right: 8px; accent-color: #FA582D;">
+                                        <span style="color: #F2F0EF; font-weight: 500;">Devices</span>
+                                        <span style="color: #bbb; font-size: 0.85em; margin-left: 5px;">(firewall configurations and credentials)</span>
                                     </label>
 
                                     <label style="display: block; cursor: pointer;">
-                                        <input type="checkbox" id="restoreMetadata" checked style="margin-right: 8px;">
-                                        <span style="color: #333; font-weight: 500;">Device Metadata</span>
-                                        <span style="color: #666; font-size: 0.85em; margin-left: 5px;">(custom names, tags, locations)</span>
+                                        <input type="checkbox" id="restoreMetadata" checked style="margin-right: 8px; accent-color: #FA582D;">
+                                        <span style="color: #F2F0EF; font-weight: 500;">Device Metadata</span>
+                                        <span style="color: #bbb; font-size: 0.85em; margin-left: 5px;">(custom names, tags, locations)</span>
                                     </label>
                                 </div>
 
@@ -2689,32 +2727,32 @@
                                         onmouseover="if(!this.disabled) this.style.transform='scale(1.02)'"
                                         onmouseout="this.style.transform='scale(1)'"
                                         disabled>
-                                    🔄 Restore from Backup
+                                    Restore from Backup
                                 </button>
 
                                 <div id="restoreMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
                             </div>
 
                             <!-- Migration Section -->
-                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
+                            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; padding: 25px; margin-bottom: 20px; border-top: 4px solid #F2F0EF;">
+                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
                                     <span style="font-size: 1.3em;">🔄</span>
                                     Metadata Migration
                                 </h3>
 
-                                <p style="color: #666; margin: 0 0 15px 0; font-size: 0.95em;">
+                                <p style="color: #bbb; margin: 0 0 15px 0; font-size: 0.95em;">
                                     Migrate device metadata from global format (v1.5.x) to per-device format (v1.6.0+).
                                 </p>
 
                                 <div id="migrationStatus" style="margin-bottom: 15px;">
-                                    <strong style="color: #333;">Status: </strong><span id="migrationStatusText" style="color: #666;">Checking...</span>
+                                    <strong style="color: #F2F0EF;">Status: </strong><span id="migrationStatusText" style="color: #bbb;">Checking...</span>
                                 </div>
 
                                 <button id="checkMigrationBtn"
                                         style="width: 48%; padding: 12px; margin-right: 4%; background: #6c757d; color: #F2F0EF; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.2s;"
                                         onmouseover="this.style.transform='scale(1.02)'"
                                         onmouseout="this.style.transform='scale(1)'">
-                                    🔍 Check Status
+                                    Check Status
                                 </button>
 
                                 <button id="migrateBtnSettings"
@@ -2722,16 +2760,16 @@
                                         onmouseover="if(!this.disabled) this.style.transform='scale(1.02)'"
                                         onmouseout="this.style.transform='scale(1)'"
                                         disabled>
-                                    ⚡ Migrate Now
+                                    Migrate Now
                                 </button>
 
                                 <div id="migrationMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
                             </div>
 
                             <!-- Warning Notice -->
-                            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
-                                <strong style="color: #856404;">⚠️ Important Notes</strong>
-                                <ul style="color: #856404; margin: 10px 0 0 20px; font-size: 0.9em;">
+                            <div style="background: #3d3520; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+                                <strong style="color: #ffc107;">⚠️ Important Notes</strong>
+                                <ul style="color: #e0c74f; margin: 10px 0 0 20px; font-size: 0.9em;">
                                     <li>Backup files contain encrypted data and are safe to download</li>
                                     <li>Restoring will <strong>overwrite</strong> your current configuration for selected components</li>
                                     <li>Create a backup before restoring from an older backup</li>
@@ -2742,99 +2780,99 @@
 
                         <!-- Debug Tab -->
                         <div id="debug-tab" class="settings-tab-content" style="display: none;">
-                            <h2 style="color: #333; margin-bottom: 20px; font-size: 1.3em;">Debug Settings</h2>
+                            <h2 style="color: #F2F0EF; margin-bottom: 20px; font-size: 1.3em;">Debug Settings</h2>
 
-                            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-                                <strong style="color: #856404;">⚠️ Performance Notice</strong>
-                                <p style="color: #856404; margin: 5px 0 0 0; font-size: 0.9em;">Debug logging may impact performance. Enable only when troubleshooting issues.</p>
+                            <div style="background: #3d3520; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                                <strong style="color: #ffc107;">⚠️ Performance Notice</strong>
+                                <p style="color: #e0c74f; margin: 5px 0 0 0; font-size: 0.9em;">Debug logging may impact performance. Enable only when troubleshooting issues.</p>
                             </div>
 
                             <div style="margin-bottom: 30px;">
-                                <label style="display: block; color: #333; font-weight: 600; margin-bottom: 10px; font-size: 1.1em;">
-                                    <input type="checkbox" id="debugLogging" style="margin-right: 10px; width: 18px; height: 18px; vertical-align: middle; cursor: pointer;">
+                                <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 10px; font-size: 1.1em;">
+                                    <input type="checkbox" id="debugLogging" style="margin-right: 10px; width: 18px; height: 18px; vertical-align: middle; cursor: pointer; accent-color: #FA582D;">
                                     Enable Debug Logging
                                 </label>
-                                <p style="color: #666; font-size: 0.9em; margin-top: 5px;">Log detailed API responses and debugging information to debug.log file</p>
+                                <p style="color: #bbb; font-size: 0.9em; margin-top: 5px;">Log detailed API responses and debugging information to debug.log file</p>
                             </div>
 
-                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
-                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em;">Log File Information</h3>
+                            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-top: 4px solid #F2F0EF;">
+                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1.1em;">Log File Information</h3>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                     <div>
-                                        <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Log File Location</div>
-                                        <div style="color: #333; font-weight: 600; font-family: monospace; font-size: 0.9em;">debug.log</div>
+                                        <div style="color: #bbb; font-size: 0.85em; margin-bottom: 5px;">Log File Location</div>
+                                        <div style="color: #F2F0EF; font-weight: 600; font-family: monospace; font-size: 0.9em;">debug.log</div>
                                     </div>
                                     <div>
-                                        <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Max File Size</div>
-                                        <div style="color: #333; font-weight: 600;">10 MB</div>
+                                        <div style="color: #bbb; font-size: 0.85em; margin-bottom: 5px;">Max File Size</div>
+                                        <div style="color: #F2F0EF; font-weight: 600;">10 MB</div>
                                     </div>
                                     <div>
-                                        <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Backup Files</div>
-                                        <div style="color: #333; font-weight: 600;">5 rotations</div>
+                                        <div style="color: #bbb; font-size: 0.85em; margin-bottom: 5px;">Backup Files</div>
+                                        <div style="color: #F2F0EF; font-weight: 600;">5 rotations</div>
                                     </div>
                                     <div>
-                                        <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Total Storage</div>
-                                        <div style="color: #333; font-weight: 600;">~60 MB max</div>
+                                        <div style="color: #bbb; font-size: 0.85em; margin-bottom: 5px;">Total Storage</div>
+                                        <div style="color: #F2F0EF; font-weight: 600;">~60 MB max</div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div style="background: #e7f3ff; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px;">
-                                <strong style="color: #0c5460;">💡 Viewing Logs</strong>
-                                <p style="color: #0c5460; margin: 5px 0 0 0; font-size: 0.9em;">Use <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">tail -f debug.log</code> to view logs in real-time</p>
+                            <div style="background: #1a3d4d; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px;">
+                                <strong style="color: #64b5f6;">💡 Viewing Logs</strong>
+                                <p style="color: #90caf9; margin: 5px 0 0 0; font-size: 0.9em;">Use <code style="background: #2a2a2a; color: #F2F0EF; padding: 2px 6px; border-radius: 3px;">tail -f debug.log</code> to view logs in real-time</p>
                             </div>
                         </div>
 
                         <!-- Databases Tab -->
                         <div id="databases-tab" class="settings-tab-content" style="display: none;">
-                            <h2 style="color: #333; margin-bottom: 20px; font-size: 1.3em;">Database Settings</h2>
+                            <h2 style="color: #F2F0EF; margin-bottom: 20px; font-size: 1.3em;">Database Settings</h2>
 
                             <!-- MAC Vendor Database -->
-                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
+                            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; padding: 25px; margin-bottom: 20px; border-top: 4px solid #F2F0EF;">
+                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
                                     <span style="font-size: 1.3em;">🏷️</span>
                                     MAC Vendor Database
                                 </h3>
 
-                                <p style="color: #666; margin: 0 0 15px 0; font-size: 0.95em;">
+                                <p style="color: #bbb; margin: 0 0 15px 0; font-size: 0.95em;">
                                     Upload a MAC vendor database to display manufacturer names alongside MAC addresses in the Connected Devices page.
                                 </p>
 
-                                <div id="vendorDbInfo" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin-bottom: 15px;">
+                                <div id="vendorDbInfo" style="background: #363636; border: 1px solid #404040; border-radius: 6px; padding: 15px; margin-bottom: 15px;">
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                                         <div>
-                                            <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Status</div>
-                                            <div id="vendorDbStatus" style="color: #333; font-weight: 600;">Loading...</div>
+                                            <div style="color: #bbb; font-size: 0.85em; margin-bottom: 5px;">Status</div>
+                                            <div id="vendorDbStatus" style="color: #F2F0EF; font-weight: 600;">Loading...</div>
                                         </div>
                                         <div>
-                                            <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Entries</div>
-                                            <div id="vendorDbEntries" style="color: #333; font-weight: 600;">-</div>
+                                            <div style="color: #bbb; font-size: 0.85em; margin-bottom: 5px;">Entries</div>
+                                            <div id="vendorDbEntries" style="color: #F2F0EF; font-weight: 600;">-</div>
                                         </div>
                                         <div>
-                                            <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">File Size</div>
-                                            <div id="vendorDbSize" style="color: #333; font-weight: 600;">-</div>
+                                            <div style="color: #bbb; font-size: 0.85em; margin-bottom: 5px;">File Size</div>
+                                            <div id="vendorDbSize" style="color: #F2F0EF; font-weight: 600;">-</div>
                                         </div>
                                         <div>
-                                            <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Last Updated</div>
-                                            <div id="vendorDbModified" style="color: #333; font-weight: 600;">-</div>
+                                            <div style="color: #bbb; font-size: 0.85em; margin-bottom: 5px;">Last Updated</div>
+                                            <div id="vendorDbModified" style="color: #F2F0EF; font-weight: 600;">-</div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div style="background: #e7f3ff; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
-                                    <strong style="color: #0c5460;">📥 Database Source</strong>
-                                    <p style="color: #0c5460; margin: 10px 0 5px 0; font-size: 0.9em;">Download the latest MAC vendor database from:</p>
-                                    <a href="https://maclookup.app/downloads/json-database" target="_blank" style="color: #2196f3; font-family: monospace; font-size: 0.85em; word-break: break-all;">https://maclookup.app/downloads/json-database</a>
+                                <div style="background: #1a3d4d; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                                    <strong style="color: #64b5f6;">📥 Database Source</strong>
+                                    <p style="color: #90caf9; margin: 10px 0 5px 0; font-size: 0.9em;">Download the latest MAC vendor database from:</p>
+                                    <a href="https://maclookup.app/downloads/json-database" target="_blank" style="color: #64b5f6; font-family: monospace; font-size: 0.85em; word-break: break-all;">https://maclookup.app/downloads/json-database</a>
                                 </div>
 
                                 <div style="margin-bottom: 15px;">
-                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px;">Upload Database File (JSON)</label>
+                                    <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">Upload Database File (JSON)</label>
                                     <input type="file"
                                            id="vendorDbFileInput"
                                            accept=".json"
-                                           style="display: block; width: 100%; padding: 10px; border: 2px dashed #ddd; border-radius: 6px; background: #f8f9fa; cursor: pointer;"
+                                           style="display: block; width: 100%; padding: 10px; border: 2px dashed #555; border-radius: 6px; background: #2a2a2a; color: #F2F0EF; cursor: pointer;"
                                     />
-                                    <div style="color: #666; font-size: 0.85em; margin-top: 5px;">Select a JSON file containing MAC vendor data</div>
+                                    <div style="color: #bbb; font-size: 0.85em; margin-top: 5px;">Select a JSON file containing MAC vendor data</div>
                                 </div>
 
                                 <div style="display: flex; gap: 10px;">
@@ -2856,51 +2894,51 @@
                             </div>
 
                             <!-- Service Port Database -->
-                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
+                            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; padding: 25px; margin-bottom: 20px; border-top: 4px solid #F2F0EF;">
+                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
                                     <span style="font-size: 1.3em;">🔌</span>
                                     Service Port Database
                                 </h3>
 
-                                <p style="color: #666; margin: 0 0 15px 0; font-size: 0.95em;">
+                                <p style="color: #bbb; margin: 0 0 15px 0; font-size: 0.95em;">
                                     Upload the IANA service port database to display service names alongside port numbers in the Applications page.
                                 </p>
 
-                                <div id="servicePortDbInfo" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin-bottom: 15px;">
+                                <div id="servicePortDbInfo" style="background: #363636; border: 1px solid #555; border-radius: 6px; padding: 15px; margin-bottom: 15px;">
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                                         <div>
-                                            <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Status</div>
-                                            <div id="servicePortDbStatus" style="color: #333; font-weight: 600;">Loading...</div>
+                                            <div style="color: #888; font-size: 0.85em; margin-bottom: 5px;">Status</div>
+                                            <div id="servicePortDbStatus" style="color: #F2F0EF; font-weight: 600;">Loading...</div>
                                         </div>
                                         <div>
-                                            <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Port Entries</div>
-                                            <div id="servicePortDbEntries" style="color: #333; font-weight: 600;">-</div>
+                                            <div style="color: #888; font-size: 0.85em; margin-bottom: 5px;">Port Entries</div>
+                                            <div id="servicePortDbEntries" style="color: #F2F0EF; font-weight: 600;">-</div>
                                         </div>
                                         <div>
-                                            <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">File Size</div>
-                                            <div id="servicePortDbSize" style="color: #333; font-weight: 600;">-</div>
+                                            <div style="color: #888; font-size: 0.85em; margin-bottom: 5px;">File Size</div>
+                                            <div id="servicePortDbSize" style="color: #F2F0EF; font-weight: 600;">-</div>
                                         </div>
                                         <div>
-                                            <div style="color: #666; font-size: 0.85em; margin-bottom: 5px;">Last Updated</div>
-                                            <div id="servicePortDbModified" style="color: #333; font-weight: 600;">-</div>
+                                            <div style="color: #888; font-size: 0.85em; margin-bottom: 5px;">Last Updated</div>
+                                            <div id="servicePortDbModified" style="color: #F2F0EF; font-weight: 600;">-</div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div style="background: #e7f3ff; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
-                                    <strong style="color: #0c5460;">📥 Database Source</strong>
-                                    <p style="color: #0c5460; margin: 10px 0 5px 0; font-size: 0.9em;">Download the IANA service names and port numbers registry:</p>
-                                    <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml" target="_blank" style="color: #2196f3; font-family: monospace; font-size: 0.85em; word-break: break-all;">https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml</a>
+                                <div style="background: #1a3d4d; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                                    <strong style="color: #64b5f6;">📥 Database Source</strong>
+                                    <p style="color: #90caf9; margin: 10px 0 5px 0; font-size: 0.9em;">Download the IANA service names and port numbers registry:</p>
+                                    <a href="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml" target="_blank" style="color: #4fc3f7; font-family: monospace; font-size: 0.85em; word-break: break-all;">https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml</a>
                                 </div>
 
                                 <div style="margin-bottom: 15px;">
-                                    <label style="display: block; color: #333; font-weight: 600; margin-bottom: 8px;">Upload Database File (XML)</label>
+                                    <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px;">Upload Database File (XML)</label>
                                     <input type="file"
                                            id="servicePortDbFileInput"
                                            accept=".xml"
-                                           style="display: block; width: 100%; padding: 10px; border: 2px dashed #ddd; border-radius: 6px; background: #f8f9fa; cursor: pointer;"
+                                           style="display: block; width: 100%; padding: 10px; border: 2px dashed #555; border-radius: 6px; background: #2a2a2a; color: #F2F0EF; cursor: pointer;"
                                     />
-                                    <div style="color: #666; font-size: 0.85em; margin-top: 5px;">Select the IANA service-names-port-numbers.xml file</div>
+                                    <div style="color: #888; font-size: 0.85em; margin-top: 5px;">Select the IANA service-names-port-numbers.xml file</div>
                                 </div>
 
                                 <div style="display: flex; gap: 10px;">
@@ -2920,166 +2958,121 @@
 
                                 <div id="servicePortDbUploadMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
                             </div>
-
-                            <!-- Device Metadata Backup -->
-                            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
-                                <h3 style="color: #333; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
-                                    <span style="font-size: 1.3em;">💾</span>
-                                    Device Metadata Backup
-                                </h3>
-
-                                <p style="color: #666; margin: 0 0 15px 0; font-size: 0.95em;">
-                                    Export your device metadata (custom names, locations, comments, and tags) as a JSON backup file, or import a previously exported backup to restore your metadata.
-                                </p>
-
-                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                    <button id="exportMetadataBtn" style="padding: 10px 20px; background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: #F2F0EF; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                                        📥 Export Metadata
-                                    </button>
-                                    <label for="importMetadataFile" style="padding: 10px 20px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: #F2F0EF; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; transition: transform 0.2s; display: inline-block;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                                        📤 Import Metadata
-                                        <input type="file" id="importMetadataFile" accept=".json" style="display: none;" onchange="importDeviceMetadata()">
-                                    </label>
-                                </div>
-
-                                <div style="background: #e7f3ff; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin-top: 15px;">
-                                    <strong style="color: #0c5460;">ℹ️ Backup Information</strong>
-                                    <p style="color: #0c5460; margin: 10px 0 0 0; font-size: 0.9em;">
-                                        Exported files include all custom device names, locations, comments, and tags. Importing will merge the backup with existing metadata (imported data takes precedence for conflicts).
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Other Database Settings -->
-                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 30px; text-align: center;">
-                                <div style="font-size: 3em; margin-bottom: 15px; opacity: 0.3;">🗄️</div>
-                                <h3 style="color: #666; margin: 0 0 10px 0; font-weight: 600;">Additional Database Configuration</h3>
-                                <p style="color: #999; margin: 0;">Additional database integration settings will be available in a future release.</p>
-                                <p style="color: #999; margin: 10px 0 0 0; font-size: 0.9em;">Currently, all data is stored in JSON files (settings.json, devices.json)</p>
-                            </div>
                         </div>
 
-                        <!-- Services Tab -->
+                        <!-- Maintenance Tab -->
                         <div id="services-tab" class="settings-tab-content" style="display: none;">
-                            <h2 style="color: #333; margin-bottom: 20px; font-size: 1.3em;">System Services Status</h2>
+                            <!-- Tag Management Section (First) -->
+                            <h2 style="color: #F2F0EF; margin-bottom: 15px; font-size: 1.3em;">
+                                <i class="fas fa-tags" style="color: #FA582D; margin-right: 8px;"></i>
+                                Tag Management
+                            </h2>
+                            <p style="color: #b0b0b0; margin-bottom: 15px; font-size: 0.95em;">
+                                Manage tags used to categorize connected devices. Changes apply to all devices using this tag.
+                            </p>
 
-                            <!-- Service Status Cards -->
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
-                                <!-- APScheduler Card -->
-                                <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #555; border-radius: 12px; padding: 20px;">
-                                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                                        <span style="font-size: 2em; margin-right: 10px;">⏱️</span>
-                                        <h3 style="color: #F2F0EF; margin: 0; font-size: 1.1em; font-family: var(--font-primary);">Clock Process (APScheduler)</h3>
-                                    </div>
-                                    <div id="scheduler-status" style="margin-bottom: 10px;">
-                                        <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Status:</strong> <span id="scheduler-state" style="color: #10b981; font-weight: 600;">Loading...</span>
-                                        </div>
-                                        <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Uptime:</strong> <span id="scheduler-uptime">--</span>
-                                        </div>
-                                        <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Total Executions:</strong> <span id="scheduler-executions">--</span>
-                                        </div>
-                                        <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Total Errors:</strong> <span id="scheduler-errors">--</span>
-                                        </div>
-                                        <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Last Execution:</strong> <span id="scheduler-last-execution">--</span>
-                                        </div>
-                                        <div id="scheduler-error-details" style="display: none; margin-top: 10px; padding: 8px; background: #3a1a1a; border-left: 3px solid #ef4444; border-radius: 4px;">
-                                            <div style="font-size: 0.85em; color: #ef4444; font-weight: 600; margin-bottom: 3px;">Last Error:</div>
-                                            <div id="scheduler-last-error" style="font-size: 0.8em; color: #999; word-break: break-word;"></div>
-                                            <div id="scheduler-last-error-time" style="font-size: 0.75em; color: #777; margin-top: 3px;"></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Database Card -->
-                                <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #555; border-radius: 12px; padding: 20px;">
-                                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                                        <span style="font-size: 2em; margin-right: 10px;">💾</span>
-                                        <h3 style="color: #F2F0EF; margin: 0; font-size: 1.1em; font-family: var(--font-primary);">Database</h3>
-                                    </div>
-                                    <div id="database-status" style="margin-bottom: 10px;">
-                                        <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Status:</strong> <span id="database-state" style="color: #10b981; font-weight: 600;">Loading...</span>
-                                        </div>
-                                        <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Size:</strong> <span id="database-size">--</span>
-                                        </div>
-                                        <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Total Samples:</strong> <span id="database-samples">--</span>
-                                        </div>
-                                        <div style="font-size: 0.9em; color: #999; font-family: var(--font-secondary);">
-                                            <strong style="color: #F2F0EF;">Oldest Sample:</strong> <span id="database-oldest">--</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Detailed Job Information -->
-                            <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #555; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1em; font-family: var(--font-primary);">Scheduled Jobs</h3>
-                                <div id="jobs-list" style="font-size: 0.9em; color: #999; font-family: var(--font-secondary);">
-                                    <div style="text-align: center; padding: 20px; color: #777;">Loading job information...</div>
-                                </div>
-                            </div>
-
-                            <!-- Database Per-Device Information -->
-                            <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #555; border-radius: 12px; padding: 20px;">
-                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1em; font-family: var(--font-primary);">Database Statistics by Device</h3>
-                                <div id="device-stats" style="font-size: 0.9em; color: #999; font-family: var(--font-secondary);">
-                                    <div style="text-align: center; padding: 20px; color: #777;">Loading device statistics...</div>
-                                </div>
-                            </div>
-
-                            <!-- Database Clear Section -->
-                            <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #555; border-radius: 12px; padding: 20px; margin-top: 20px;">
-                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1em; font-family: var(--font-primary);">⚠️ Database Management</h3>
-                                <p style="color: #999; font-size: 0.85em; margin-bottom: 15px; font-family: var(--font-secondary);">
-                                    Clear database samples for a specific device or all devices. This action cannot be undone!
-                                </p>
-                                <div style="display: flex; gap: 12px; align-items: flex-end;">
-                                    <div style="flex: 1;">
-                                        <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px; font-size: 0.9em; font-family: var(--font-primary);">
-                                            Clear Database For:
-                                        </label>
-                                        <select id="clearDatabaseDeviceSelect" style="width: 100%; padding: 10px 12px; border: 2px solid #555; border-radius: 6px; background: #2a2a2a; color: #F2F0EF; font-size: 0.9em; cursor: pointer; font-family: var(--font-secondary);" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
-                                            <option value="">All Devices (Complete Wipe)</option>
-                                            <!-- Populated by JavaScript -->
-                                        </select>
-                                    </div>
-                                    <button onclick="clearDatabase()" style="padding: 10px 24px; background: #dc2626; color: #F2F0EF; border: none; border-radius: 6px; font-size: 0.9em; font-weight: 600; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
-                                        🗑️ Clear Database
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Action Buttons -->
-                            <div style="margin-top: 20px; display: flex; justify-content: center;">
-                                <button onclick="refreshServicesStatus()" style="padding: 12px 32px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; font-family: var(--font-primary); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                                    🔄 Refresh Status
+                            <!-- Device Filter Dropdown -->
+                            <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                                <label style="color: #F2F0EF; font-weight: 500;">Filter by device:</label>
+                                <select id="tagManagementDeviceSelect" onchange="loadTagManagement()"
+                                        style="padding: 8px 12px; background: #363636; color: #F2F0EF; border: 1px solid #404040; border-radius: 6px; min-width: 200px;">
+                                    <option value="">All Devices (Global)</option>
+                                    <!-- Populated dynamically by loadTagManagementDevices() -->
+                                </select>
+                                <button onclick="loadTagManagement()" style="padding: 8px 12px; background: #404040; color: #F2F0EF; border: 1px solid #555; border-radius: 6px; cursor: pointer;"
+                                        onmouseover="this.style.background='#505050'" onmouseout="this.style.background='#404040'">
+                                    <i class="fas fa-sync-alt"></i> Refresh
                                 </button>
+                            </div>
+
+                            <!-- Tags Table -->
+                            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; overflow: hidden; border-top: 4px solid #FA582D;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #363636;">
+                                            <th style="padding: 12px 15px; text-align: left; font-weight: 600; color: #F2F0EF; border-bottom: 2px solid #555;">Tag Name</th>
+                                            <th style="padding: 12px 15px; text-align: center; font-weight: 600; color: #F2F0EF; border-bottom: 2px solid #555; width: 100px;">Usage</th>
+                                            <th style="padding: 12px 15px; text-align: center; font-weight: 600; color: #F2F0EF; border-bottom: 2px solid #555; width: 200px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tagManagementTableBody">
+                                        <tr>
+                                            <td colspan="3" style="padding: 30px; text-align: center; color: #888;">Loading tags...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Tag Statistics -->
+                            <div id="tagManagementStats" style="margin-top: 10px; color: #b0b0b0; font-size: 0.85em;">
+                                <!-- Populated by loadTagManagement() -->
+                            </div>
+
+                            <!-- Database Management Section (Second) -->
+                            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #404040;">
+                                <h2 style="color: #F2F0EF; margin-bottom: 20px; font-size: 1.3em;">Database Maintenance</h2>
+
+                                <p style="color: #b0b0b0; margin-bottom: 20px; font-size: 0.95em;">
+                                    Clear historical data (throughput, alerts, connected devices) for individual devices. This action cannot be undone.
+                                </p>
+
+                                <!-- Database Size Info -->
+                                <div style="margin-bottom: 20px; padding: 15px; background: #363636; border: 1px solid #404040; border-radius: 8px;">
+                                    <div style="color: #F2F0EF; font-weight: 600; margin-bottom: 4px;">Database Size</div>
+                                    <div id="databaseSizeInfo" style="color: #b0b0b0; font-size: 0.9em;">Loading...</div>
+                                </div>
+
+                                <!-- Device Database Table -->
+                                <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; overflow: hidden; border-top: 4px solid #FA582D;">
+                                    <table style="width: 100%; border-collapse: collapse;">
+                                        <thead>
+                                            <tr style="background: #363636;">
+                                                <th style="padding: 12px 15px; text-align: left; font-weight: 600; color: #F2F0EF; border-bottom: 2px solid #555;">Device Name</th>
+                                                <th style="padding: 12px 15px; text-align: left; font-weight: 600; color: #F2F0EF; border-bottom: 2px solid #555;">IP Address</th>
+                                                <th style="padding: 12px 15px; text-align: center; font-weight: 600; color: #F2F0EF; border-bottom: 2px solid #555;">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="maintenanceDeviceTable">
+                                            <tr>
+                                                <td colspan="3" style="padding: 30px; text-align: center; color: #888;">Loading devices...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Clear All Section -->
+                                <div style="margin-top: 20px; padding: 20px; background: #3d2020; border: 1px solid #dc2626; border-left: 4px solid #dc2626; border-radius: 8px;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                                        <div>
+                                            <h4 style="margin: 0 0 5px 0; color: #f87171; font-size: 1em;">Clear All Device Data</h4>
+                                            <p style="margin: 0; color: #fca5a5; font-size: 0.85em;">Remove all historical data for all devices. This cannot be undone.</p>
+                                        </div>
+                                        <button onclick="clearAllDeviceData()" style="padding: 10px 20px; background: #dc2626; color: #F2F0EF; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s;" onmouseover="this.style.background='#b91c1c'; this.style.transform='scale(1.02)'" onmouseout="this.style.background='#dc2626'; this.style.transform='scale(1)'">
+                                            Clear All Data
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         </div>
 
                         <!-- Save Buttons (shared across all tabs) -->
-                        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #404040;">
                             <div style="display: flex; gap: 15px;">
                                 <button id="saveSettings"
-                                        style="flex: 1; padding: 15px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;">
+                                        style="flex: 1; padding: 15px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;"
+                                        onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
                                     Save Settings
                                 </button>
                                 <button id="resetSettings"
-                                        style="flex: 1; padding: 15px; background: #666; color: #F2F0EF; border: none; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;">
+                                        style="flex: 1; padding: 15px; background: #404040; color: #F2F0EF; border: 1px solid #555; border-radius: 8px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;"
+                                        onmouseover="this.style.background='#505050'; this.style.transform='scale(1.02)'" onmouseout="this.style.background='#404040'; this.style.transform='scale(1)'">
                                     Reset to Defaults
                                 </button>
                             </div>
 
-                            <div id="settingsSuccessMessage" style="display: none; margin-top: 20px; padding: 15px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; color: #155724;">
+                            <div id="settingsSuccessMessage" style="display: none; margin-top: 20px; padding: 15px; background: #1a3d1a; border: 1px solid #4caf50; border-left: 4px solid #4caf50; border-radius: 8px; color: #81c784;">
                                 Settings saved successfully!
                             </div>
                         </div>
@@ -3156,50 +3149,54 @@
     </div>
 
     <!-- Device Metadata Edit Modal -->
-    <div id="deviceMetadataModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10000; justify-content: center; align-items: center; font-family: var(--font-primary);">
-        <div style="background: white; border-radius: 12px; padding: 30px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #FA582D;">
-                <h2 style="color: #F2F0EF; font-size: 1.5em; font-weight: 700; margin: 0;">Edit Device Metadata</h2>
-                <button onclick="closeDeviceMetadataModal()" style="background: none; border: none; font-size: 1.5em; color: #666; cursor: pointer; padding: 0; width: 30px; height: 30px; line-height: 30px;" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#666'">&times;</button>
+    <div id="deviceMetadataModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; font-family: var(--font-primary);">
+        <div style="background: #2b2b2b; border-radius: 12px; padding: 30px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 1px solid #404040;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h2 style="color: #F2F0EF; margin: 0; font-family: var(--font-primary); font-weight: 500;">Edit Device Metadata</h2>
+                <button onclick="closeDeviceMetadataModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #808080; line-height: 1; font-family: var(--font-primary);" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">&times;</button>
             </div>
-            
-            <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px;">
-                <div style="font-size: 0.9em; color: #666; margin-bottom: 5px;"><strong>MAC Address:</strong> <span id="deviceMetadataMac" style="font-family: monospace; color: #333;"></span></div>
-                <div style="font-size: 0.9em; color: #666;"><strong>IP Address:</strong> <span id="deviceMetadataIp" style="font-family: monospace; color: #333;"></span></div>
+
+            <div style="margin-bottom: 20px; padding: 12px; background: #1e1e1e; border-radius: 4px; border: 1px solid #404040;">
+                <div style="font-size: 0.9em; color: #b0b0b0; margin-bottom: 5px;"><strong style="color: #F2F0EF;">MAC Address:</strong> <span id="deviceMetadataMac" style="font-family: monospace; color: #FA582D;"></span></div>
+                <div style="font-size: 0.9em; color: #b0b0b0;"><strong style="color: #F2F0EF;">IP Address:</strong> <span id="deviceMetadataIp" style="font-family: monospace; color: #FA582D;"></span></div>
             </div>
 
             <div style="margin-bottom: 20px;">
-                <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Custom Name</label>
-                <input type="text" id="deviceMetadataName" placeholder="Enter custom device name" style="width: 100%; padding: 10px 12px; border: 2px solid #555; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
-                <div style="font-size: 0.8em; color: #999; margin-top: 5px;">Leave empty to use default hostname</div>
+                <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">Custom Name</label>
+                <input type="text" id="deviceMetadataName" placeholder="Enter custom device name" style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; box-sizing: border-box; background: #1e1e1e; color: #F2F0EF; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';">
+                <p style="color: #b0b0b0; font-size: 0.85em; margin: 5px 0 0 0; font-family: var(--font-secondary);">Leave empty to use default hostname</p>
             </div>
 
             <div style="margin-bottom: 20px;">
-                <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Location</label>
+                <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">Location</label>
                 <div style="position: relative;">
-                    <input type="text" id="deviceMetadataLocation" placeholder="Enter device location (e.g., Building A, Room 205, Home Office)" style="width: 100%; padding: 10px 12px; border: 2px solid #555; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
-                    <div id="locationAutocompleteDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #2a2a2a; border: 2px solid #FA582D; border-top: none; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 10001; box-shadow: 0 4px 8px rgba(0,0,0,0.3); color: #F2F0EF;"></div>
+                    <input type="text" id="deviceMetadataLocation" placeholder="Enter device location (e.g., Building A, Room 205)" style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; box-sizing: border-box; background: #1e1e1e; color: #F2F0EF; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';">
+                    <div id="locationAutocompleteDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e1e1e; border: 1px solid #FA582D; border-top: none; border-radius: 0 0 4px 4px; max-height: 200px; overflow-y: auto; z-index: 10001; box-shadow: 0 4px 8px rgba(0,0,0,0.3); color: #F2F0EF;"></div>
                 </div>
-                <div style="font-size: 0.8em; color: #999; margin-top: 5px;">Building, room, office, or physical location. Start typing to see existing locations you can reuse.</div>
+                <p style="color: #b0b0b0; font-size: 0.85em; margin: 5px 0 0 0; font-family: var(--font-secondary);">Building, room, office, or physical location. Start typing to see existing locations.</p>
             </div>
 
             <div style="margin-bottom: 20px;">
-                <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Comment</label>
-                <textarea id="deviceMetadataComment" placeholder="Enter device comment or notes" rows="4" style="width: 100%; padding: 10px 12px; border: 2px solid #555; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; resize: vertical; font-family: var(--font-secondary); background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'"></textarea>
+                <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">Comment</label>
+                <textarea id="deviceMetadataComment" placeholder="Enter device comment or notes" rows="3" style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; box-sizing: border-box; resize: vertical; background: #1e1e1e; color: #F2F0EF; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';"></textarea>
             </div>
 
-            <div style="margin-bottom: 25px; position: relative;">
-                <label style="display: block; color: #F2F0EF; font-weight: 600; margin-bottom: 8px; font-size: 0.95em;">Tags</label>
+            <div style="margin-bottom: 20px; position: relative;">
+                <label style="display: block; color: #F2F0EF; font-weight: 500; margin-bottom: 8px; font-family: var(--font-primary);">Tags</label>
                 <div style="position: relative;">
-                    <input type="text" id="deviceMetadataTags" placeholder="Enter tags separated by commas (e.g., mobile, employee, priority)" style="width: 100%; padding: 10px 12px; border: 2px solid #555; border-radius: 6px; font-size: 0.95em; box-sizing: border-box; background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
-                    <div id="tagAutocompleteDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #2a2a2a; border: 2px solid #FA582D; border-top: none; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 10001; box-shadow: 0 4px 8px rgba(0,0,0,0.3); color: #F2F0EF;"></div>
+                    <input type="text" id="deviceMetadataTags" placeholder="Enter tags separated by commas (e.g., mobile, employee, priority)" style="width: 100%; padding: 12px; border: 1px solid #404040; border-radius: 4px; font-size: 14px; box-sizing: border-box; background: #1e1e1e; color: #F2F0EF; font-family: var(--font-secondary); transition: border-color 0.2s, box-shadow 0.2s;" onfocus="this.style.borderColor='#FA582D'; this.style.boxShadow='0 0 0 2px rgba(250, 88, 45, 0.2)';" onblur="this.style.borderColor='#404040'; this.style.boxShadow='none';">
+                    <div id="tagAutocompleteDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e1e1e; border: 1px solid #FA582D; border-top: none; border-radius: 0 0 4px 4px; max-height: 200px; overflow-y: auto; z-index: 10001; box-shadow: 0 4px 8px rgba(0,0,0,0.3); color: #F2F0EF;"></div>
                 </div>
-                <div style="font-size: 0.8em; color: #999; margin-top: 5px;">Separate multiple tags with commas. Start typing to see existing tags you can reuse.</div>
+                <p style="color: #b0b0b0; font-size: 0.85em; margin: 5px 0 0 0; font-family: var(--font-secondary);">Separate multiple tags with commas. Start typing to see existing tags.</p>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #555;">
-                <button onclick="closeDeviceMetadataModal()" style="padding: 10px 24px; background: linear-gradient(135deg, #4a4a4a 0%, #3a3a3a 100%); color: #F2F0EF; border: 2px solid #555; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer;" onmouseover="this.style.borderColor='#FA582D'" onmouseout="this.style.borderColor='#555'">Cancel</button>
-                <button onclick="saveDeviceMetadataFromModal()" style="padding: 10px 24px; background: linear-gradient(135deg, #FA582D 0%, #C64620 100%); color: #F2F0EF; border: none; border-radius: 6px; font-size: 0.95em; font-weight: 600; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">Save</button>
+            <div style="display: flex; gap: 15px; padding-top: 10px; border-top: 1px solid #404040;">
+                <button onclick="saveDeviceMetadataFromModal()" style="flex: 1; padding: 15px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #F2F0EF; border: none; border-radius: 4px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: var(--font-primary); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                    Save Metadata
+                </button>
+                <button onclick="closeDeviceMetadataModal()" style="flex: 1; padding: 15px; background: #404040; color: #F2F0EF; border: 1px solid #555555; border-radius: 4px; font-size: 16px; font-weight: 500; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#4a4a4a'" onmouseout="this.style.background='#404040'">
+                    Cancel
+                </button>
             </div>
         </div>
     </div>
@@ -3359,19 +3356,19 @@
 
 
     <!-- Nmap Network Scan Modal (v1.10.14) -->
-    <div id="nmapScanModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #e8f4ff 100%); border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(23, 162, 184, 0.3); border-top: 4px solid #F7D9BC;">
+    <div id="nmapScanModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
             <!-- Modal Header -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 style="margin: 0; font-family: var(--font-primary); color: #17a2b8; font-size: 1.5em;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
+                <h3 style="margin: 0; font-family: var(--font-primary); color: #F2F0EF; font-size: 1.5em;">
                     Network Scan (Nmap)
                 </h3>
-                <button onclick="closeNmapScanModal()" style="background: none; border: none; font-size: 1.8em; color: #666; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" onmouseover="this.style.color='#17a2b8'" onmouseout="this.style.color='#666'">×</button>
+                <button onclick="closeNmapScanModal()" style="background: none; border: none; font-size: 1.8em; color: #808080; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">×</button>
             </div>
 
             <!-- IP Address Display -->
-            <div style="background: #f0f8ff; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
-                <div style="font-size: 0.9em; color: #666; margin-bottom: 4px; font-family: var(--font-secondary);">Target IP:</div>
+            <div style="background: #2a2a2a; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #17a2b8; border: 1px solid #444;">
+                <div style="font-size: 0.9em; color: #b0b0b0; margin-bottom: 4px; font-family: var(--font-secondary);">Target IP:</div>
                 <div id="nmapScanIp" style="font-size: 1.2em; font-weight: 600; font-family: monospace; color: #17a2b8;"></div>
             </div>
 
@@ -3391,28 +3388,28 @@
 
             <!-- Scan Progress -->
             <div id="nmapScanProgress" style="display: none; text-align: center; padding: 40px 20px;">
-                <div style="display: inline-block; width: 60px; height: 60px; border: 4px solid #f3f3f3; border-top: 4px solid #F7D9BC; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="display: inline-block; width: 60px; height: 60px; border: 4px solid #444; border-top: 4px solid #FA582D; border-radius: 50%; animation: spin 1s linear infinite;"></div>
                 <style>
                     @keyframes spin {
                         0% { transform: rotate(0deg); }
                         100% { transform: rotate(360deg); }
                     }
                 </style>
-                <div id="nmapScanProgressText" style="margin-top: 20px; font-size: 1em; color: #666; font-family: var(--font-secondary);">
+                <div id="nmapScanProgressText" style="margin-top: 20px; font-size: 1em; color: #b0b0b0; font-family: var(--font-secondary);">
                     Running scan (May take 30-60 seconds)...
                 </div>
             </div>
 
             <!-- Scan Error -->
-            <div id="nmapScanError" style="display: none; background: #fff0f0; border-left: 4px solid #dc3545; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+            <div id="nmapScanError" style="display: none; background: #3a2020; border-left: 4px solid #dc3545; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
                 <div style="font-weight: 600; color: #dc3545; margin-bottom: 8px; font-family: var(--font-primary); font-size: 1em;">Scan Failed</div>
-                <div id="nmapScanErrorMessage" style="color: #666; font-family: var(--font-secondary); font-size: 0.9em;"></div>
+                <div id="nmapScanErrorMessage" style="color: #b0b0b0; font-family: var(--font-secondary); font-size: 0.9em;"></div>
             </div>
 
             <!-- Scan Results -->
             <div id="nmapScanResults" style="display: none;">
-                <div style="border-top: 2px solid #e0e0e0; padding-top: 20px; margin-bottom: 20px;">
-                    <h4 style="margin: 0 0 15px 0; font-family: var(--font-primary); color: #333; font-size: 1.2em;">Scan Results</h4>
+                <div style="border-top: 2px solid #444; padding-top: 20px; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 15px 0; font-family: var(--font-primary); color: #F2F0EF; font-size: 1.2em;">Scan Results</h4>
                     <div id="nmapResultsContent"></div>
                 </div>
             </div>
@@ -3439,34 +3436,23 @@
     <script defer src="/static/settings.js?v=1.9.0"></script>
     <script defer src="/static/pages-nmap-scan.js"></script>
     <!-- Chord Tag Filter Modal -->
-    <div id="chordTagFilterModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: center;">
-        <div class="modal-content" style="background: linear-gradient(135deg, #ffffff 0%, #fff5f0 100%); border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px rgba(250, 88, 45, 0.3); border-top: 4px solid #F7D9BC;">
+    <div id="chordTagFilterModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #FA582D; padding-bottom: 15px;">
-                <h2 style="color: #333; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Filter by Device Tags</h2>
-                <button onclick="closeChordTagFilterModal()" style="background: none; border: none; font-size: 1.5em; color: #999; cursor: pointer; line-height: 1; padding: 0; transition: color 0.2s;" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#999'">×</button>
+                <h2 style="color: #F2F0EF; margin: 0; font-family: var(--font-primary); font-size: 1.5em;">Filter by Device Tags</h2>
+                <button onclick="closeChordTagFilterModal()" style="background: none; border: none; font-size: 1.5em; color: #808080; cursor: pointer; line-height: 1; padding: 0; transition: color 0.2s;" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#808080'">×</button>
             </div>
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 10px; color: #F2F0EF; font-weight: 600; font-family: var(--font-primary);">Select Tags:</label>
                 <select id="chordTagFilterModalSelect" multiple size="8" style="width: 100%; padding: 10px; border: 2px solid #555; border-radius: 6px; font-family: var(--font-secondary); background: #2a2a2a; color: #F2F0EF;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
                     <!-- Tags will be populated by JavaScript -->
                 </select>
-                <p style="color: #999; font-size: 0.85em; margin-top: 8px; font-family: var(--font-secondary);">Hold Ctrl/Cmd to select multiple tags</p>
+                <p style="color: #b0b0b0; font-size: 0.85em; margin-top: 8px; font-family: var(--font-secondary);">Hold Ctrl/Cmd to select multiple tags</p>
             </div>
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="clearChordTagFilter()" style="padding: 10px 20px; background: #6c757d; color: #F2F0EF; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">Clear</button>
+                <button onclick="clearChordTagFilter()" style="padding: 10px 20px; background: #404040; color: #F2F0EF; border: 1px solid #555; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#4a4a4a'" onmouseout="this.style.background='#404040'">Clear</button>
                 <button onclick="applyChordTagFilter()" style="padding: 10px 20px; background: #FA582D; color: #F2F0EF; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#E04F26'" onmouseout="this.style.background='#FA582D'">Apply</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Footer with Edition Badge -->
-    <div style="position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(to right, #1a1a1a 0%, #2a2a2a 100%); padding: 12px 20px; border-top: 1px solid #333; font-family: var(--font-secondary); font-size: 0.85em; color: #999; z-index: 100; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            PANfm v{{ version }}
-            <span style="background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); color: #fff; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-family: var(--font-primary); margin-left: 10px; font-size: 0.9em; box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);">Community Edition</span>
-        </div>
-        <div style="color: #666;">
-            Free & Open-Source
         </div>
     </div>
 

@@ -319,8 +319,8 @@ function renderDhcpTable() {
         table.style.display = 'none';
         emptyState.style.display = 'block';
         document.getElementById('dhcpEmptyState').innerHTML = `
-            <p style="color: #999; font-family: var(--font-secondary); font-size: 1em; margin: 0;">No matching DHCP leases found</p>
-            <p style="color: #ccc; font-family: var(--font-secondary); font-size: 0.9em; margin: 10px 0 0 0;">Try adjusting your search criteria.</p>
+            <p style="color: #bbb; font-family: var(--font-secondary); font-size: 1em; margin: 0;">No matching DHCP leases found</p>
+            <p style="color: #888; font-family: var(--font-secondary); font-size: 0.9em; margin: 10px 0 0 0;">Try adjusting your search criteria.</p>
         `;
         return;
     }
@@ -331,7 +331,7 @@ function renderDhcpTable() {
 
     // Build table rows
     let tableHTML = '';
-    filtered.forEach(lease => {
+    filtered.forEach((lease, index) => {
         const ip = escapeHtml(lease.ip || 'N/A');
         const mac = escapeHtml(lease.mac || 'N/A');
         const hostname = escapeHtml(lease.hostname || 'Unknown');
@@ -349,18 +349,22 @@ function renderDhcpTable() {
             stateColor = '#ffc107'; // Yellow
         }
 
+        // Dark theme alternating row colors
+        const rowBg = index % 2 === 0 ? '#2a2a2a' : '#333333';
+        const rowBgHover = index % 2 === 0 ? '#353535' : '#404040';
+
         tableHTML += `
-            <tr style="border-bottom: 1px solid #eee; transition: background 0.2s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='white'">
+            <tr style="background: ${rowBg}; border-bottom: 1px solid #444; transition: all 0.2s;" onmouseover="this.style.background='${rowBgHover}'; this.style.borderLeft='3px solid #FA582D'" onmouseout="this.style.background='${rowBg}'; this.style.borderLeft='none'">
                 <td style="padding: 12px; font-family: 'Courier New', monospace; color: #FA582D; font-weight: 600;">${ip}</td>
-                <td style="padding: 12px; font-family: 'Courier New', monospace; color: #666;">${mac}</td>
-                <td style="padding: 12px; color: #333; font-weight: 500;">${hostname}</td>
+                <td style="padding: 12px; font-family: 'Courier New', monospace; color: #bbb;">${mac}</td>
+                <td style="padding: 12px; color: #F2F0EF; font-weight: 500;">${hostname}</td>
                 <td style="padding: 12px;">
                     <span style="background: ${stateColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 600; font-family: var(--font-primary);">
                         ${state}
                     </span>
                 </td>
-                <td style="padding: 12px; color: #666; font-family: var(--font-secondary);">${expiration}</td>
-                <td style="padding: 12px; color: #666; font-family: var(--font-secondary);">${iface}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${expiration}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${iface}</td>
             </tr>
         `;
     });
@@ -1275,40 +1279,42 @@ function renderInterfacesTable() {
     // Update statistics based on filtered data
     updateInterfaceStatistics(sortedInterfaces);
 
-    // Build table HTML with sortable headers
+    // Build table HTML with sortable headers - Dark theme matching System Logs
     let tableHTML = `
-        <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary);">
-            <thead>
-                <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
-                    ${renderSortableHeader('name', 'Interface')}
-                    ${renderSortableHeader('type', 'Type')}
-                    ${renderSortableHeader('state', 'State')}
-                    ${renderSortableHeader('ip', 'IP Address')}
-                    ${renderSortableHeader('vlan', 'VLAN')}
-                    ${renderSortableHeader('speed', 'Speed')}
-                    ${renderSortableHeader('zone', 'Zone')}
-                    <th style="padding: 12px; text-align: left; font-family: var(--font-primary); color: #333;">Traffic</th>
-                </tr>
-            </thead>
-            <tbody>
+        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-top: 4px solid #F2F0EF;">
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary);">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 2px solid #555;">
+                            ${renderSortableHeader('name', 'Interface')}
+                            ${renderSortableHeader('type', 'Type')}
+                            ${renderSortableHeader('state', 'State')}
+                            ${renderSortableHeader('ip', 'IP Address')}
+                            ${renderSortableHeader('vlan', 'VLAN')}
+                            ${renderSortableHeader('speed', 'Speed')}
+                            ${renderSortableHeader('zone', 'Zone')}
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%);">Traffic</th>
+                        </tr>
+                    </thead>
+                    <tbody>
     `;
 
     sortedInterfaces.forEach((iface, index) => {
-        const rowBg = index % 2 === 0 ? '#fff' : '#f9f9f9';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
         const stateColor = iface.state && iface.state.toLowerCase() === 'up' ? '#28a745' : '#dc3545';
         const stateIcon = iface.state && iface.state.toLowerCase() === 'up' ? '●' : '●';
 
         tableHTML += `
-            <tr style="background: ${rowBg}; border-bottom: 1px solid #eee;">
-                <td style="padding: 12px; font-weight: 600; color: #333; font-family: var(--font-primary);">${iface.name}</td>
-                <td style="padding: 12px; color: #666;">${iface.type}</td>
+            <tr style="${rowStyle} border-bottom: 1px solid #444; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #3a3a3a 0%, #333333 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #2a2a2a 0%, #252525 100%)' : 'linear-gradient(135deg, #333333 0%, #2d2d2d 100%)'}'; this.style.borderLeft='4px solid transparent';">
+                <td style="padding: 12px; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">${iface.name}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${iface.type}</td>
                 <td style="padding: 12px;"><span style="color: ${stateColor}; font-weight: 600;">${stateIcon} ${iface.state}</span></td>
-                <td style="padding: 12px; color: #666;">${iface.ip}</td>
-                <td style="padding: 12px; color: #666;">${iface.vlan}</td>
-                <td style="padding: 12px; color: #666;">${iface.speed}</td>
-                <td style="padding: 12px; color: #666;">${iface.zone}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${iface.ip}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${iface.vlan}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${iface.speed}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${iface.zone}</td>
                 <td style="padding: 12px;">
-                    <div style="text-align: center; margin-bottom: 5px;">
+                    <div style="text-align: right; margin-bottom: 5px;">
                         <span id="traffic-rate-${iface.name.replace(/[\/\.]/g, '-')}" style="font-size: 0.85em; color: #FA582D; font-weight: 600; font-family: var(--font-primary);">0 Mbps</span>
                     </div>
                     <canvas id="traffic-chart-${iface.name.replace(/[\/\.]/g, '-')}" width="120" height="40" style="display: block;"></canvas>
@@ -1318,8 +1324,10 @@ function renderInterfacesTable() {
     });
 
     tableHTML += `
-            </tbody>
-        </table>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     `;
 
     tableDiv.innerHTML = tableHTML;
@@ -1532,9 +1540,9 @@ function renderSortableHeader(column, label) {
     const isCurrentSort = interfacesSortColumn === column;
     const arrow = isCurrentSort ? (interfacesSortDirection === 'asc' ? ' ▲' : ' ▼') : '';
     const cursorStyle = 'cursor: pointer;';
-    const hoverEffect = 'onmouseover="this.style.backgroundColor=\'#e8e8e8\'" onmouseout="this.style.backgroundColor=\'#f5f5f5\'"';
+    const hoverEffect = 'onmouseover="this.style.background=\'linear-gradient(135deg, #4a4a4a 0%, #3a3a3a 100%)\'" onmouseout="this.style.background=\'linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%)\'"';
 
-    return `<th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary); ${cursorStyle}"
+    return `<th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); ${cursorStyle}"
                 onclick="sortInterfacesBy('${column}')"
                 ${hoverEffect}
                 title="Click to sort by ${label}">

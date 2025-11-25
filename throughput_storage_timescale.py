@@ -717,6 +717,16 @@ class TimescaleStorage:
                     continue  # Skip devices without IP
 
                 mac = device.get('mac')
+                # Validate MAC address format - PostgreSQL macaddr type requires valid format
+                # Firewall may return "(incomplete)" for ARP entries without resolved MAC
+                if mac:
+                    import re
+                    # Valid MAC formats: xx:xx:xx:xx:xx:xx or xx-xx-xx-xx-xx-xx
+                    mac_pattern = r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
+                    if not re.match(mac_pattern, mac):
+                        debug(f"Invalid MAC address '{mac}' for IP {ip}, setting to NULL")
+                        mac = None  # Set invalid MAC to NULL for database
+
                 hostname = device.get('hostname') or device.get('original_hostname')
                 interface = device.get('interface')
                 zone = device.get('zone')
@@ -773,6 +783,8 @@ class TimescaleStorage:
         except Exception as e:
             if conn:
                 conn.rollback()
+            # Print to console for visibility in Docker logs
+            print(f"[STORAGE ERROR] Failed to batch insert connected devices: {str(e)}")
             exception("Failed to batch insert connected devices: %s", str(e))
             return False
 
@@ -1746,6 +1758,11 @@ class TimescaleStorage:
                 if client_mac and client_mac.lower() in ['n/a', 'unknown', 'none', '']:
                     client_mac = None
 
+                # Calculate bandwidth_mbps from bytes
+                # Collector runs every 60 seconds, so: Mbps = (bytes * 8) / 60 / 1,000,000
+                bytes_total = client.get('bytes', 0)
+                bandwidth_mbps = (bytes_total * 8) / 60 / 1_000_000
+
                 insert_data.append((
                     timestamp,
                     device_id,
@@ -1756,8 +1773,8 @@ class TimescaleStorage:
                     client.get('traffic_type', 'total'),  # 'internal', 'internet', 'total'
                     client.get('bytes_sent', 0),
                     client.get('bytes_received', 0),
-                    client.get('bytes', 0),
-                    0,  # bandwidth_mbps (not calculated at client level currently)
+                    bytes_total,
+                    bandwidth_mbps,  # Calculated: (bytes * 8) / 60s / 1Mbps
                     client.get('sessions', 0),
                     client.get('sessions_tcp', 0),
                     client.get('sessions_udp', 0),
@@ -1795,14 +1812,16 @@ class TimescaleStorage:
                 self._return_connection(conn)
 
     # =========================================
-    # Device Metadata Methods (PostgreSQL)
+    # Device Metadata Methods (PostgreSQL) - Per-Device Separation v2.1.2
     # =========================================
+    # Schema: PRIMARY KEY (device_id, mac) - ensures metadata is separated per managed firewall
 
-    def get_device_metadata(self, mac: str) -> dict:
+    def get_device_metadata(self, device_id: str, mac: str) -> dict:
         """
-        Get metadata for a single device by MAC address.
+        Get metadata for a single device by device_id + MAC address.
 
         Args:
+            device_id: Managed firewall ID (required)
             mac: MAC address (will be normalized to lowercase)
 
         Returns:
@@ -1817,8 +1836,8 @@ class TimescaleStorage:
             cursor.execute("""
                 SELECT custom_name, location, comment, tags
                 FROM device_metadata
-                WHERE mac = %s
-            """, (mac.lower(),))
+                WHERE device_id = %s AND mac = %s
+            """, (device_id, mac.lower()))
 
             row = cursor.fetchone()
             cursor.close()
@@ -1833,19 +1852,19 @@ class TimescaleStorage:
             return {}
 
         except Exception as e:
-            exception("Failed to get metadata for MAC %s: %s", mac, str(e))
+            exception("Failed to get metadata for device %s, MAC %s: %s", device_id, mac, str(e))
             return {}
 
         finally:
             if conn:
                 self._return_connection(conn)
 
-    def get_all_device_metadata(self, device_id: str = None) -> dict:
+    def get_all_device_metadata(self, device_id: str) -> dict:
         """
-        Get metadata for all devices, optionally filtered by device_id.
+        Get all metadata for a specific managed device (firewall).
 
         Args:
-            device_id: Optional device ID to filter by
+            device_id: Managed firewall ID (required)
 
         Returns:
             dict mapping MAC addresses to metadata: {mac: {custom_name, location, comment, tags}}
@@ -1855,17 +1874,11 @@ class TimescaleStorage:
             conn = self._get_connection()
             cursor = conn.cursor()
 
-            if device_id:
-                cursor.execute("""
-                    SELECT mac, custom_name, location, comment, tags
-                    FROM device_metadata
-                    WHERE device_id = %s OR device_id IS NULL
-                """, (device_id,))
-            else:
-                cursor.execute("""
-                    SELECT mac, custom_name, location, comment, tags
-                    FROM device_metadata
-                """)
+            cursor.execute("""
+                SELECT mac, custom_name, location, comment, tags
+                FROM device_metadata
+                WHERE device_id = %s
+            """, (device_id,))
 
             rows = cursor.fetchall()
             cursor.close()
@@ -1881,29 +1894,29 @@ class TimescaleStorage:
                     'tags': row[4] or []
                 }
 
-            debug(f"Retrieved metadata for {len(result)} devices")
+            debug(f"Retrieved metadata for {len(result)} devices (device_id: {device_id})")
             return result
 
         except Exception as e:
-            exception("Failed to get all device metadata: %s", str(e))
+            exception("Failed to get all device metadata for device %s: %s", device_id, str(e))
             return {}
 
         finally:
             if conn:
                 self._return_connection(conn)
 
-    def upsert_device_metadata(self, mac: str, custom_name: str = None, location: str = None,
-                                comment: str = None, tags: list = None, device_id: str = None) -> bool:
+    def upsert_device_metadata(self, device_id: str, mac: str, custom_name: str = None,
+                                location: str = None, comment: str = None, tags: list = None) -> bool:
         """
-        Insert or update device metadata.
+        Insert or update device metadata for a specific managed device.
 
         Args:
+            device_id: Managed firewall ID (required)
             mac: MAC address (will be normalized to lowercase)
             custom_name: Custom device name
             location: Physical location
             comment: User notes
             tags: List of tags
-            device_id: Optional device ID link
 
         Returns:
             True if successful, False otherwise
@@ -1920,40 +1933,40 @@ class TimescaleStorage:
             if tags is None:
                 tags = []
 
-            # Upsert (INSERT ... ON CONFLICT UPDATE)
+            # Upsert (INSERT ... ON CONFLICT UPDATE) - composite key (device_id, mac)
             cursor.execute("""
-                INSERT INTO device_metadata (mac, device_id, custom_name, location, comment, tags)
+                INSERT INTO device_metadata (device_id, mac, custom_name, location, comment, tags)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (mac) DO UPDATE SET
-                    device_id = COALESCE(EXCLUDED.device_id, device_metadata.device_id),
+                ON CONFLICT (device_id, mac) DO UPDATE SET
                     custom_name = COALESCE(EXCLUDED.custom_name, device_metadata.custom_name),
                     location = COALESCE(EXCLUDED.location, device_metadata.location),
                     comment = COALESCE(EXCLUDED.comment, device_metadata.comment),
                     tags = EXCLUDED.tags,
                     updated_at = NOW()
-            """, (mac, device_id, custom_name, location, comment, tags))
+            """, (device_id, mac, custom_name, location, comment, tags))
 
             conn.commit()
             cursor.close()
 
-            debug(f"Upserted metadata for MAC {mac}")
+            debug(f"Upserted metadata for device {device_id}, MAC {mac}")
             return True
 
         except Exception as e:
             if conn:
                 conn.rollback()
-            exception("Failed to upsert metadata for MAC %s: %s", mac, str(e))
+            exception("Failed to upsert metadata for device %s, MAC %s: %s", device_id, mac, str(e))
             return False
 
         finally:
             if conn:
                 self._return_connection(conn)
 
-    def delete_device_metadata(self, mac: str) -> bool:
+    def delete_device_metadata(self, device_id: str, mac: str) -> bool:
         """
-        Delete metadata for a device.
+        Delete metadata for a device on a specific managed firewall.
 
         Args:
+            device_id: Managed firewall ID (required)
             mac: MAC address
 
         Returns:
@@ -1964,26 +1977,66 @@ class TimescaleStorage:
             conn = self._get_connection()
             cursor = conn.cursor()
 
-            cursor.execute("DELETE FROM device_metadata WHERE mac = %s", (mac.lower(),))
+            cursor.execute(
+                "DELETE FROM device_metadata WHERE device_id = %s AND mac = %s",
+                (device_id, mac.lower())
+            )
             conn.commit()
             cursor.close()
 
-            debug(f"Deleted metadata for MAC {mac}")
+            debug(f"Deleted metadata for device {device_id}, MAC {mac}")
             return True
 
         except Exception as e:
             if conn:
                 conn.rollback()
-            exception("Failed to delete metadata for MAC %s: %s", mac, str(e))
+            exception("Failed to delete metadata for device %s, MAC %s: %s", device_id, mac, str(e))
             return False
 
         finally:
             if conn:
                 self._return_connection(conn)
 
-    def get_all_tags(self) -> list:
+    def get_device_tags(self, device_id: str) -> list:
         """
-        Get list of all unique tags across all devices.
+        Get list of all unique tags for a specific managed device.
+
+        Args:
+            device_id: Managed firewall ID (required)
+
+        Returns:
+            List of tag strings, sorted alphabetically
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT DISTINCT unnest(tags) AS tag
+                FROM device_metadata
+                WHERE device_id = %s
+                ORDER BY tag
+            """, (device_id,))
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            tags = [row[0] for row in rows if row[0]]
+            debug(f"Retrieved {len(tags)} unique tags for device {device_id}")
+            return tags
+
+        except Exception as e:
+            exception("Failed to get tags for device %s: %s", device_id, str(e))
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_all_tags_global(self) -> list:
+        """
+        Get list of all unique tags across ALL managed devices (global).
 
         Returns:
             List of tag strings, sorted alphabetically
@@ -2003,20 +2056,111 @@ class TimescaleStorage:
             cursor.close()
 
             tags = [row[0] for row in rows if row[0]]
-            debug(f"Retrieved {len(tags)} unique tags")
+            debug(f"Retrieved {len(tags)} unique tags globally")
             return tags
 
         except Exception as e:
-            exception("Failed to get all tags: %s", str(e))
+            exception("Failed to get all tags globally: %s", str(e))
             return []
 
         finally:
             if conn:
                 self._return_connection(conn)
 
-    def get_all_locations(self) -> list:
+    def get_tags_with_usage(self, device_id: str = None) -> list:
         """
-        Get list of all unique locations across all devices.
+        Get list of tags with usage counts for Settings Tag Management UI.
+
+        Args:
+            device_id: Optional - filter by specific device, None for global
+
+        Returns:
+            List of dicts: [{tag: str, usage_count: int, device_ids: [str]}]
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            if device_id:
+                # Tags for specific device
+                cursor.execute("""
+                    SELECT unnest(tags) AS tag, COUNT(*) AS usage_count
+                    FROM device_metadata
+                    WHERE device_id = %s
+                    GROUP BY tag
+                    ORDER BY tag
+                """, (device_id,))
+            else:
+                # Tags globally with device breakdown
+                cursor.execute("""
+                    SELECT unnest(tags) AS tag, COUNT(*) AS usage_count,
+                           array_agg(DISTINCT device_id) AS device_ids
+                    FROM device_metadata
+                    GROUP BY tag
+                    ORDER BY tag
+                """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            if device_id:
+                result = [{'tag': row[0], 'usage_count': row[1]} for row in rows if row[0]]
+            else:
+                result = [{'tag': row[0], 'usage_count': row[1], 'device_ids': row[2] or []}
+                          for row in rows if row[0]]
+
+            debug(f"Retrieved {len(result)} tags with usage counts")
+            return result
+
+        except Exception as e:
+            exception("Failed to get tags with usage: %s", str(e))
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_device_locations(self, device_id: str) -> list:
+        """
+        Get list of all unique locations for a specific managed device.
+
+        Args:
+            device_id: Managed firewall ID (required)
+
+        Returns:
+            List of location strings, sorted alphabetically
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT DISTINCT location
+                FROM device_metadata
+                WHERE device_id = %s AND location IS NOT NULL AND location != ''
+                ORDER BY location
+            """, (device_id,))
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            locations = [row[0] for row in rows]
+            debug(f"Retrieved {len(locations)} unique locations for device {device_id}")
+            return locations
+
+        except Exception as e:
+            exception("Failed to get locations for device %s: %s", device_id, str(e))
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_all_locations_global(self) -> list:
+        """
+        Get list of all unique locations across ALL managed devices (global).
 
         Returns:
             List of location strings, sorted alphabetically
@@ -2037,12 +2181,113 @@ class TimescaleStorage:
             cursor.close()
 
             locations = [row[0] for row in rows]
-            debug(f"Retrieved {len(locations)} unique locations")
+            debug(f"Retrieved {len(locations)} unique locations globally")
             return locations
 
         except Exception as e:
-            exception("Failed to get all locations: %s", str(e))
+            exception("Failed to get all locations globally: %s", str(e))
             return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def rename_tag(self, old_tag: str, new_tag: str, device_id: str = None) -> int:
+        """
+        Rename a tag across all metadata entries.
+
+        Args:
+            old_tag: Current tag name
+            new_tag: New tag name
+            device_id: Optional - only rename within specific device
+
+        Returns:
+            Number of rows affected
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            if device_id:
+                # Rename within specific device
+                cursor.execute("""
+                    UPDATE device_metadata
+                    SET tags = array_replace(tags, %s, %s),
+                        updated_at = NOW()
+                    WHERE device_id = %s AND %s = ANY(tags)
+                """, (old_tag, new_tag, device_id, old_tag))
+            else:
+                # Rename globally
+                cursor.execute("""
+                    UPDATE device_metadata
+                    SET tags = array_replace(tags, %s, %s),
+                        updated_at = NOW()
+                    WHERE %s = ANY(tags)
+                """, (old_tag, new_tag, old_tag))
+
+            affected = cursor.rowcount
+            conn.commit()
+            cursor.close()
+
+            debug(f"Renamed tag '{old_tag}' to '{new_tag}' - {affected} rows affected")
+            return affected
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to rename tag '%s' to '%s': %s", old_tag, new_tag, str(e))
+            return 0
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def delete_tag(self, tag: str, device_id: str = None) -> int:
+        """
+        Remove a tag from all metadata entries.
+
+        Args:
+            tag: Tag to remove
+            device_id: Optional - only remove within specific device
+
+        Returns:
+            Number of rows affected
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            if device_id:
+                # Remove within specific device
+                cursor.execute("""
+                    UPDATE device_metadata
+                    SET tags = array_remove(tags, %s),
+                        updated_at = NOW()
+                    WHERE device_id = %s AND %s = ANY(tags)
+                """, (tag, device_id, tag))
+            else:
+                # Remove globally
+                cursor.execute("""
+                    UPDATE device_metadata
+                    SET tags = array_remove(tags, %s),
+                        updated_at = NOW()
+                    WHERE %s = ANY(tags)
+                """, (tag, tag))
+
+            affected = cursor.rowcount
+            conn.commit()
+            cursor.close()
+
+            debug(f"Deleted tag '{tag}' - {affected} rows affected")
+            return affected
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to delete tag '%s': %s", tag, str(e))
+            return 0
 
         finally:
             if conn:
@@ -2054,7 +2299,7 @@ class TimescaleStorage:
         Get connected devices with metadata joined, optionally filtered by tags.
 
         Args:
-            device_id: Device ID to query
+            device_id: Device ID to query (required - used for both connected_devices and metadata)
             max_age_seconds: Maximum age of last_seen timestamp (default 5 minutes)
             tags: Optional list of tags to filter by
             tag_operator: 'OR' (any tag matches) or 'AND' (all tags must match)
@@ -2068,7 +2313,7 @@ class TimescaleStorage:
             conn = self._get_connection()
             cursor = conn.cursor()
 
-            # Base query with JOIN
+            # Base query with JOIN - include device_id in join for per-device metadata
             query = """
                 SELECT
                     cd.ip,
@@ -2085,7 +2330,7 @@ class TimescaleStorage:
                     dm.comment,
                     dm.tags
                 FROM connected_devices cd
-                LEFT JOIN device_metadata dm ON cd.mac = dm.mac
+                LEFT JOIN device_metadata dm ON cd.device_id = dm.device_id AND cd.mac = dm.mac
                 WHERE cd.device_id = %s
                   AND cd.last_seen > NOW() - INTERVAL '%s seconds'
             """
@@ -2549,24 +2794,29 @@ class TimescaleStorage:
             conn = self._get_connection()
             cursor = conn.cursor()
 
-            # Delete from all hypertables
+            # Delete from all hypertables (correct table names per schema)
             tables = [
-                'throughput_history',
-                'interface_metrics',
-                'connected_devices',
-                'threat_logs',
-                'application_samples',
-                'category_bandwidth',
-                'client_bandwidth',
-                'traffic_flows'
+                'throughput_samples',      # Main throughput data (30-sec samples)
+                'application_samples',     # Per-app traffic data
+                'category_bandwidth',      # Per-category traffic
+                'client_bandwidth',        # Per-client traffic
+                'traffic_flows',           # Sankey diagram flows
+                'connected_devices',       # ARP entries
+                'alert_history',           # Alert events for this device
+                'nmap_scan_history',       # Nmap scan results
+                'nmap_change_events',      # Network change events
             ]
 
             total_deleted = 0
             for table in tables:
-                cursor.execute(f"DELETE FROM {table} WHERE device_id = %s", (device_id,))
-                deleted = cursor.rowcount
-                total_deleted += deleted
-                debug("Deleted %d rows from %s for device %s", deleted, table, device_id)
+                try:
+                    cursor.execute(f"DELETE FROM {table} WHERE device_id = %s", (device_id,))
+                    deleted = cursor.rowcount
+                    total_deleted += deleted
+                    debug("Deleted %d rows from %s for device %s", deleted, table, device_id)
+                except Exception as table_error:
+                    # Table may not exist in older schemas - log warning and continue
+                    warning("Could not delete from %s: %s", table, str(table_error))
 
             conn.commit()
             cursor.close()
@@ -2599,24 +2849,34 @@ class TimescaleStorage:
             cursor = conn.cursor()
 
             # Truncate all hypertables (faster than DELETE)
+            # Uses correct table names per schema
             tables = [
-                'throughput_history',
-                'interface_metrics',
-                'connected_devices',
-                'threat_logs',
-                'application_samples',
-                'category_bandwidth',
-                'client_bandwidth',
-                'traffic_flows',
-                'scheduler_stats_history'
+                'throughput_samples',      # Main throughput data (30-sec samples)
+                'application_samples',     # Per-app traffic data
+                'category_bandwidth',      # Per-category traffic
+                'client_bandwidth',        # Per-client traffic
+                'traffic_flows',           # Sankey diagram flows
+                'connected_devices',       # ARP entries
+                'alert_history',           # Alert events
+                'nmap_scan_history',       # Nmap scan results
+                'nmap_change_events',      # Network change events
+                'scheduler_stats_history', # Scheduler health stats
             ]
 
             for table in tables:
-                cursor.execute(f"TRUNCATE TABLE {table}")
-                debug("Truncated table: %s", table)
+                try:
+                    cursor.execute(f"TRUNCATE TABLE {table} CASCADE")
+                    debug("Truncated table: %s", table)
+                except Exception as table_error:
+                    # Table may not exist in older schemas - log warning and continue
+                    warning("Could not truncate %s: %s", table, str(table_error))
 
-            # Also clear device_status (regular table, not hypertable)
-            cursor.execute("TRUNCATE TABLE device_status")
+            # Also clear device_status (regular table, not hypertable) - if it exists
+            try:
+                cursor.execute("TRUNCATE TABLE device_status CASCADE")
+                debug("Truncated table: device_status")
+            except Exception as table_error:
+                warning("Could not truncate device_status: %s", str(table_error))
 
             conn.commit()
             cursor.close()

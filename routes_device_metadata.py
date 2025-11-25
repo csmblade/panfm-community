@@ -471,17 +471,30 @@ def register_device_metadata_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")  # Support bulk loading on page load
     @login_required
     def get_all_device_metadata():
-        """Get all device metadata (for bulk loading on page load)"""
+        """Get all device metadata for the currently selected device (firewall)"""
         debug("=== Get all device metadata API endpoint called ===")
         try:
+            # Get device_id from settings (required for per-device metadata)
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                debug("No device selected, returning empty metadata")
+                return jsonify({
+                    'status': 'success',
+                    'metadata': {},
+                    'message': 'No device selected'
+                })
+
             storage = TimescaleStorage(TIMESCALE_DSN)
-            metadata = storage.get_all_device_metadata()
+            metadata = storage.get_all_device_metadata(device_id)
             # Convert custom_name -> name for frontend compatibility
             metadata = _convert_metadata_for_frontend(metadata)
-            debug(f"Retrieved metadata for {len(metadata)} devices from PostgreSQL")
+            debug(f"Retrieved metadata for {len(metadata)} devices from PostgreSQL (device_id: {device_id})")
             return jsonify({
                 'status': 'success',
-                'metadata': metadata
+                'metadata': metadata,
+                'device_id': device_id
             })
         except Exception as e:
             error(f"Error loading device metadata: {str(e)}")
@@ -495,11 +508,21 @@ def register_device_metadata_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")
     @login_required
     def get_single_device_metadata(mac):
-        """Get metadata for a specific MAC address"""
+        """Get metadata for a specific MAC address on the currently selected device"""
         debug(f"=== Get device metadata for MAC: {mac} ===")
         try:
+            # Get device_id from settings (required for per-device metadata)
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No device selected'
+                }), 400
+
             storage = TimescaleStorage(TIMESCALE_DSN)
-            metadata = storage.get_device_metadata(mac)
+            metadata = storage.get_device_metadata(device_id, mac)
             # Convert custom_name -> name for frontend compatibility
             metadata = _convert_metadata_for_frontend(metadata)
             if metadata:
@@ -524,7 +547,7 @@ def register_device_metadata_routes(app, csrf, limiter):
     @login_required
     @limiter.limit("100 per hour")  # Device management category
     def create_or_update_device_metadata():
-        """Create or update device metadata (requires CSRF token)"""
+        """Create or update device metadata for currently selected device (requires CSRF token)"""
         debug("=== Create/update device metadata API endpoint called ===")
         try:
             data = request.get_json()
@@ -548,29 +571,37 @@ def register_device_metadata_routes(app, csrf, limiter):
                     'message': 'Tags must be a list'
                 }), 400
 
-            # Get device_id from settings
+            # Get device_id from settings (required for per-device metadata)
             settings = load_settings()
-            device_id = settings.get('selected_device_id')
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No device selected'
+                }), 400
 
             storage = TimescaleStorage(TIMESCALE_DSN)
+            # device_id is now required first parameter for per-device separation
             success = storage.upsert_device_metadata(
+                device_id=device_id,
                 mac=mac,
                 custom_name=custom_name,
                 location=location,
                 comment=comment,
-                tags=tags,
-                device_id=device_id
+                tags=tags
             )
 
             if success:
-                # Return updated metadata
-                updated_metadata = storage.get_device_metadata(mac)
+                # Return updated metadata (device_id required for lookup)
+                updated_metadata = storage.get_device_metadata(device_id, mac)
                 # Convert custom_name -> name for frontend compatibility
                 updated_metadata = _convert_metadata_for_frontend(updated_metadata)
                 return jsonify({
                     'status': 'success',
                     'metadata': updated_metadata,
-                    'message': 'Metadata saved successfully'
+                    'message': 'Metadata saved successfully',
+                    'device_id': device_id
                 })
             else:
                 return jsonify({
@@ -588,15 +619,27 @@ def register_device_metadata_routes(app, csrf, limiter):
     @login_required
     @limiter.limit("100 per hour")  # Device management category
     def delete_device_metadata_endpoint(mac):
-        """Delete device metadata (requires CSRF token)"""
+        """Delete device metadata for currently selected device (requires CSRF token)"""
         debug(f"=== Delete device metadata for MAC: {mac} ===")
         try:
+            # Get device_id from settings (required for per-device metadata)
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No device selected'
+                }), 400
+
             storage = TimescaleStorage(TIMESCALE_DSN)
-            success = storage.delete_device_metadata(mac)
+            # device_id required for per-device separation
+            success = storage.delete_device_metadata(device_id, mac)
             if success:
                 return jsonify({
                     'status': 'success',
-                    'message': 'Metadata deleted successfully'
+                    'message': 'Metadata deleted successfully',
+                    'device_id': device_id
                 })
             else:
                 return jsonify({
@@ -614,14 +657,28 @@ def register_device_metadata_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")
     @login_required
     def get_all_device_tags():
-        """Get all unique tags across all devices"""
-        debug("=== Get all device tags API endpoint called ===")
+        """Get unique tags for currently selected device (for autocomplete)"""
+        debug("=== Get device tags API endpoint called ===")
         try:
+            # Get device_id from settings for per-device tag filtering
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
             storage = TimescaleStorage(TIMESCALE_DSN)
-            tags = storage.get_all_tags()
+
+            if device_id:
+                # Get tags only for the selected device (per-device separation)
+                tags = storage.get_device_tags(device_id)
+                debug(f"Retrieved {len(tags)} tags for device {device_id}")
+            else:
+                # No device selected - return empty (or could return all tags globally)
+                tags = []
+                debug("No device selected, returning empty tags list")
+
             return jsonify({
                 'status': 'success',
-                'tags': tags
+                'tags': tags,
+                'device_id': device_id
             })
         except Exception as e:
             error(f"Error getting device tags: {str(e)}")
@@ -635,14 +692,28 @@ def register_device_metadata_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")
     @login_required
     def get_all_device_locations():
-        """Get all unique locations across all devices"""
-        debug("=== Get all device locations API endpoint called ===")
+        """Get unique locations for currently selected device (for autocomplete)"""
+        debug("=== Get device locations API endpoint called ===")
         try:
+            # Get device_id from settings for per-device location filtering
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
             storage = TimescaleStorage(TIMESCALE_DSN)
-            locations = storage.get_all_locations()
+
+            if device_id:
+                # Get locations only for the selected device (per-device separation)
+                locations = storage.get_device_locations(device_id)
+                debug(f"Retrieved {len(locations)} locations for device {device_id}")
+            else:
+                # No device selected - return empty
+                locations = []
+                debug("No device selected, returning empty locations list")
+
             return jsonify({
                 'status': 'success',
-                'locations': locations
+                'locations': locations,
+                'device_id': device_id
             })
         except Exception as e:
             error(f"Error getting device locations: {str(e)}")
@@ -656,18 +727,29 @@ def register_device_metadata_routes(app, csrf, limiter):
     @limiter.limit("100 per hour")
     @login_required
     def export_device_metadata():
-        """Export device metadata as JSON backup file"""
+        """Export device metadata as JSON backup file for currently selected device"""
         debug("=== Device metadata export endpoint called ===")
         try:
-            # Load metadata from PostgreSQL
+            # Get device_id from settings for per-device export
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No device selected'
+                }), 400
+
+            # Load metadata from PostgreSQL for the selected device
             storage = TimescaleStorage(TIMESCALE_DSN)
-            metadata = storage.get_all_device_metadata()
+            metadata = storage.get_all_device_metadata(device_id)
 
             # Add export metadata
             export_data = {
                 'export_date': datetime.now().isoformat(),
-                'version': '2.0',
+                'version': '2.1',
                 'source': 'PostgreSQL/TimescaleDB',
+                'device_id': device_id,
                 'total_devices': len(metadata),
                 'metadata': metadata
             }
@@ -679,9 +761,9 @@ def register_device_metadata_routes(app, csrf, limiter):
             json_file = BytesIO(json_bytes)
             json_file.seek(0)
 
-            # Generate filename with timestamp
+            # Generate filename with timestamp and device_id
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'device_metadata_backup_{timestamp}.json'
+            filename = f'device_metadata_backup_{device_id[:8]}_{timestamp}.json'
 
             return send_file(
                 json_file,
@@ -700,7 +782,7 @@ def register_device_metadata_routes(app, csrf, limiter):
     @login_required
     @limiter.limit("50 per hour")  # Limit imports to prevent abuse
     def import_device_metadata():
-        """Import device metadata from JSON backup file"""
+        """Import device metadata from JSON backup file for currently selected device"""
         debug("=== Device metadata import endpoint called ===")
         try:
             if 'file' not in request.files:
@@ -723,6 +805,16 @@ def register_device_metadata_routes(app, csrf, limiter):
                     'message': 'File must be a JSON file'
                 }), 400
 
+            # Get device_id from settings (required for per-device import)
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+            if not device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No device selected'
+                }), 400
+
             # Read and parse JSON
             try:
                 file_content = file.read().decode('utf-8')
@@ -737,7 +829,8 @@ def register_device_metadata_routes(app, csrf, limiter):
             # Support both old format (direct metadata dict) and new format (with export metadata)
             if 'metadata' in import_data:
                 metadata_to_import = import_data['metadata']
-                debug(f"Importing metadata from backup file (version: {import_data.get('version', 'unknown')}, export date: {import_data.get('export_date', 'unknown')})")
+                source_device_id = import_data.get('device_id', 'unknown')
+                debug(f"Importing metadata from backup file (version: {import_data.get('version', 'unknown')}, source_device: {source_device_id}, export date: {import_data.get('export_date', 'unknown')})")
             elif isinstance(import_data, dict):
                 # Assume it's a metadata dict directly
                 metadata_to_import = import_data
@@ -754,24 +847,21 @@ def register_device_metadata_routes(app, csrf, limiter):
                     'message': 'Metadata must be a dictionary'
                 }), 400
 
-            # Get device_id from settings
-            settings = load_settings()
-            device_id = settings.get('selected_device_id')
-
-            # Import metadata to PostgreSQL (merges with existing)
+            # Import metadata to PostgreSQL (merges with existing for current device)
             storage = TimescaleStorage(TIMESCALE_DSN)
             imported_count = 0
             failed_count = 0
 
             for mac, metadata in metadata_to_import.items():
                 try:
+                    # device_id is now required first parameter for per-device separation
                     success = storage.upsert_device_metadata(
+                        device_id=device_id,
                         mac=mac,
                         custom_name=metadata.get('name') or metadata.get('custom_name'),
                         location=metadata.get('location'),
                         comment=metadata.get('comment'),
-                        tags=metadata.get('tags', []),
-                        device_id=device_id
+                        tags=metadata.get('tags', [])
                     )
                     if success:
                         imported_count += 1
@@ -781,12 +871,13 @@ def register_device_metadata_routes(app, csrf, limiter):
                     error(f"Failed to import metadata for {mac}: {str(e)}")
                     failed_count += 1
 
-            info(f"Device metadata imported: {imported_count} successful, {failed_count} failed")
+            info(f"Device metadata imported for device {device_id}: {imported_count} successful, {failed_count} failed")
             return jsonify({
                 'status': 'success',
                 'message': f'Metadata imported successfully ({imported_count} devices)',
                 'devices_imported': imported_count,
-                'devices_failed': failed_count
+                'devices_failed': failed_count,
+                'device_id': device_id
             })
 
         except Exception as e:

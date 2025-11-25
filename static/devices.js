@@ -148,6 +148,11 @@ async function onDeviceChange() {
     selectedDeviceId = selector.value;
     console.log('Selected device ID:', selectedDeviceId);
 
+    // FIX: Update global device ID for all modules that use it
+    // This ensures preloadChartData() and other functions use the NEW device
+    window.currentDeviceId = selectedDeviceId;
+    console.log('Updated window.currentDeviceId to:', selectedDeviceId);
+
     // Save selected device to settings
     try {
         // Get CSRF token
@@ -181,6 +186,12 @@ async function onDeviceChange() {
                 return;
             }
 
+            // FIX: Clear cached settings to ensure all modules see the new device
+            if (window.CacheUtil && typeof window.CacheUtil.delete === 'function') {
+                window.CacheUtil.delete('settings');
+                console.log('Cleared settings cache');
+            }
+
             // Load interface for this device
             const device = currentDevices.find(d => d.id === selectedDeviceId);
             console.log('Found device:', device);
@@ -202,7 +213,7 @@ async function onDeviceChange() {
                 }
 
                 // Update sidebar device name and IP display
-                const deviceNameEl = document.getElementById('deviceName');
+                const deviceNameEl = document.getElementById('deviceNameDisplay');
                 const deviceIPEl = document.getElementById('deviceIP');
                 if (deviceNameEl) {
                     deviceNameEl.textContent = device.name || 'Unknown Device';
@@ -261,7 +272,7 @@ async function onDeviceChange() {
             // This function is defined in app.js and handles all data clearing/refreshing
             console.log('Calling refreshAllDataForDevice()...');
             if (typeof refreshAllDataForDevice === 'function') {
-                refreshAllDataForDevice();
+                await refreshAllDataForDevice();  // FIX: Must await async function
             } else {
                 console.error('refreshAllDataForDevice function not found!');
             }
@@ -306,7 +317,7 @@ function renderDevicesTable() {
     if (currentDevices.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="padding: 40px; text-align: center; color: #999;">
+                <td colspan="7" style="padding: 40px; text-align: center; color: #b0b0b0; font-family: 'Open Sans', sans-serif;">
                     No devices found. Click "Add Device" to get started.
                 </td>
             </tr>
@@ -369,39 +380,39 @@ function renderDevicesTable() {
         const isUnavailable = device.uptime === 'N/A' || device.uptime === 'Disabled';
         const isAvailable = device.enabled && !isUnavailable;
 
-        // Status indicator: Green (available), Red (unavailable/disabled), Orange (disabled)
+        // Status indicator: Green (available), Red (unavailable), Orange (disabled)
         let statusColor, statusBg, statusText;
         if (isDisabled) {
-            statusColor = '#856404';
-            statusBg = '#fff3cd';
+            statusColor = '#ff9800';
+            statusBg = 'rgba(255, 152, 0, 0.2)';
             statusText = '⚫ Disabled';
         } else if (isUnavailable) {
-            statusColor = '#721c24';
-            statusBg = '#f8d7da';
+            statusColor = '#f44336';
+            statusBg = 'rgba(244, 67, 54, 0.2)';
             statusText = '🔴 Unavailable';
         } else {
-            statusColor = '#155724';
-            statusBg = '#d4edda';
+            statusColor = '#4caf50';
+            statusBg = 'rgba(76, 175, 80, 0.2)';
             statusText = '🟢 Online';
         }
 
         return `
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 12px; color: #333;">${device.name}</td>
-                <td style="padding: 12px; color: #666;">${device.ip}</td>
-                <td style="padding: 12px; color: #666;">${device.group || 'Default'}</td>
-                <td style="padding: 12px; color: #666;">${device.uptime || 'N/A'}</td>
-                <td style="padding: 12px; color: #666;">${device.version || 'N/A'}</td>
-                <td style="padding: 12px;">
-                    <span style="display: inline-block; padding: 6px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 600; background: ${statusBg}; color: ${statusColor};">
+            <tr style="border-bottom: 1px solid #404040; transition: background 0.2s;" onmouseover="this.style.background='rgba(250, 88, 45, 0.1)'" onmouseout="this.style.background='transparent'">
+                <td style="padding: 12px; color: #ffffff; font-family: 'Open Sans', sans-serif; border: 1px solid #404040;">${device.name}</td>
+                <td style="padding: 12px; color: #b0b0b0; font-family: 'Open Sans', sans-serif; border: 1px solid #404040;">${device.ip}</td>
+                <td style="padding: 12px; color: #b0b0b0; font-family: 'Open Sans', sans-serif; border: 1px solid #404040;">${device.group || 'Default'}</td>
+                <td style="padding: 12px; color: #b0b0b0; font-family: 'Open Sans', sans-serif; border: 1px solid #404040;">${device.uptime || 'N/A'}</td>
+                <td style="padding: 12px; color: #b0b0b0; font-family: 'Open Sans', sans-serif; border: 1px solid #404040;">${device.version || 'N/A'}</td>
+                <td style="padding: 12px; border: 1px solid #404040;">
+                    <span style="display: inline-block; padding: 6px 12px; border-radius: 4px; font-size: 0.85em; font-weight: 600; background: ${statusBg}; color: ${statusColor}; font-family: 'Roboto', sans-serif;">
                         ${statusText}
                     </span>
                 </td>
-                <td style="padding: 12px; text-align: center;">
-                    <button onclick="editDevice('${device.id}')" style="padding: 6px 12px; background: #ff6600; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">
+                <td style="padding: 12px; text-align: center; border: 1px solid #404040;">
+                    <button onclick="editDevice('${device.id}')" style="padding: 6px 12px; background: #FA582D; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; font-family: 'Roboto', sans-serif; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#ff6b35'" onmouseout="this.style.background='#FA582D'">
                         Edit
                     </button>
-                    <button onclick="deleteDevice('${device.id}')" style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    <button onclick="deleteDevice('${device.id}')" style="padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Roboto', sans-serif; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#e53935'" onmouseout="this.style.background='#f44336'">
                         Delete
                     </button>
                 </td>
@@ -520,7 +531,9 @@ async function saveDevice(event) {
                 // Trigger a full data refresh immediately
                 if (typeof refreshAllDataForDevice === 'function') {
                     console.log('Calling refreshAllDataForDevice to load data for newly added device');
-                    refreshAllDataForDevice();
+                    // FIX: Update window.currentDeviceId before calling refresh
+                    window.currentDeviceId = newDeviceId;
+                    await refreshAllDataForDevice();
                 }
             }
 

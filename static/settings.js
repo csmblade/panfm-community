@@ -287,10 +287,11 @@ function initSettingsTabs() {
                     }
                 }
 
-                // Load services status when services tab is opened
+                // Load maintenance tab when opened
                 if (targetTab === 'services') {
-                    refreshServicesStatus();
-                    populateClearDatabaseDeviceSelector();  // v2.1.2 - Per-device database wipe
+                    loadMaintenanceDeviceTable();
+                    loadDatabaseSize();
+                    initTagManagement();  // Load tag management (v2.2.0)
                 }
             }
         });
@@ -782,309 +783,177 @@ function initializeTonyMode(enabled) {
 }
 
 /**
- * Refresh services status (APScheduler + Database)
- * Phase 5: Updated to use both /api/services/status and /api/collector/status
+ * Load the maintenance tab with device table
+ * Simplified for Community Edition
  */
 async function refreshServicesStatus() {
-    console.log('[DEBUG] refreshServicesStatus() called');
+    await loadMaintenanceDeviceTable();
+    await loadDatabaseSize();
+}
+
+/**
+ * Load database size information
+ */
+async function loadDatabaseSize() {
+    const sizeInfo = document.getElementById('databaseSizeInfo');
+    if (!sizeInfo) return;
+
     try {
-        // Fetch both endpoints in parallel for comprehensive data (use ApiClient v1.14.0)
-        console.log('[DEBUG] Fetching /api/services/status and /api/collector/status');
-        const [servicesResponse, collectorResponse] = await Promise.all([
-            window.apiClient.get('/api/services/status'),
-            window.apiClient.get('/api/collector/status')
-        ]);
-
-        if (!servicesResponse.ok || !collectorResponse.ok) {
-            throw new Error('Failed to fetch services status');
+        const response = await window.apiClient.get('/api/database/size');
+        if (!response.ok) {
+            throw new Error('Failed to load database size');
         }
 
-        const servicesData = servicesResponse.data;
-        const collectorData = collectorResponse.data;
+        const data = response.data;
+        const rowCounts = data.row_counts || {};
 
-        console.log('[DEBUG] servicesData:', servicesData);
-        console.log('[DEBUG] collectorData:', collectorData);
-        console.log('[DEBUG] Both statuses:', servicesData.status, collectorData.status);
+        // Format row counts
+        const totalRows = Object.values(rowCounts).reduce((a, b) => a + b, 0);
+        const formattedRows = totalRows.toLocaleString();
 
-        if (servicesData.status === 'success' && collectorData.status === 'success') {
-            console.log('[DEBUG] Both APIs returned success, updating DOM...');
-            // Update APScheduler status (enhanced with direct stats from Priority 2)
-            const schedulerState = document.getElementById('scheduler-state');
-            const schedulerUptime = document.getElementById('scheduler-uptime');
-            const schedulerExecutions = document.getElementById('scheduler-executions');
-            const schedulerErrors = document.getElementById('scheduler-errors');
-            const schedulerLastExecution = document.getElementById('scheduler-last-execution');
-            const schedulerErrorDetails = document.getElementById('scheduler-error-details');
-            const schedulerLastError = document.getElementById('scheduler-last-error');
-            const schedulerLastErrorTime = document.getElementById('scheduler-last-error-time');
-
-            // Display direct scheduler stats if available
-            if (schedulerState && servicesData.scheduler) {
-                const state = servicesData.scheduler.state || 'Unknown';
-                const isRunning = state.toLowerCase().includes('running');
-
-                schedulerState.textContent = state;
-                schedulerState.style.color = isRunning ? '#10b981' : '#ef4444';
-
-                // Show status indicator emoji
-                if (isRunning) {
-                    schedulerState.textContent = '🟢 ' + state;
-                } else if (state.toLowerCase().includes('stopped')) {
-                    schedulerState.textContent = '🔴 ' + state;
-                } else {
-                    schedulerState.textContent = '🟡 ' + state;
-                }
-            }
-
-            if (schedulerUptime && servicesData.scheduler.uptime_formatted) {
-                schedulerUptime.textContent = servicesData.scheduler.uptime_formatted;
-            } else if (schedulerUptime) {
-                schedulerUptime.textContent = '--';
-            }
-
-            if (schedulerExecutions) {
-                schedulerExecutions.textContent = (servicesData.scheduler.total_executions || 0).toLocaleString();
-            }
-
-            if (schedulerErrors) {
-                const errors = servicesData.scheduler.total_errors || 0;
-                schedulerErrors.textContent = errors.toLocaleString();
-                schedulerErrors.style.color = errors > 0 ? '#ef4444' : '#10b981';
-                schedulerErrors.style.fontWeight = errors > 0 ? '600' : 'normal';
-            }
-
-            if (schedulerLastExecution && servicesData.scheduler.last_execution) {
-                const lastExec = new Date(servicesData.scheduler.last_execution);
-                schedulerLastExecution.textContent = formatRelativeTime(lastExec);
-            } else if (schedulerLastExecution) {
-                schedulerLastExecution.textContent = 'Never';
-            }
-
-            // Show last error if exists
-            if (schedulerErrorDetails && servicesData.scheduler.last_error) {
-                schedulerErrorDetails.style.display = 'block';
-                if (schedulerLastError) {
-                    schedulerLastError.textContent = servicesData.scheduler.last_error;
-                }
-                if (schedulerLastErrorTime && servicesData.scheduler.last_error_time) {
-                    const errorTime = new Date(servicesData.scheduler.last_error_time);
-                    schedulerLastErrorTime.textContent = `Occurred: ${formatRelativeTime(errorTime)}`;
-                }
-            } else if (schedulerErrorDetails) {
-                schedulerErrorDetails.style.display = 'none';
-            }
-
-            // Update Database status (from collector endpoint - more accurate)
-            const databaseState = document.getElementById('database-state');
-            const databaseSize = document.getElementById('database-size');
-            const databaseSamples = document.getElementById('database-samples');
-            const databaseOldest = document.getElementById('database-oldest');
-
-            if (databaseState) {
-                const hasData = collectorData.sample_count > 0;
-                databaseState.textContent = hasData ? 'Connected' : 'Empty';
-                databaseState.style.color = hasData ? '#10b981' : '#f59e0b';
-            }
-
-            if (databaseSize) {
-                const sizeMB = collectorData.database_size_mb || 0;
-                if (sizeMB >= 1) {
-                    databaseSize.textContent = `${sizeMB.toFixed(2)} MB`;
-                } else {
-                    databaseSize.textContent = `${(sizeMB * 1024).toFixed(2)} KB`;
-                }
-            }
-
-            if (databaseSamples) {
-                databaseSamples.textContent = (collectorData.sample_count || 0).toLocaleString();
-            }
-
-            if (databaseOldest) {
-                // Calculate oldest based on retention days
-                if (collectorData.retention_days && collectorData.sample_count > 0) {
-                    const retentionDays = collectorData.retention_days;
-                    const oldestDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-                    databaseOldest.textContent = formatRelativeTime(oldestDate);
-                } else if (servicesData.database.oldest_sample) {
-                    const oldest = new Date(servicesData.database.oldest_sample);
-                    databaseOldest.textContent = formatRelativeTime(oldest);
-                } else {
-                    databaseOldest.textContent = 'No data';
-                }
-            }
-
-            // Update jobs list (enhanced with per-job stats from Priority 2)
-            const jobsList = document.getElementById('jobs-list');
-            if (jobsList && servicesData.jobs && servicesData.jobs.length > 0) {
-                let jobsHtml = '<div style="display: grid; gap: 10px;">';
-                servicesData.jobs.forEach(job => {
-                    // Parse ISO timestamp as UTC (add Z suffix if missing)
-                    let lastRun = null;
-                    if (job.last_run) {
-                        const timestamp = job.last_run.endsWith('Z') ? job.last_run : job.last_run + 'Z';
-                        lastRun = new Date(timestamp);
-                    }
-                    const hasError = job.error_count && job.error_count > 0;
-                    const statusColor = hasError ? '#ef4444' : '#10b981';
-
-                    jobsHtml += `
-                        <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${hasError ? '#ef4444' : '#FA582D'};">
-                            <div style="font-weight: 600; margin-bottom: 8px;">${escapeHtml(job.name || job.id)}</div>
-                            ${job.description ? `<div style="font-size: 0.85em; color: #555; margin-bottom: 8px; font-style: italic;">${escapeHtml(job.description)}</div>` : ''}
-                            <div style="font-size: 0.85em; color: #666; margin-bottom: 3px;">
-                                <strong>Trigger:</strong> ${escapeHtml(job.trigger)}
-                            </div>
-                            <div style="font-size: 0.85em; color: #666; margin-bottom: 3px;">
-                                <strong>Status:</strong> <span style="color: ${statusColor}; font-weight: 500;">${escapeHtml(job.status)}</span>
-                            </div>
-                            ${job.success_count !== undefined ? `
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
-                                    <div style="font-size: 0.8em; color: #666;">
-                                        <strong>✓ Success:</strong> <span style="color: #10b981; font-weight: 600;">${job.success_count.toLocaleString()}</span>
-                                    </div>
-                                    <div style="font-size: 0.8em; color: #666;">
-                                        <strong>✗ Errors:</strong> <span style="color: ${hasError ? '#ef4444' : '#666'}; font-weight: ${hasError ? '600' : 'normal'};">${job.error_count.toLocaleString()}</span>
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${lastRun ? `
-                                <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
-                                    <strong>Last Run:</strong> ${formatRelativeTime(lastRun)}
-                                </div>
-                            ` : ''}
-                            ${job.last_error ? `
-                                <div style="margin-top: 8px; padding: 6px; background: #fee; border-left: 2px solid #ef4444; border-radius: 3px;">
-                                    <div style="font-size: 0.75em; color: #ef4444; font-weight: 600;">Last Error:</div>
-                                    <div style="font-size: 0.75em; color: #666; word-break: break-word;">${escapeHtml(job.last_error.substring(0, 100))}${job.last_error.length > 100 ? '...' : ''}</div>
-                                </div>
-                            ` : ''}
-                            ${job.data_collected ? `<div style="font-size: 0.85em; color: #666; margin-top: 6px;">
-                                <strong>Data Collected:</strong> ${escapeHtml(job.data_collected)}
-                            </div>` : ''}
-                        </div>
-                    `;
-                });
-                jobsHtml += '</div>';
-                jobsList.innerHTML = jobsHtml;
-            } else if (jobsList) {
-                jobsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No scheduled jobs</div>';
-            }
-
-            // Update device stats (from services endpoint)
-            const deviceStats = document.getElementById('device-stats');
-            if (deviceStats) {
-                if (servicesData.device_stats && servicesData.device_stats.length > 0) {
-                    let statsHtml = '<div style="display: grid; gap: 10px;">';
-                    servicesData.device_stats.forEach(stat => {
-                        const oldest = stat.oldest ? new Date(stat.oldest) : null;
-                        const newest = stat.newest ? new Date(stat.newest) : null;
-                        statsHtml += `
-                            <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #6366f1;">
-                                <div style="font-weight: 600; margin-bottom: 5px;">${escapeHtml(stat.device_name)}</div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85em; color: #666;">
-                                    <div><strong>Samples:</strong> ${stat.sample_count.toLocaleString()}</div>
-                                    <div><strong>Oldest:</strong> ${oldest ? formatRelativeTime(oldest) : 'N/A'}</div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    statsHtml += '</div>';
-                    deviceStats.innerHTML = statsHtml;
-                } else if (collectorData.devices_monitored > 0) {
-                    // Show collector data if services endpoint has no device stats
-                    statsHtml = `
-                        <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #6366f1;">
-                            <div style="font-weight: 600; margin-bottom: 5px;">Monitoring ${collectorData.devices_monitored} device${collectorData.devices_monitored !== 1 ? 's' : ''}</div>
-                            <div style="font-size: 0.85em; color: #666;">
-                                <strong>Total Samples:</strong> ${collectorData.sample_count.toLocaleString()}
-                            </div>
-                            <div style="font-size: 0.85em; color: #666;">
-                                <strong>Retention:</strong> ${collectorData.retention_days} days
-                            </div>
-                        </div>
-                    `;
-                    deviceStats.innerHTML = statsHtml;
-                } else {
-                    deviceStats.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No data collected yet</div>';
-                }
-            }
-
-        } else {
-            console.error('Failed to load services status:', servicesData.message || collectorData.message);
-
-            // Show error state when API returns error status
-            const schedulerState = document.getElementById('scheduler-state');
-            const schedulerJobs = document.getElementById('scheduler-jobs');
-            const schedulerLastRun = document.getElementById('scheduler-last-run');
-            const schedulerNextRun = document.getElementById('scheduler-next-run');
-            const databaseState = document.getElementById('database-state');
-            const databaseSize = document.getElementById('database-size');
-            const databaseSamples = document.getElementById('database-samples');
-            const databaseOldest = document.getElementById('database-oldest');
-            const jobsList = document.getElementById('jobs-list');
-            const deviceStats = document.getElementById('device-stats');
-
-            if (schedulerState) {
-                schedulerState.textContent = 'Error';
-                schedulerState.style.color = '#ef4444';
-            }
-            if (schedulerJobs) schedulerJobs.textContent = 'N/A';
-            if (schedulerLastRun) schedulerLastRun.textContent = 'N/A';
-            if (schedulerNextRun) schedulerNextRun.textContent = 'N/A';
-
-            if (databaseState) {
-                databaseState.textContent = 'Error';
-                databaseState.style.color = '#ef4444';
-            }
-            if (databaseSize) databaseSize.textContent = 'N/A';
-            if (databaseSamples) databaseSamples.textContent = 'N/A';
-            if (databaseOldest) databaseOldest.textContent = 'N/A';
-
-            if (jobsList) {
-                jobsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading job information</div>';
-            }
-            if (deviceStats) {
-                deviceStats.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading device statistics</div>';
-            }
-        }
+        sizeInfo.innerHTML = `
+            <span style="font-size: 1.1em; color: #FA582D; font-weight: 600;">${data.total_size}</span>
+            <span style="margin-left: 15px; color: #808080;">|</span>
+            <span style="margin-left: 15px;">${formattedRows} records</span>
+        `;
 
     } catch (error) {
-        console.error('Error loading services status:', error);
+        console.error('Error loading database size:', error);
+        sizeInfo.textContent = 'Unable to load database size';
+    }
+}
 
-        // Show error state with all fields updated
-        const schedulerState = document.getElementById('scheduler-state');
-        const schedulerJobs = document.getElementById('scheduler-jobs');
-        const schedulerLastRun = document.getElementById('scheduler-last-run');
-        const schedulerNextRun = document.getElementById('scheduler-next-run');
-        const databaseState = document.getElementById('database-state');
-        const databaseSize = document.getElementById('database-size');
-        const databaseSamples = document.getElementById('database-samples');
-        const databaseOldest = document.getElementById('database-oldest');
-        const jobsList = document.getElementById('jobs-list');
-        const deviceStats = document.getElementById('device-stats');
+/**
+ * Load device table for maintenance tab
+ */
+async function loadMaintenanceDeviceTable() {
+    const tableBody = document.getElementById('maintenanceDeviceTable');
+    if (!tableBody) return;
 
-        if (schedulerState) {
-            schedulerState.textContent = 'Error';
-            schedulerState.style.color = '#ef4444';
+    try {
+        const response = await window.apiClient.get('/api/devices');
+        if (!response.ok) {
+            throw new Error('Failed to load devices');
         }
-        if (schedulerJobs) schedulerJobs.textContent = 'N/A';
-        if (schedulerLastRun) schedulerLastRun.textContent = 'N/A';
-        if (schedulerNextRun) schedulerNextRun.textContent = 'N/A';
 
-        if (databaseState) {
-            databaseState.textContent = 'Error';
-            databaseState.style.color = '#ef4444';
-        }
-        if (databaseSize) databaseSize.textContent = 'N/A';
-        if (databaseSamples) databaseSamples.textContent = 'N/A';
-        if (databaseOldest) databaseOldest.textContent = 'N/A';
+        // API returns {status, devices, groups} - extract devices array
+        const data = response.data;
+        const devices = data.devices || [];
 
-        if (jobsList) {
-            jobsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading job information</div>';
+        if (!devices || devices.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="3" style="padding: 30px; text-align: center; color: #888; background: #2a2a2a;">
+                        No devices configured. Add devices in the Managed Devices section.
+                    </td>
+                </tr>
+            `;
+            return;
         }
-        if (deviceStats) {
-            deviceStats.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Error loading device statistics</div>';
+
+        let html = '';
+        devices.forEach((device, index) => {
+            const rowBg = index % 2 === 0 ? '#2a2a2a' : '#333333';
+            html += `
+                <tr style="border-bottom: 1px solid #444; background: ${rowBg}; transition: all 0.2s;" onmouseover="this.style.background='#404040'; this.style.borderLeft='3px solid #FA582D'" onmouseout="this.style.background='${rowBg}'; this.style.borderLeft='none'">
+                    <td style="padding: 12px 15px; color: #FA582D; font-weight: 500;">${escapeHtml(device.name)}</td>
+                    <td style="padding: 12px 15px; color: #b0b0b0; font-family: monospace;">${escapeHtml(device.ip)}</td>
+                    <td style="padding: 12px 15px; text-align: center;">
+                        <button onclick="clearDeviceData('${device.id}', '${escapeHtml(device.name)}')"
+                                style="padding: 6px 16px; background: #dc2626; color: #F2F0EF; border: none; border-radius: 4px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.background='#b91c1c'; this.style.transform='scale(1.05)'"
+                                onmouseout="this.style.background='#dc2626'; this.style.transform='scale(1)'">
+                            Clear Data
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tableBody.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading maintenance device table:', error);
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="3" style="padding: 30px; text-align: center; color: #f87171; background: #2a2a2a;">
+                    Error loading devices: ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+/**
+ * Clear data for a specific device
+ */
+async function clearDeviceData(deviceId, deviceName) {
+    const confirmed = confirm(
+        `⚠️ Clear all historical data for "${deviceName}"?\n\n` +
+        'This will delete:\n' +
+        '• Throughput history\n' +
+        '• Alert history\n' +
+        '• Connected devices data\n\n' +
+        'This action cannot be undone.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+        const response = await window.apiClient.post('/api/database/clear', { device_id: deviceId });
+
+        if (!response.ok) {
+            throw new Error(response.data?.message || 'Failed to clear data');
         }
+
+        alert(`✅ Data cleared successfully for "${deviceName}"`);
+        await loadMaintenanceDeviceTable();
+        await loadDatabaseSize();
+
+    } catch (error) {
+        console.error('Error clearing device data:', error);
+        alert('❌ Error: ' + error.message);
+    }
+}
+
+/**
+ * Clear data for all devices
+ */
+async function clearAllDeviceData() {
+    const confirmed = confirm(
+        '⚠️ WARNING: Clear ALL historical data for ALL devices?\n\n' +
+        'This will delete:\n' +
+        '• All throughput history\n' +
+        '• All alert history\n' +
+        '• All connected devices data\n\n' +
+        'This action cannot be undone!'
+    );
+
+    if (!confirmed) return;
+
+    // Double confirmation for destructive action
+    const doubleConfirm = confirm(
+        '🔴 FINAL CONFIRMATION\n\n' +
+        'You are about to PERMANENTLY DELETE all database records.\n\n' +
+        'Click OK to proceed, or Cancel to abort.'
+    );
+
+    if (!doubleConfirm) return;
+
+    try {
+        const response = await window.apiClient.post('/api/database/clear', {});
+
+        if (!response.ok) {
+            throw new Error(response.data?.message || 'Failed to clear data');
+        }
+
+        alert('✅ All data cleared successfully');
+        await loadMaintenanceDeviceTable();
+        await loadDatabaseSize();
+
+    } catch (error) {
+        console.error('Error clearing all device data:', error);
+        alert('❌ Error: ' + error.message);
     }
 }
 
@@ -1111,124 +980,217 @@ function formatRelativeTime(date) {
     }
 }
 
+// ============================================================================
+// TAG MANAGEMENT (Maintenance Tab)
+// ============================================================================
+
 /**
- * Clear all data from the throughput history database
+ * Load devices for tag management dropdown
  */
-async function clearDatabase() {
-    // Get selected device (if any)
-    const deviceSelect = document.getElementById('clearDatabaseDeviceSelect');
-    const deviceId = deviceSelect ? deviceSelect.value : '';
-    const deviceName = deviceSelect && deviceId ?
-        deviceSelect.options[deviceSelect.selectedIndex].text : 'All Devices';
-
-    // Build confirmation message based on selection
-    let confirmMessage;
-    if (deviceId) {
-        confirmMessage = `⚠️ WARNING: This will permanently delete ALL data for device:\n\n${deviceName}\n\n` +
-            'This includes:\n' +
-            '• All throughput samples\n' +
-            '• All historical metrics\n' +
-            '• All connected devices data\n' +
-            '• All threat logs\n' +
-            '• All application statistics\n\n' +
-            'This action CANNOT be undone!\n\n' +
-            'Are you sure you want to continue?';
-    } else {
-        confirmMessage = '⚠️ WARNING: This will permanently delete ALL data from the database for ALL devices.\n\n' +
-            'This includes:\n' +
-            '• All throughput samples\n' +
-            '• All historical metrics\n' +
-            '• All connected devices data\n' +
-            '• All threat logs\n' +
-            '• All application statistics\n\n' +
-            'This action CANNOT be undone!\n\n' +
-            'Are you sure you want to continue?';
-    }
-
-    const confirmed = confirm(confirmMessage);
-
-    if (!confirmed) {
-        return;
-    }
-
-    // Double confirmation for destructive action
-    const doubleConfirmMsg = deviceId ?
-        `🔴 FINAL CONFIRMATION\n\nYou are about to PERMANENTLY DELETE all data for:\n${deviceName}\n\nClick OK to proceed with deletion, or Cancel to abort.` :
-        '🔴 FINAL CONFIRMATION\n\nYou are about to PERMANENTLY DELETE ALL database records for ALL devices.\n\nClick OK to proceed with deletion, or Cancel to abort.';
-
-    const doubleConfirm = confirm(doubleConfirmMsg);
-
-    if (!doubleConfirm) {
-        return;
-    }
+async function loadTagManagementDevices() {
+    const select = document.getElementById('tagManagementDeviceSelect');
+    if (!select) return;
 
     try {
-        // Prepare request body with optional device_id
-        const requestBody = deviceId ? { device_id: deviceId } : {};
-
-        // Use centralized ApiClient (v2.1.2 - Per-device wipe support)
-        const response = await window.apiClient.post('/api/database/clear', requestBody);
-
+        const response = await window.apiClient.get('/api/tags/devices');
         if (!response.ok) {
-            throw new Error('Failed to clear database');
+            throw new Error('Failed to load devices');
         }
 
         const data = response.data;
+        const devices = data.devices || [];
 
-        if (data.status === 'success') {
-            const successMsg = deviceId ?
-                `✅ Database cleared successfully for device:\n${deviceName}` :
-                '✅ Database cleared successfully for ALL devices!';
-            alert(successMsg);
+        // Keep "All Devices" option, add specific devices
+        let html = '<option value="">All Devices (Global)</option>';
+        devices.forEach(device => {
+            const tagCount = device.tag_count > 0 ? ` (${device.tag_count} tags)` : '';
+            html += `<option value="${device.device_id}">${escapeHtml(device.device_name)}${tagCount}</option>`;
+        });
 
-            // Refresh the services status to show updated stats
-            await refreshServicesStatus();
-        } else {
-            alert('❌ Error: ' + (data.message || 'Failed to clear database'));
-        }
+        select.innerHTML = html;
+
     } catch (error) {
-        console.error('Error clearing database:', error);
-        alert('❌ Error clearing database: ' + error.message);
+        console.error('Error loading devices for tag management:', error);
     }
 }
 
 /**
- * Populate the device selector dropdown for database clearing
- * Called when Services/Debug tab is opened
+ * Load tag management table
  */
-async function populateClearDatabaseDeviceSelector() {
-    const select = document.getElementById('clearDatabaseDeviceSelect');
-    if (!select) {
-        return;  // Selector not found (might not be on Services tab yet)
-    }
+async function loadTagManagement() {
+    const tableBody = document.getElementById('tagManagementTableBody');
+    const statsDiv = document.getElementById('tagManagementStats');
+    if (!tableBody) return;
+
+    // Get selected device filter
+    const deviceSelect = document.getElementById('tagManagementDeviceSelect');
+    const deviceId = deviceSelect ? deviceSelect.value : '';
+
+    tableBody.innerHTML = '<tr><td colspan="3" style="padding: 30px; text-align: center; color: #888;">Loading tags...</td></tr>';
 
     try {
-        // Use centralized ApiClient to fetch devices
-        const response = await window.apiClient.get('/api/devices');
+        // Build API URL with optional device filter
+        let url = '/api/tags';
+        if (deviceId) {
+            url += `?device_id=${encodeURIComponent(deviceId)}`;
+        }
 
+        const response = await window.apiClient.get(url);
         if (!response.ok) {
-            console.error('Failed to load devices for database clear selector');
+            throw new Error('Failed to load tags');
+        }
+
+        const data = response.data;
+        const tags = data.tags || [];
+
+        if (tags.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="3" style="padding: 30px; text-align: center; color: #888; background: #2a2a2a;">
+                        No tags found${deviceId ? ' for this device' : ''}. Tags are created when you add metadata to connected devices.
+                    </td>
+                </tr>
+            `;
+            if (statsDiv) {
+                statsDiv.textContent = '0 tags';
+            }
             return;
         }
 
-        const devices = response.data;
+        // Build table rows
+        let html = '';
+        tags.forEach((tagInfo, index) => {
+            const tag = tagInfo.tag;
+            const count = tagInfo.count || 0;
+            const rowBg = index % 2 === 0 ? '#2a2a2a' : '#333333';
+            html += `
+                <tr style="border-bottom: 1px solid #444; background: ${rowBg}; transition: all 0.2s;" onmouseover="this.style.background='#404040'; this.style.borderLeft='3px solid #FA582D'" onmouseout="this.style.background='${rowBg}'; this.style.borderLeft='none'">
+                    <td style="padding: 12px 15px; color: #F2F0EF;">
+                        <span style="display: inline-block; padding: 4px 10px; background: #FA582D; color: #F2F0EF; border-radius: 4px; font-size: 0.9em; font-weight: 500;">
+                            ${escapeHtml(tag)}
+                        </span>
+                    </td>
+                    <td style="padding: 12px 15px; text-align: center; color: #b0b0b0;">
+                        ${count} device${count !== 1 ? 's' : ''}
+                    </td>
+                    <td style="padding: 12px 15px; text-align: center;">
+                        <button onclick="renameTag('${escapeHtml(tag).replace(/'/g, "\\'")}', '${deviceId}')"
+                                style="padding: 6px 12px; background: #2563eb; color: #F2F0EF; border: none; border-radius: 4px; font-size: 0.85em; font-weight: 500; cursor: pointer; margin-right: 8px; transition: transform 0.2s;"
+                                onmouseover="this.style.background='#1d4ed8'; this.style.transform='scale(1.05)'"
+                                onmouseout="this.style.background='#2563eb'; this.style.transform='scale(1)'">
+                            Rename
+                        </button>
+                        <button onclick="deleteTag('${escapeHtml(tag).replace(/'/g, "\\'")}', '${deviceId}')"
+                                style="padding: 6px 12px; background: #dc2626; color: #F2F0EF; border: none; border-radius: 4px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.background='#b91c1c'; this.style.transform='scale(1.05)'"
+                                onmouseout="this.style.background='#dc2626'; this.style.transform='scale(1)'">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
 
-        // Clear existing options except the first one (All Devices)
-        while (select.options.length > 1) {
-            select.remove(1);
-        }
+        tableBody.innerHTML = html;
 
-        // Add device options
-        if (devices && devices.length > 0) {
-            devices.forEach(device => {
-                const option = document.createElement('option');
-                option.value = device.id;
-                option.textContent = `${device.name} (${device.ip})`;
-                select.appendChild(option);
-            });
+        // Update stats
+        if (statsDiv) {
+            const totalUsage = tags.reduce((sum, t) => sum + (t.count || 0), 0);
+            statsDiv.textContent = `${tags.length} tag${tags.length !== 1 ? 's' : ''} • ${totalUsage} total usage${deviceId ? '' : ' (all devices)'}`;
         }
 
     } catch (error) {
-        console.error('Error populating device selector:', error);
+        console.error('Error loading tag management:', error);
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="3" style="padding: 30px; text-align: center; color: #dc2626;">
+                    Error loading tags: ${error.message}
+                </td>
+            </tr>
+        `;
     }
 }
+
+/**
+ * Rename a tag
+ */
+async function renameTag(oldTag, deviceId) {
+    const newTag = prompt(`Enter new name for tag "${oldTag}":`, oldTag);
+    if (!newTag || newTag.trim() === '' || newTag.trim() === oldTag) {
+        return;
+    }
+
+    const trimmedNewTag = newTag.trim();
+
+    try {
+        // Build API URL with optional device filter
+        let url = `/api/tags/${encodeURIComponent(oldTag)}`;
+        if (deviceId) {
+            url += `?device_id=${encodeURIComponent(deviceId)}`;
+        }
+
+        const response = await window.apiClient.put(url, { new_name: trimmedNewTag });
+
+        if (!response.ok) {
+            throw new Error(response.data?.message || 'Failed to rename tag');
+        }
+
+        const data = response.data;
+        alert(`✅ Tag renamed: "${oldTag}" → "${trimmedNewTag}"\n\n${data.affected_count} device${data.affected_count !== 1 ? 's' : ''} updated.`);
+
+        // Reload tag table
+        await loadTagManagement();
+
+    } catch (error) {
+        console.error('Error renaming tag:', error);
+        alert('❌ Error: ' + error.message);
+    }
+}
+
+/**
+ * Delete a tag
+ */
+async function deleteTag(tag, deviceId) {
+    const scope = deviceId ? 'this device' : 'ALL devices';
+    const confirmed = confirm(
+        `⚠️ Delete tag "${tag}" from ${scope}?\n\n` +
+        'This will remove the tag from all devices using it. ' +
+        'The devices themselves will not be deleted.\n\n' +
+        'This action cannot be undone.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+        // Build API URL with optional device filter
+        let url = `/api/tags/${encodeURIComponent(tag)}`;
+        if (deviceId) {
+            url += `?device_id=${encodeURIComponent(deviceId)}`;
+        }
+
+        const response = await window.apiClient.delete(url);
+
+        if (!response.ok) {
+            throw new Error(response.data?.message || 'Failed to delete tag');
+        }
+
+        const data = response.data;
+        alert(`✅ Tag "${tag}" deleted.\n\n${data.affected_count} device${data.affected_count !== 1 ? 's' : ''} updated.`);
+
+        // Reload tag table
+        await loadTagManagement();
+
+    } catch (error) {
+        console.error('Error deleting tag:', error);
+        alert('❌ Error: ' + error.message);
+    }
+}
+
+/**
+ * Initialize tag management when Maintenance tab is opened
+ */
+function initTagManagement() {
+    loadTagManagementDevices();
+    loadTagManagement();
+}
+

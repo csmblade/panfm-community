@@ -249,7 +249,7 @@ def collect_connected_devices():
                         debug(f"Stored {len(connected)} connected devices from device {device_id}")
                         success_count += 1
                     else:
-                        print(f"[CLOCK JOB] ✗ Failed to store devices from '{device_name}'")
+                        print(f"[CLOCK JOB] ✗ Failed to store {len(connected)} devices from '{device_name}' - check database insert error")
                         error(f"Failed to store connected devices from device {device_id}")
                         error_count += 1
                 else:

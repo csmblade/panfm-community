@@ -259,8 +259,8 @@ async function checkPanosVersions() {
                         <p style="margin: 8px 0 12px 0; color: #856404;">Select a version to upgrade to:</p>
 
                         <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 8px; color: #333; font-weight: 600; font-family: var(--font-primary);">Select Version:</label>
-                            <select id="versionSelect" style="width: 100%; padding: 10px; border: 2px solid #FA582D; border-radius: 6px; font-family: monospace; font-size: 1em; background: white; color: #333;">
+                            <label style="display: block; margin-bottom: 8px; color: #F2F0EF; font-weight: 600; font-family: var(--font-primary);">Select Version:</label>
+                            <select id="versionSelect" style="width: 100%; padding: 10px; border: 2px solid #555; border-radius: 6px; font-family: monospace; font-size: 1em; background: #2a2a2a; color: #F2F0EF; cursor: pointer;" onfocus="this.style.borderColor='#FA582D'" onblur="this.style.borderColor='#555'">
                 `;
 
                 // Add options for each version

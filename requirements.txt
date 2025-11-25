@@ -16,3 +16,6 @@ gunicorn==21.2.0
 # TimescaleDB / PostgreSQL support (v2.0.0)
 psycopg2-binary==2.9.9
 psycopg2-pool==1.1
+
+# Security: Safe XML parsing (XXE protection)
+defusedxml==0.7.1

@@ -1,5 +1,25 @@
 """
 Device Metadata Manager for PANfm
+
+DEPRECATED: This module is deprecated as of v2.2.0. Device metadata is now stored in
+PostgreSQL/TimescaleDB with per-device separation (composite key: device_id + mac).
+
+Use throughput_storage_timescale.TimescaleStorage methods instead:
+  - get_device_metadata(device_id, mac)
+  - get_all_device_metadata(device_id)
+  - upsert_device_metadata(device_id, mac, ...)
+  - delete_device_metadata(device_id, mac)
+  - get_device_tags(device_id)
+  - get_device_locations(device_id)
+
+This file is kept for backward compatibility with:
+  - backup_restore.py (legacy backup format)
+  - firewall_api_devices.py (metadata enrichment - should migrate)
+  - throughput_collector.py (metadata enrichment - should migrate)
+
+Migration: See init_timescaledb_complete.sql for new schema.
+
+Legacy behavior (pre-v2.2.0):
 Manages custom names, comments, and tags for connected devices keyed by MAC address.
 Supports both per-device format (v1.6.0+) and global format (legacy).
 Metadata is stored encrypted at rest in device_metadata.json.

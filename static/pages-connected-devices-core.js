@@ -379,8 +379,9 @@ function renderConnectedDevicesTable() {
 
     // Enrich devices with metadata from cache
     const enrichedDevices = allConnectedDevices.map(device => {
-        const normalizedMac = device.mac.toLowerCase();
-        const metadata = deviceMetadataCache[normalizedMac];
+        // Handle null/undefined MAC addresses (e.g., "(incomplete)" ARP entries)
+        const normalizedMac = device.mac ? device.mac.toLowerCase() : '';
+        const metadata = normalizedMac ? deviceMetadataCache[normalizedMac] : null;
 
         if (metadata) {
             // Create enriched device object with metadata fields
@@ -404,7 +405,7 @@ function renderConnectedDevicesTable() {
             const customNameText = device.custom_name || '';
             const locationText = device.location || '';
             const commentText = device.comment || '';
-            const searchableText = `${device.hostname} ${device.original_hostname || device.hostname} ${customNameText} ${locationText} ${device.ip} ${device.mac} ${device.interface} ${tagsText} ${commentText}`.toLowerCase();
+            const searchableText = `${device.hostname || ''} ${device.original_hostname || device.hostname || ''} ${customNameText} ${locationText} ${device.ip || ''} ${device.mac || ''} ${device.interface || ''} ${tagsText} ${commentText}`.toLowerCase();
             if (!searchableText.includes(searchTerm)) {
                 return false;
             }
@@ -520,8 +521,9 @@ function renderConnectedDevicesTable() {
 
     displayDevices.forEach((device, index) => {
         const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
-        const normalizedMac = device.mac.toLowerCase();
-        const isExpanded = expandedRows.has(normalizedMac);
+        // Handle null/undefined MAC addresses (e.g., "(incomplete)" ARP entries)
+        const normalizedMac = device.mac ? device.mac.toLowerCase() : '';
+        const isExpanded = normalizedMac ? expandedRows.has(normalizedMac) : false;
         const hasComment = device.comment && device.comment.trim();
 
         // Format hostname cell - show custom name prominently, hostname as subtitle

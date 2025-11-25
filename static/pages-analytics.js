@@ -1569,8 +1569,10 @@ function updateDataRangeDisplay(data) {
         const endDate = new Date(lastSample.timestamp);
 
         rangeEl.textContent = `${startDate.toLocaleString()} - ${endDate.toLocaleString()}`;
+        rangeEl.style.color = '#F2F0EF'; // Light text for dark theme
     } else {
         rangeEl.textContent = 'No data available';
+        rangeEl.style.color = '#999'; // Gray for no data
     }
 }
 
@@ -1825,7 +1827,7 @@ function showInitializingMessage(health) {
 function clearErrorMessage() {
     const rangeEl = document.getElementById('analyticsDataRange');
     if (rangeEl) {
-        rangeEl.style.color = ''; // Reset to default color
+        rangeEl.style.color = '#F2F0EF'; // Reset to light text for dark theme
     }
 }
 
@@ -1893,6 +1895,44 @@ window.loadTopClients = async function() {
 };
 
 /**
+ * Format bytes to human-readable string (KB, MB, GB, TB)
+ */
+function formatBytesHuman(mb) {
+    const bytes = mb * 1024 * 1024; // Convert MB to bytes
+    if (bytes === 0) return '0 B';
+
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Format bandwidth (Mbps) to human-readable string (Kbps, Mbps, Gbps)
+ */
+function formatBandwidthHuman(mbps) {
+    if (mbps === 0 || mbps === null || mbps === undefined) return '0 Kbps';
+
+    // Convert to Kbps for base unit
+    const kbps = mbps * 1000;
+
+    if (kbps < 1) {
+        // Very small values - show in bps
+        return (kbps * 1000).toFixed(0) + ' bps';
+    } else if (kbps < 1000) {
+        // Less than 1 Mbps - show in Kbps
+        return kbps.toFixed(1) + ' Kbps';
+    } else if (kbps < 1000000) {
+        // Less than 1 Gbps - show in Mbps
+        return (kbps / 1000).toFixed(2) + ' Mbps';
+    } else {
+        // 1 Gbps or more
+        return (kbps / 1000000).toFixed(2) + ' Gbps';
+    }
+}
+
+/**
  * Render Top Clients Table
  */
 function renderTopClientsTable(clients, totalClients) {
@@ -1906,13 +1946,13 @@ function renderTopClientsTable(clients, totalClients) {
         </div>
         <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary);">
             <thead>
-                <tr style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white;">
-                    <th style="padding: 12px; text-align: center; font-weight: 600; border-radius: 8px 0 0 0;">Rank</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">IP Address</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Hostname</th>
-                    <th style="padding: 12px; text-align: right; font-weight: 600;">Total MB</th>
-                    <th style="padding: 12px; text-align: right; font-weight: 600;">Avg Mbps</th>
-                    <th style="padding: 12px; text-align: center; font-weight: 600; border-radius: 0 8px 0 0;">Samples</th>
+                <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 2px solid #555; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                    <th style="padding: 14px 12px; text-align: center; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Rank</th>
+                    <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">IP Address</th>
+                    <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Hostname</th>
+                    <th style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Volume</th>
+                    <th style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Avg Speed</th>
+                    <th style="padding: 14px 12px; text-align: center; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Samples</th>
                 </tr>
             </thead>
             <tbody>
@@ -1922,21 +1962,21 @@ function renderTopClientsTable(clients, totalClients) {
         const rank = index + 1;
         const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
 
-        // Format Total MB - round to 2 decimal places, then format with commas
-        const totalMB = parseFloat(client.total_mb || 0).toFixed(2);
-        const formattedTotalMB = parseFloat(totalMB).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        // Format Volume - human readable (GB, MB, etc.)
+        const totalMB = parseFloat(client.total_mb || 0);
+        const formattedVolume = formatBytesHuman(totalMB);
 
-        // Format Avg Mbps - if 0 or very small, show with more precision
+        // Format Avg Speed - human readable (Kbps, Mbps, Gbps)
         const avgMbps = parseFloat(client.avg_mbps || 0);
-        const formattedAvgMbps = avgMbps >= 0.01 ? avgMbps.toFixed(2) : avgMbps.toFixed(4);
+        const formattedAvgSpeed = formatBandwidthHuman(avgMbps);
 
         html += `
             <tr style="${rowStyle} border-bottom: 1px solid #444;">
                 <td style="padding: 12px; text-align: center; font-size: 1em; color: #ccc; font-weight: 600;">${rank}</td>
                 <td style="padding: 12px; font-family: monospace; color: #F2F0EF; font-weight: 500;">${escapeHtml(client.ip)}</td>
                 <td style="padding: 12px; color: #ccc;">${escapeHtml(client.hostname)}</td>
-                <td style="padding: 12px; text-align: right; font-weight: 600; color: #FA582D;">${formattedTotalMB}</td>
-                <td style="padding: 12px; text-align: right; color: #ccc;">${formattedAvgMbps}</td>
+                <td style="padding: 12px; text-align: right; font-weight: 600; color: #FA582D;">${formattedVolume}</td>
+                <td style="padding: 12px; text-align: right; color: #ccc;">${formattedAvgSpeed}</td>
                 <td style="padding: 12px; text-align: center; color: #999; font-size: 0.9em;">${client.sample_count}</td>
             </tr>
         `;

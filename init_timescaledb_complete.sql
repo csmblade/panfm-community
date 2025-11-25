@@ -9,7 +9,7 @@
 -- Features:
 -- - Hypertables with 1-day chunks for optimal query performance
 -- - Continuous aggregates for automatic hourly/daily rollups
--- - Retention policies: 7d raw, 90d hourly, 7y daily
+-- - Retention policies: 7d raw, 30d hourly/daily (Community Edition)
 -- - Compression policies: 90% storage reduction
 -- - Optimized indexes for time-range queries
 -- =========================================
@@ -21,7 +21,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 -- Main Throughput Samples Hypertable
 -- =========================================
 -- Stores 30-second interval samples from firewall
--- Retention: 7 days raw → 90 days hourly → 1 year daily
+-- Retention: 7 days raw → 30 days hourly/daily (Community Edition)
 -- Chunk size: 1 day (optimal for time-range queries)
 
 CREATE TABLE IF NOT EXISTS throughput_samples (
@@ -102,7 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_throughput_time_device
 -- Continuous Aggregate: Hourly Rollups
 -- =========================================
 -- Pre-computed hourly averages for 24h, 7d time ranges
--- Retention: 90 days (then auto-deleted)
+-- Retention: 30 days (Community Edition)
 -- Refreshes: Every 30 minutes (lag: 1 hour)
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS throughput_hourly
@@ -169,7 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_throughput_hourly_device
 -- Continuous Aggregate: Daily Rollups
 -- =========================================
 -- Pre-computed daily averages for 30d, 90d, 1y time ranges
--- Retention: 1 year (365 days)
+-- Retention: 30 days (Community Edition)
 -- Refreshes: Once per day (lag: 2 hours)
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS throughput_daily
@@ -243,19 +243,19 @@ SELECT add_retention_policy(
     if_not_exists => TRUE
 );
 
--- Hourly aggregates: Keep 90 days
--- After 90 days, hourly rollups are automatically deleted
+-- Hourly aggregates: Keep 30 days (Community Edition)
+-- After 30 days, hourly rollups are automatically deleted
 SELECT add_retention_policy(
     'throughput_hourly',
-    INTERVAL '90 days',
+    INTERVAL '30 days',
     if_not_exists => TRUE
 );
 
--- Daily aggregates: Keep 1 year (365 days)
--- After 1 year, daily rollups are automatically deleted
+-- Daily aggregates: Keep 30 days (Community Edition)
+-- After 30 days, daily rollups are automatically deleted
 SELECT add_retention_policy(
     'throughput_daily',
-    INTERVAL '365 days',
+    INTERVAL '30 days',
     if_not_exists => TRUE
 );
 
@@ -428,7 +428,7 @@ ALTER SYSTEM SET shared_preload_libraries = 'timescaledb';
 -- Key features enabled:
 -- ✓ Hypertables with 1-day chunks
 -- ✓ Continuous aggregates (hourly, daily)
--- ✓ Retention policies (7d raw → 90d hourly → 1y daily)
+-- ✓ Retention policies (7d raw → 30d hourly/daily - Community Edition)
 -- ✓ Compression (90% storage reduction)
 -- ✓ Optimized indexes
 -- ✓ Helper views
@@ -540,10 +540,10 @@ SELECT
 FROM application_samples
 GROUP BY hour, device_id, application, category;
 
--- Retention: 90 days
+-- Retention: 30 days (Community Edition)
 SELECT add_retention_policy(
     'application_hourly',
-    INTERVAL '90 days',
+    INTERVAL '30 days',
     if_not_exists => TRUE
 );
 
@@ -643,10 +643,10 @@ SELECT
 FROM category_bandwidth
 GROUP BY hour, device_id, category, traffic_type;
 
--- Retention: 90 days
+-- Retention: 30 days (Community Edition)
 SELECT add_retention_policy(
     'category_bandwidth_hourly',
-    INTERVAL '90 days',
+    INTERVAL '30 days',
     if_not_exists => TRUE
 );
 
@@ -764,10 +764,10 @@ SELECT
 FROM client_bandwidth
 GROUP BY hour, device_id, client_ip, client_mac, hostname, custom_name, traffic_type;
 
--- Retention: 90 days
+-- Retention: 30 days (Community Edition)
 SELECT add_retention_policy(
     'client_bandwidth_hourly',
-    INTERVAL '90 days',
+    INTERVAL '30 days',
     if_not_exists => TRUE
 );
 
@@ -814,7 +814,7 @@ BEGIN
     RAISE NOTICE '  ✓ client_bandwidth_hourly (continuous aggregate)';
     RAISE NOTICE '  ✓ application_categories (reference table)';
     RAISE NOTICE '';
-    RAISE NOTICE 'Retention policies: 7 days raw → 90 days hourly';
+    RAISE NOTICE 'Retention policies: 7 days raw → 30 days hourly (Community Edition)';
     RAISE NOTICE 'Compression: After 2 days';
     RAISE NOTICE 'Continuous aggregate refresh: Every 30 minutes';
     RAISE NOTICE '';
@@ -923,10 +923,10 @@ CREATE INDEX IF NOT EXISTS idx_alert_history_acknowledged
     ON alert_history (acknowledged_at, severity)
     WHERE acknowledged_at IS NULL;
 
--- Retention: 365 days (1 year of alert history)
+-- Retention: 30 days (Community Edition - alerts not used in CE)
 SELECT add_retention_policy(
     'alert_history',
-    INTERVAL '365 days',
+    INTERVAL '30 days',
     if_not_exists => TRUE
 );
 
@@ -996,7 +996,7 @@ BEGIN
     RAISE NOTICE '';
     RAISE NOTICE 'Hypertable configuration:';
     RAISE NOTICE '  - Partitioning: 1-day chunks';
-    RAISE NOTICE '  - Retention: 365 days';
+    RAISE NOTICE '  - Retention: 30 days (Community Edition)';
     RAISE NOTICE '  - Compression: After 30 days';
     RAISE NOTICE '';
     RAISE NOTICE 'Next steps:';
@@ -1092,10 +1092,10 @@ CREATE INDEX IF NOT EXISTS idx_nmap_scan_history_scan_timestamp
 CREATE INDEX IF NOT EXISTS idx_nmap_scan_history_status
     ON nmap_scan_history (device_id, host_status, time DESC);
 
--- Retention: 90 days (nmap scan data)
+-- Retention: 30 days (Community Edition)
 SELECT add_retention_policy(
     'nmap_scan_history',
-    INTERVAL '90 days',
+    INTERVAL '30 days',
     if_not_exists => TRUE
 );
 
@@ -1173,10 +1173,10 @@ CREATE INDEX IF NOT EXISTS idx_nmap_change_events_acknowledged
     ON nmap_change_events (acknowledged, severity, time DESC)
     WHERE acknowledged = false;
 
--- Retention: 90 days (change events)
+-- Retention: 30 days (Community Edition)
 SELECT add_retention_policy(
     'nmap_change_events',
-    INTERVAL '90 days',
+    INTERVAL '30 days',
     if_not_exists => TRUE
 );
 
@@ -1291,8 +1291,8 @@ BEGIN
     RAISE NOTICE '  ✓ connected_devices (hypertable - ARP entries with bandwidth)';
     RAISE NOTICE '';
     RAISE NOTICE 'Hypertable configuration:';
-    RAISE NOTICE '  - Scan history: 90 days retention, 7 days compression';
-    RAISE NOTICE '  - Change events: 90 days retention, 7 days compression';
+    RAISE NOTICE '  - Scan history: 30 days retention, 7 days compression (Community Edition)';
+    RAISE NOTICE '  - Change events: 30 days retention, 7 days compression (Community Edition)';
     RAISE NOTICE '  - Connected devices: 7 days retention, 1 day compression';
     RAISE NOTICE '';
     RAISE NOTICE 'Next steps:';
@@ -1302,36 +1302,42 @@ BEGIN
     RAISE NOTICE '  4. Test scan execution and change detection';
     RAISE NOTICE '  5. Remove nmap_scans.db after verification';
 END $$;
--- Migration 007: Device Metadata Table
--- Purpose: Move device metadata (custom names, tags, locations, comments) from JSON to PostgreSQL
--- Date: 2025-11-22
--- Version: v2.0.1
+-- Migration 007: Device Metadata Table (Updated for Per-Device Separation)
+-- Purpose: Store device metadata with per-managed-device (firewall) separation
+-- Date: 2025-11-25
+-- Version: v2.1.2
+--
+-- Key Change: Composite primary key (device_id, mac) ensures complete
+-- separation of metadata between managed devices (firewalls)
 
--- Create device_metadata table
+-- Drop old table if exists (schema change from mac-only PK to composite PK)
+DROP TABLE IF EXISTS device_metadata;
+
+-- Create device_metadata table with composite primary key
 CREATE TABLE IF NOT EXISTS device_metadata (
-    mac MACADDR PRIMARY KEY,
-    device_id UUID,  -- Optional: link to specific device, NULL = global metadata
+    device_id TEXT NOT NULL,              -- Managed firewall ID (required, from devices.json)
+    mac MACADDR NOT NULL,                 -- Client MAC address
     custom_name TEXT,
     location TEXT,
     comment TEXT,
-    tags TEXT[] DEFAULT '{}',  -- PostgreSQL array for tags
+    tags TEXT[] DEFAULT '{}',             -- PostgreSQL array for tags
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-    -- Foreign key to devices table (if device_id is specified)
-    -- Note: device_id can be NULL for global metadata (legacy format)
-    CONSTRAINT fk_device_metadata_device FOREIGN KEY (device_id)
-        REFERENCES devices(device_id) ON DELETE CASCADE
+    PRIMARY KEY (device_id, mac)          -- Composite key: per-device metadata
 );
+
+-- Index for fast device_id filtering (most common query pattern)
+CREATE INDEX IF NOT EXISTS idx_device_metadata_device_id
+    ON device_metadata(device_id);
 
 -- Index for fast tag filtering using GIN (Generalized Inverted Index)
 -- This enables fast queries like: WHERE tags && ARRAY['IoT', 'Cameras']
 CREATE INDEX IF NOT EXISTS idx_device_metadata_tags
     ON device_metadata USING GIN(tags);
 
--- Index for device_id lookups
-CREATE INDEX IF NOT EXISTS idx_device_metadata_device_id
-    ON device_metadata(device_id);
+-- Index for MAC lookups across all devices
+CREATE INDEX IF NOT EXISTS idx_device_metadata_mac
+    ON device_metadata(mac);
 
 -- Index for custom_name searches
 CREATE INDEX IF NOT EXISTS idx_device_metadata_custom_name
@@ -1354,9 +1360,9 @@ CREATE TRIGGER trigger_update_device_metadata_timestamp
     EXECUTE FUNCTION update_device_metadata_timestamp();
 
 -- Comments for documentation
-COMMENT ON TABLE device_metadata IS 'Device metadata: custom names, tags, locations, and comments for network devices';
-COMMENT ON COLUMN device_metadata.mac IS 'MAC address (primary key) - normalized to lowercase';
-COMMENT ON COLUMN device_metadata.device_id IS 'Optional device ID link (NULL = global metadata)';
+COMMENT ON TABLE device_metadata IS 'Per-device metadata: custom names, tags, locations, comments (separated by managed firewall)';
+COMMENT ON COLUMN device_metadata.device_id IS 'Managed firewall ID (required) - UUID from devices.json';
+COMMENT ON COLUMN device_metadata.mac IS 'Client MAC address (part of composite primary key)';
 COMMENT ON COLUMN device_metadata.custom_name IS 'User-defined custom name for device';
 COMMENT ON COLUMN device_metadata.location IS 'Physical location (e.g., "Building A, Room 205")';
 COMMENT ON COLUMN device_metadata.comment IS 'User notes/comments (max 2048 chars recommended)';
@@ -1364,28 +1370,32 @@ COMMENT ON COLUMN device_metadata.tags IS 'Array of tags (e.g., [''IoT'', ''Came
 COMMENT ON COLUMN device_metadata.created_at IS 'Timestamp when metadata was created';
 COMMENT ON COLUMN device_metadata.updated_at IS 'Timestamp when metadata was last updated';
 
--- Grant permissions (adjust as needed for your setup)
--- GRANT SELECT, INSERT, UPDATE, DELETE ON device_metadata TO panfm_app;
-
 -- Example queries for reference:
 --
--- Find devices with specific tag:
---   SELECT * FROM device_metadata WHERE tags @> ARRAY['IoT'];
+-- Get all metadata for a specific managed device:
+--   SELECT * FROM device_metadata WHERE device_id = 'firewall-uuid-here';
+--
+-- Find devices with specific tag on a firewall:
+--   SELECT * FROM device_metadata WHERE device_id = 'firewall-uuid' AND tags @> ARRAY['IoT'];
 --
 -- Find devices with ANY of multiple tags:
---   SELECT * FROM device_metadata WHERE tags && ARRAY['IoT', 'Cameras'];
+--   SELECT * FROM device_metadata WHERE device_id = 'firewall-uuid' AND tags && ARRAY['IoT', 'Cameras'];
 --
--- Find devices with ALL of multiple tags:
---   SELECT * FROM device_metadata WHERE tags @> ARRAY['IoT', 'Business'];
+-- Get all unique tags for a specific firewall:
+--   SELECT DISTINCT unnest(tags) AS tag FROM device_metadata WHERE device_id = 'firewall-uuid' ORDER BY tag;
 --
--- Get all unique tags:
+-- Get all unique tags globally (across all firewalls):
 --   SELECT DISTINCT unnest(tags) AS tag FROM device_metadata ORDER BY tag;
 --
--- Join with connected_devices:
+-- Get tag usage count per firewall:
+--   SELECT device_id, unnest(tags) AS tag, COUNT(*) AS usage_count
+--   FROM device_metadata GROUP BY device_id, tag ORDER BY device_id, tag;
+--
+-- Join with connected_devices (include device_id for proper per-device join):
 --   SELECT cd.ip, cd.hostname, dm.custom_name, dm.tags
 --   FROM connected_devices cd
---   LEFT JOIN device_metadata dm ON cd.mac = dm.mac
---   WHERE dm.tags @> ARRAY['IoT'];
+--   LEFT JOIN device_metadata dm ON cd.device_id = dm.device_id AND cd.mac = dm.mac
+--   WHERE cd.device_id = 'firewall-uuid' AND dm.tags @> ARRAY['IoT'];
 -- Migration 008: Traffic Flows Hypertable for Sankey Diagram Data
 -- Created: 2025-11-23
 -- Purpose: Store source→destination→application flow data for traffic flow visualization
