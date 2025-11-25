@@ -34,7 +34,8 @@ echo.
 
 REM Rebuild and start containers
 echo 2. Building and starting Docker containers...
-docker compose up -d --build
+docker compose build --no-cache
+docker compose up -d 
 if errorlevel 1 (
     echo    Error starting containers
     pause

@@ -189,6 +189,12 @@ async function loadConnectedDevices() {
 
             // Render the table
             renderConnectedDevicesTable();
+
+            // Restore filter visibility state (default: hidden)
+            restoreConnectedDevicesFilterState();
+
+            // Restore reverse DNS checkbox state
+            restoreReverseDnsState();
         } else {
             errorDiv.textContent = data.message || 'No connected devices found';
             errorDiv.style.display = 'block';
@@ -483,8 +489,8 @@ function renderConnectedDevicesTable() {
 
     // Create table HTML
     let html = `
-        <div style="background: linear-gradient(135deg, #F2F0EF 0%, #E8E6E4 100%); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border: 3px solid #3c3c3c;">
-            <div style="padding: 15px 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-primary);">
+        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-top: 4px solid #F2F0EF;">
+            <div style="padding: 15px 20px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: white; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-primary);">
                 <div>
                     <strong style="font-size: 1.1em;">Connected Devices</strong>
                     <span style="margin-left: 15px; opacity: 0.9; font-family: var(--font-secondary);">Showing ${displayDevices.length} of ${filteredDevices.length} devices</span>
@@ -496,7 +502,7 @@ function renderConnectedDevicesTable() {
             <div style="overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary); font-size: 0.9em; background: transparent;">
                     <thead>
-                        <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 3px solid #FA582D; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                        <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 2px solid #555; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
                             <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); width: 30px;"></th>
                             <th onclick="sortConnectedDevices('hostname')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Hostname${getSortIndicator('hostname')}</th>
                             <th onclick="sortConnectedDevices('ip')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">IP Address${getSortIndicator('ip')}</th>
@@ -513,7 +519,7 @@ function renderConnectedDevicesTable() {
                     <tbody>`;
 
     displayDevices.forEach((device, index) => {
-        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);' : 'background: linear-gradient(135deg, #f8f9fa 0%, #f0f0f0 100%);';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
         const normalizedMac = device.mac.toLowerCase();
         const isExpanded = expandedRows.has(normalizedMac);
         const hasComment = device.comment && device.comment.trim();
@@ -521,13 +527,13 @@ function renderConnectedDevicesTable() {
         // Format hostname cell - show custom name prominently, hostname as subtitle
         let hostnameCell = '';
         if (device.custom_name) {
-            hostnameCell = `<div style="font-weight: 600; color: #333;">${escapeHtml(device.custom_name)}</div>`;
+            hostnameCell = `<div style="font-weight: 600; color: #F2F0EF;">${escapeHtml(device.custom_name)}</div>`;
             const originalHostname = device.original_hostname || device.hostname || '-';
             if (originalHostname !== '-') {
-                hostnameCell += `<div style="font-size: 0.85em; color: #666; margin-top: 2px;">${escapeHtml(originalHostname)}</div>`;
+                hostnameCell += `<div style="font-size: 0.85em; color: #999; margin-top: 2px;">${escapeHtml(originalHostname)}</div>`;
             }
         } else {
-            hostnameCell = `<div style="color: #666;">${escapeHtml(device.hostname || '-')}</div>`;
+            hostnameCell = `<div style="color: #ccc;">${escapeHtml(device.hostname || '-')}</div>`;
         }
 
         // Format tags cell - show as colored badge chips
@@ -560,7 +566,7 @@ function renderConnectedDevicesTable() {
         }
 
         // Format MAC address cell with vendor name and virtual indicator
-        let macCell = `<div style="font-family: monospace; color: #333;">${device.mac}</div>`;
+        let macCell = `<div style="font-family: monospace; color: #F2F0EF;">${device.mac}</div>`;
 
         // Add badge for virtual/randomized MACs on a new line
         if (device.is_virtual) {
@@ -575,7 +581,7 @@ function renderConnectedDevicesTable() {
 
         // Add vendor name underneath if available
         if (device.vendor) {
-            macCell += `<div style="font-size: 0.85em; color: #666; margin-top: 2px;">${device.vendor}</div>`;
+            macCell += `<div style="font-size: 0.85em; color: #999; margin-top: 2px;">${device.vendor}</div>`;
         }
 
         // Add virtual type detail if available
@@ -588,19 +594,19 @@ function renderConnectedDevicesTable() {
         const rowId = `device-row-${normalizedMac.replace(/:/g, '-')}`;
         const deviceDataAttr = escapeHtml(JSON.stringify(device).replace(/"/g, '&quot;'));
         html += `
-            <tr id="${rowId}" onclick="window.openDeviceEditModal('${escapeHtml(device.mac)}')" data-device='${deviceDataAttr}' style="${rowStyle} border-bottom: 1px solid #dee2e6; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #FFE8DF 0%, #FFD4C4 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #ffffff 0%, #fafafa 100%)' : 'linear-gradient(135deg, #f8f9fa 0%, #f0f0f0 100%)'}'; this.style.borderLeft='4px solid transparent';">
+            <tr id="${rowId}" onclick="window.openDeviceEditModal('${escapeHtml(device.mac)}')" data-device='${deviceDataAttr}' style="${rowStyle} border-bottom: 1px solid #444; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #3a3a3a 0%, #333333 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #2a2a2a 0%, #252525 100%)' : 'linear-gradient(135deg, #333333 0%, #2d2d2d 100%)'}'; this.style.borderLeft='4px solid transparent';">
                 <td style="padding: 8px 12px;">${chevronCell}</td>
                 <td style="padding: 12px;">${hostnameCell}</td>
-                <td style="padding: 12px; color: #666; font-family: monospace;">
+                <td style="padding: 12px; color: #ccc; font-family: monospace;">
                     <span onclick="event.stopPropagation(); window.openNmapScanModal('${escapeHtml(device.ip)}');" style="color: #FA582D; cursor: pointer; text-decoration: underline;" title="Click to run nmap scan">${device.ip}</span>
                 </td>
                 <td style="padding: 12px;">${macCell}</td>
                 <td style="padding: 12px;">${tagsCell}</td>
                 <td style="padding: 12px;">${locationCell}</td>
-                <td style="padding: 12px; color: #666;">${device.vlan}</td>
-                <td style="padding: 12px; color: #666;">${device.zone || '-'}</td>
-                <td style="padding: 12px; color: #666; font-family: monospace;">${device.interface}</td>
-                <td style="padding: 12px; color: #666;">${device.ttl}</td>
+                <td style="padding: 12px; color: #ccc;">${device.vlan}</td>
+                <td style="padding: 12px; color: #ccc;">${device.zone || '-'}</td>
+                <td style="padding: 12px; color: #ccc; font-family: monospace;">${device.interface}</td>
+                <td style="padding: 12px; color: #ccc;">${device.ttl}</td>
                 <td onclick="event.stopPropagation(); window.openSankeyDiagram('${device.ip}', ${device.total_volume || 0})" style="padding: 12px; text-align: right; color: #FA582D; font-weight: 700; font-size: 1.05em; text-shadow: 0 1px 2px rgba(250, 88, 45, 0.2); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'" title="Click to view traffic flow breakdown">${formatBytesHuman(device.total_volume || 0)}</td>
             </tr>`;
 
@@ -609,14 +615,14 @@ function renderConnectedDevicesTable() {
             const commentRowId = `device-comment-${normalizedMac.replace(/:/g, '-')}`;
             const displayStyle = isExpanded ? '' : 'display: none;';
             html += `
-            <tr id="${commentRowId}" style="${displayStyle} background: #f8f9fa; border-bottom: 1px solid #dee2e6;">
-                <td colspan="11" style="padding: 12px 12px 12px 48px; color: #666; font-size: 0.9em; border-top: 1px solid #e0e0e0;">`;
+            <tr id="${commentRowId}" style="${displayStyle} background: #2a2a2a; border-bottom: 1px solid #444;">
+                <td colspan="11" style="padding: 12px 12px 12px 48px; color: #ccc; font-size: 0.9em; border-top: 1px solid #555;">`;
 
             // Show location if it exists
             if (hasLocation) {
                 html += `
                     <div style="margin-bottom: ${hasComment ? '12px' : '0'};">
-                        <div style="font-weight: 600; color: #333; margin-bottom: 4px;">Location:</div>
+                        <div style="font-weight: 600; color: #F2F0EF; margin-bottom: 4px;">Location:</div>
                         <div style="white-space: pre-wrap;">${escapeHtml(device.location)}</div>
                     </div>`;
             }
@@ -625,7 +631,7 @@ function renderConnectedDevicesTable() {
             if (hasComment) {
                 html += `
                     <div>
-                        <div style="font-weight: 600; color: #333; margin-bottom: 4px;">Comment:</div>
+                        <div style="font-weight: 600; color: #F2F0EF; margin-bottom: 4px;">Comment:</div>
                         <div style="white-space: pre-wrap;">${escapeHtml(device.comment)}</div>
                     </div>`;
             }
@@ -701,6 +707,164 @@ function getSortIndicator(field) {
 }
 
 // ============================================================================
+// COLLAPSIBLE FILTER AREA
+// ============================================================================
+
+/**
+ * Toggle visibility of Connected Devices filter area
+ * Saves state to localStorage for persistence across page loads
+ */
+function toggleConnectedDevicesFilters() {
+    const filterArea = document.getElementById('connectedDevicesFilterArea');
+    const toggleBtn = document.getElementById('toggleConnectedDevicesFiltersBtn');
+
+    if (!filterArea || !toggleBtn) {
+        console.warn('Filter area or toggle button not found');
+        return;
+    }
+
+    const isCurrentlyHidden = filterArea.style.display === 'none';
+
+    if (isCurrentlyHidden) {
+        // Show filters
+        filterArea.style.display = 'block';
+        toggleBtn.innerHTML = '▲ Hide Filters';
+        localStorage.setItem('connectedDevicesFiltersVisible', 'true');
+    } else {
+        // Hide filters
+        filterArea.style.display = 'none';
+        toggleBtn.innerHTML = '▼ Show Filters';
+        localStorage.setItem('connectedDevicesFiltersVisible', 'false');
+    }
+}
+
+/**
+ * Restore Connected Devices filter visibility state from localStorage
+ * Default: HIDDEN (as requested by user)
+ */
+function restoreConnectedDevicesFilterState() {
+    const filterArea = document.getElementById('connectedDevicesFilterArea');
+    const toggleBtn = document.getElementById('toggleConnectedDevicesFiltersBtn');
+
+    if (!filterArea || !toggleBtn) {
+        return;
+    }
+
+    // Default is HIDDEN (user requested "default should be hidden")
+    const isVisible = localStorage.getItem('connectedDevicesFiltersVisible') === 'true';
+
+    if (isVisible) {
+        filterArea.style.display = 'block';
+        toggleBtn.innerHTML = '▲ Hide Filters';
+    } else {
+        filterArea.style.display = 'none';
+        toggleBtn.innerHTML = '▼ Show Filters';
+    }
+}
+
+// ============================================================================
+// REVERSE DNS LOOKUP
+// ============================================================================
+
+// Global reverse DNS state and cache
+let reverseDnsEnabled = false;
+const dnsCache = new Map();  // IP -> hostname cache
+
+/**
+ * Toggle reverse DNS lookup feature
+ * Saves state to localStorage for persistence
+ * Clears DNS cache and triggers Sankey modal refresh if open
+ * @param {boolean} enabled - Whether reverse DNS is enabled
+ */
+function toggleReverseDnsLookup(enabled) {
+    reverseDnsEnabled = enabled;
+    localStorage.setItem('reverseDnsEnabled', enabled ? 'true' : 'false');
+    console.log(`[DNS] Reverse DNS lookup ${enabled ? 'enabled' : 'disabled'}`);
+
+    // Clear DNS cache to force fresh lookups
+    dnsCache.clear();
+    console.log('[DNS] Cache cleared');
+
+    // If Sankey modal is open, trigger a refresh to apply DNS changes
+    if (window.SankeyModal && typeof window.SankeyModal.refresh === 'function') {
+        console.log('[DNS] Refreshing open Sankey modal...');
+        window.SankeyModal.refresh();
+    }
+}
+
+/**
+ * Restore reverse DNS checkbox state from localStorage
+ * Called on page load
+ */
+function restoreReverseDnsState() {
+    const checkbox = document.getElementById('enableReverseDnsLookup');
+    if (!checkbox) return;
+
+    // Default: disabled
+    reverseDnsEnabled = localStorage.getItem('reverseDnsEnabled') === 'true';
+    checkbox.checked = reverseDnsEnabled;
+    console.log(`[DNS] Restored reverse DNS state: ${reverseDnsEnabled ? 'enabled' : 'disabled'}`);
+}
+
+/**
+ * Perform reverse DNS lookup for an IP address
+ * Uses the hostname data from connected devices (DHCP leases)
+ * @param {string} ip - IP address to lookup
+ * @returns {string} Hostname or original IP if not found
+ */
+function performReverseDnsLookup(ip) {
+    if (!reverseDnsEnabled) {
+        return ip;  // Return IP as-is if DNS is disabled
+    }
+
+    // Check cache first
+    if (dnsCache.has(ip)) {
+        return dnsCache.get(ip);
+    }
+
+    // Look up hostname from connected devices data
+    const device = allConnectedDevices.find(d => d.ip === ip);
+    let hostname = ip;  // Default to IP
+
+    if (device) {
+        // Prefer custom name, then hostname, then IP
+        if (device.custom_name && device.custom_name.trim() !== '') {
+            hostname = device.custom_name;
+        } else if (device.hostname && device.hostname !== '-' && device.hostname.trim() !== '') {
+            hostname = device.hostname;
+        }
+        console.log(`[DNS] Resolved ${ip} → ${hostname}`);
+    } else {
+        console.log(`[DNS] No hostname found for ${ip}, using IP`);
+    }
+
+    // Cache the result
+    dnsCache.set(ip, hostname);
+    return hostname;
+}
+
+/**
+ * Get the display label for an IP (hostname if DNS enabled, IP otherwise)
+ * @param {string} ip - IP address
+ * @returns {string} Display label
+ */
+function getIpDisplayLabel(ip) {
+    if (!reverseDnsEnabled) {
+        return ip;
+    }
+    // Perform lookup (will use cache if available)
+    return performReverseDnsLookup(ip);
+}
+
+/**
+ * Check if reverse DNS lookup is enabled
+ * @returns {boolean} True if enabled
+ */
+function isReverseDnsEnabled() {
+    return reverseDnsEnabled;
+}
+
+// ============================================================================
 // EXPORTS TO GLOBAL NAMESPACE
 // ============================================================================
 
@@ -721,10 +885,18 @@ window.ConnectedDevices = {
     loadConnectedDevices: loadConnectedDevices,
     renderTable: renderConnectedDevicesTable,
     sortDevices: sortConnectedDevices,
-    toggleExpansion: toggleDeviceRowExpansion
+    toggleExpansion: toggleDeviceRowExpansion,
+    toggleFilters: toggleConnectedDevicesFilters,
+    restoreFilterState: restoreConnectedDevicesFilterState,
+    toggleReverseDns: toggleReverseDnsLookup,
+    restoreReverseDnsState: restoreReverseDnsState,
+    isReverseDnsEnabled: isReverseDnsEnabled,
+    getIpDisplayLabel: getIpDisplayLabel
 };
 
 // Export specific functions for inline event handlers in HTML
 window.sortConnectedDevices = sortConnectedDevices;
 window.toggleDeviceRowExpansion = toggleDeviceRowExpansion;
+window.toggleConnectedDevicesFilters = toggleConnectedDevicesFilters;
+window.toggleReverseDnsLookup = toggleReverseDnsLookup;
 window.loadConnectedDevices = loadConnectedDevices;

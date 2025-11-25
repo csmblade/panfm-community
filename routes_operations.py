@@ -6,7 +6,7 @@ from flask import jsonify, request, render_template, send_from_directory
 from datetime import datetime
 import os
 from auth import login_required
-from config import load_settings, save_settings, load_notification_channels, save_notification_channels, TIMESCALE_DSN
+from config import load_settings, save_settings, load_notification_channels, save_notification_channels, TIMESCALE_DSN, EDITION
 from firewall_api import (
     get_software_updates,
     get_license_info,
@@ -21,6 +21,7 @@ from firewall_api import (
 from logger import debug, error
 from throughput_collector import get_collector
 from time import time
+from version import get_version
 
 
 def register_operations_routes(app, csrf, limiter):
@@ -48,8 +49,36 @@ def register_operations_routes(app, csrf, limiter):
     @app.route('/')
     @login_required
     def index():
-        """Serve the main dashboard"""
-        return render_template('index.html')
+        """Serve the main dashboard with edition information"""
+        # Get license information for Enterprise Edition
+        license_email = None
+        license_expires = None
+
+        if EDITION == 'enterprise':
+            try:
+                from config import get_license_info
+                license_info = get_license_info()
+                if license_info:
+                    license_email = license_info.get('email', 'N/A')
+                    # Format expiration date
+                    expires_iso = license_info.get('expires')
+                    if expires_iso:
+                        from datetime import datetime
+                        try:
+                            expiry_date = datetime.fromisoformat(expires_iso)
+                            license_expires = expiry_date.strftime('%Y-%m-%d')
+                        except:
+                            license_expires = 'N/A'
+            except Exception as e:
+                debug(f"Failed to load license info: {e}")
+
+        return render_template(
+            'index.html',
+            version=get_version(),
+            edition=EDITION,
+            license_email=license_email,
+            license_expires=license_expires
+        )
 
     @app.route('/images/<path:filename>')
     @login_required

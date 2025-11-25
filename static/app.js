@@ -619,48 +619,7 @@ function updateD3Chart(data) {
         .style("stroke", "#F2F0EF")  // Light color for axis lines
         .style("opacity", "0.4");  // Increased from 0.3 for better visibility
 
-    // Add legend in top-right corner
-    const legend = g.append("g")
-        .attr("class", "legend")
-        .attr("transform", `translate(${width - 120}, 10)`);
-
-    const legendData = [
-        {label: "Inbound", color: "#FA582D"},
-        {label: "Outbound", color: "#F2A65A"},
-        {label: "Total", color: "#F2F0EF"}
-    ];
-
-    legendData.forEach((item, i) => {
-        const legendRow = legend.append("g")
-            .attr("transform", `translate(0, ${i * 20})`);
-
-        // Legend dot
-        legendRow.append("circle")
-            .attr("cx", 5)
-            .attr("cy", 0)
-            .attr("r", 3)
-            .attr("fill", item.color)
-            .attr("stroke", "#FFFFFF")
-            .attr("stroke-width", 1.5);
-
-        // Legend line
-        legendRow.append("line")
-            .attr("x1", 12)
-            .attr("y1", 0)
-            .attr("x2", 28)
-            .attr("y2", 0)
-            .attr("stroke", item.color)
-            .attr("stroke-width", 2);
-
-        // Legend text
-        legendRow.append("text")
-            .attr("x", 32)
-            .attr("y", 4)
-            .attr("fill", "#F2F0EF")
-            .style("font-size", "11px")
-            .style("font-family", "var(--font-secondary)")
-            .text(item.label);
-    });
+    // Top-right legend removed - using bottom legend only (cleaner, doesn't block graph)
 }
 
 // Initialize on load
@@ -1075,14 +1034,14 @@ function updateStats(data) {
 
         if (expiredElement) {
             expiredElement.textContent = data.license.expired || 0;
-            // Use brand theme color
-            expiredElement.style.color = '#FA582D';
+            // Use light theme color
+            expiredElement.style.color = '#F2F0EF';
         }
 
         if (licensedElement) {
             licensedElement.textContent = data.license.licensed || 0;
-            // Use brand theme color
-            licensedElement.style.color = '#FA582D';
+            // Use light theme color
+            licensedElement.style.color = '#F2F0EF';
         }
     }
 
@@ -1861,6 +1820,7 @@ function initSidebarToggle() {
     const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
     if (isCollapsed) {
         sidebar.classList.add('collapsed');
+        document.body.classList.add('sidebar-collapsed');
         toggleIcon.textContent = '▶';
     }
 
@@ -1870,10 +1830,12 @@ function initSidebarToggle() {
 
         if (willCollapse) {
             sidebar.classList.add('collapsed');
+            document.body.classList.add('sidebar-collapsed');
             toggleIcon.textContent = '▶';
             localStorage.setItem('sidebarCollapsed', 'true');
         } else {
             sidebar.classList.remove('collapsed');
+            document.body.classList.remove('sidebar-collapsed');
             toggleIcon.textContent = '◀';
             localStorage.setItem('sidebarCollapsed', 'false');
         }
@@ -2288,7 +2250,6 @@ function initPageNavigation() {
         'applications': document.getElementById('applications-content'),
         'device-info': document.getElementById('device-info-content'),
         'logs': document.getElementById('logs-content'),
-        'alerts': document.getElementById('alerts-content'),
         'analytics': document.getElementById('analytics-content'),
         'devices': document.getElementById('devices-content'),
         'settings': document.getElementById('settings-content')
@@ -2315,6 +2276,15 @@ function initPageNavigation() {
                                 console.error('[NAV] Error loading chord diagrams:', error);
                             });
                         }
+
+                        // ALSO reload tag-filtered chord diagram if tags are selected
+                        if (typeof loadTagFilteredChordDiagram === 'function' && typeof d3 !== 'undefined') {
+                            console.log('[NAV] Navigated to homepage - reloading tag-filtered chord diagram');
+                            // Load tag-filtered diagram (it will check for saved tags internally)
+                            loadTagFilteredChordDiagram().catch(error => {
+                                console.error('[NAV] Error loading tag-filtered chord diagram:', error);
+                            });
+                        }
                     } else if (pageKey === 'device-info') {
                         // Load interfaces by default (first tab)
                         loadInterfaces();
@@ -2323,20 +2293,10 @@ function initPageNavigation() {
                     } else if (pageKey === 'applications') {
                         loadApplications();
                         setupApplicationsEventListeners();
+                        restoreApplicationsFiltersState();
                     } else if (pageKey === 'logs') {
                         // Load system logs by default (first tab)
                         loadSystemLogs();
-                    } else if (pageKey === 'alerts') {
-                        // Load alerts page
-                        if (typeof initAlertsPage === 'function') {
-                            initAlertsPage();
-                        }
-                        if (typeof loadAlertTemplates === 'function') {
-                            loadAlertTemplates();
-                        }
-                        if (typeof loadQuickStartScenarios === 'function') {
-                            loadQuickStartScenarios();
-                        }
                     } else if (pageKey === 'analytics') {
                         // Load analytics dashboard page
                         initAnalyticsPage();
@@ -4035,6 +3995,125 @@ window.addEventListener('click', function(event) {
     const modal = document.getElementById('chordTagFilterModal');
     if (modal && event.target === modal) {
         closeChordTagFilterModal();
+    }
+});
+
+// ============================================================================
+// UPGRADE MODAL (Community Edition Limit Enforcement)
+// ============================================================================
+
+/**
+ * Show upgrade modal when Community Edition device limit is reached
+ * @param {Object} errorData - Error data from 403 response
+ */
+function showUpgradeModal(errorData) {
+    console.log('[UPGRADE-MODAL] Showing upgrade modal:', errorData);
+
+    // Create modal HTML
+    const modalHtml = `
+        <div id="upgradeModal" class="modal" style="display: block;">
+            <div class="modal-content" style="max-width: 600px; padding: 30px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.2);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #FA582D; padding-bottom: 15px;">
+                    <h2 style="color: #FA582D; margin: 0; font-family: var(--font-primary); font-size: 1.8em;">
+                        <span style="color: #FA582D;">PAN</span><span style="color: #000;">fm</span> Community Edition Limit Reached
+                    </h2>
+                    <button onclick="closeUpgradeModal()" style="background: none; border: none; font-size: 1.8em; color: #999; cursor: pointer; line-height: 1; padding: 0; transition: color 0.2s;" onmouseover="this.style.color='#FA582D'" onmouseout="this.style.color='#999'">×</button>
+                </div>
+
+                <div style="margin-bottom: 25px;">
+                    <p style="font-size: 1.1em; color: #666; margin: 0 0 15px 0; font-family: var(--font-secondary);">
+                        ${errorData.message || 'Community Edition supports up to 2 devices. Upgrade to Enterprise Edition for unlimited devices.'}
+                    </p>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #FA582D;">
+                        <p style="margin: 0; color: #333; font-family: var(--font-secondary);">
+                            <strong>Current Status:</strong> ${errorData.current_devices || 0} of ${errorData.max_devices || 2} devices
+                        </p>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 25px;">
+                    <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 15px 0;">Enterprise Edition Benefits</h3>
+                    <ul style="list-style: none; padding: 0; margin: 0; font-family: var(--font-secondary);">
+                        <li style="padding: 8px 0; color: #666; display: flex; align-items: center;">
+                            <span style="color: #28a745; font-weight: 700; margin-right: 10px; font-size: 1.2em;">✓</span>
+                            Unlimited firewall devices
+                        </li>
+                        <li style="padding: 8px 0; color: #666; display: flex; align-items: center;">
+                            <span style="color: #28a745; font-weight: 700; margin-right: 10px; font-size: 1.2em;">✓</span>
+                            Advanced role-based access control (RBAC)
+                        </li>
+                        <li style="padding: 8px 0; color: #666; display: flex; align-items: center;">
+                            <span style="color: #28a745; font-weight: 700; margin-right: 10px; font-size: 1.2em;">✓</span>
+                            Single sign-on (SSO) integration
+                        </li>
+                        <li style="padding: 8px 0; color: #666; display: flex; align-items: center;">
+                            <span style="color: #28a745; font-weight: 700; margin-right: 10px; font-size: 1.2em;">✓</span>
+                            Advanced analytics and reporting
+                        </li>
+                        <li style="padding: 8px 0; color: #666; display: flex; align-items: center;">
+                            <span style="color: #28a745; font-weight: 700; margin-right: 10px; font-size: 1.2em;">✓</span>
+                            Priority support
+                        </li>
+                        <li style="padding: 8px 0; color: #666; display: flex; align-items: center;">
+                            <span style="color: #28a745; font-weight: 700; margin-right: 10px; font-size: 1.2em;">✓</span>
+                            Custom alert templates
+                        </li>
+                    </ul>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #333; font-family: var(--font-primary); margin: 0 0 15px 0;">Pricing</h3>
+                    <div style="display: flex; gap: 15px;">
+                        <div style="flex: 1; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.9em; color: #999; margin-bottom: 5px; font-family: var(--font-secondary);">Professional</div>
+                            <div style="font-size: 2em; color: #FA582D; font-weight: 700; margin-bottom: 5px; font-family: var(--font-primary);">$99<span style="font-size: 0.5em; color: #999;">/mo</span></div>
+                            <div style="font-size: 0.85em; color: #666; font-family: var(--font-secondary);">Up to 50 devices</div>
+                        </div>
+                        <div style="flex: 1; padding: 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); border-radius: 8px; text-align: center; color: white; box-shadow: 0 4px 8px rgba(250, 88, 45, 0.3);">
+                            <div style="font-size: 0.9em; margin-bottom: 5px; font-family: var(--font-secondary);">Enterprise</div>
+                            <div style="font-size: 2em; font-weight: 700; margin-bottom: 5px; font-family: var(--font-primary);">$299<span style="font-size: 0.5em; opacity: 0.8;">/mo</span></div>
+                            <div style="font-size: 0.85em; font-family: var(--font-secondary);">Unlimited devices</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 15px; justify-content: flex-end;">
+                    <button onclick="closeUpgradeModal()" style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-family: var(--font-primary); transition: background 0.2s;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">
+                        Close
+                    </button>
+                    <a href="${errorData.upgrade_url || 'https://panfm.io/pricing'}" target="_blank" style="padding: 12px 24px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-family: var(--font-primary); text-decoration: none; display: inline-block; box-shadow: 0 2px 4px rgba(250, 88, 45, 0.3); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(250, 88, 45, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(250, 88, 45, 0.3)'">
+                        View Pricing & Upgrade
+                    </a>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Remove existing modal if present
+    const existingModal = document.getElementById('upgradeModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+/**
+ * Close upgrade modal
+ */
+function closeUpgradeModal() {
+    const modal = document.getElementById('upgradeModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Close upgrade modal when clicking outside
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('upgradeModal');
+    if (modal && event.target === modal) {
+        closeUpgradeModal();
     }
 });
 

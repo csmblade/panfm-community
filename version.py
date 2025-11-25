@@ -8,12 +8,12 @@ PATCH: Bug fixes, small improvements, documentation updates
 """
 
 # Current version
-VERSION_MAJOR = 2
-VERSION_MINOR = 1
-VERSION_PATCH = 13
+VERSION_MAJOR = 1
+VERSION_MINOR = 0
+VERSION_PATCH = 0
 
 # Build metadata (optional)
-VERSION_BUILD = "20251124"  # YYYYMMDD format
+VERSION_BUILD = "20251125"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
 VERSION_PRERELEASE = None  # Stable release
@@ -75,6 +75,100 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.0.0',
+        'codename': 'Community Edition',
+        'date': '2025-11-25',
+        'type': 'major',
+        'changes': [
+            'COMMUNITY EDITION LAUNCH: Open-Source Dual-Licensing Model',
+            '',
+            'LICENSING INFRASTRUCTURE:',
+            '- Created RSA-2048 cryptographic signing system for Enterprise licenses',
+            '- Implemented license_validator.py (247 lines) - RSA PSS + SHA-256 verification',
+            '- Created license_generator.py (260 lines) - Offline license generation tool',
+            '- Generated license_private.pem (PRIVATE - never commit)',
+            '- Generated license_public.pem (embedded in Enterprise builds)',
+            '',
+            'EDITION DETECTION SYSTEM:',
+            '- config.py: Added detect_edition() with 3-tier priority:',
+            '  1. Check grandfathered status (existing users get 6-month EE trial)',
+            '  2. Check for valid Enterprise license (data/license.json)',
+            '  3. Default to Community Edition',
+            '- Edition-based feature flags:',
+            '  - Community: MAX_DEVICES=2, RBAC=False, SSO=False',
+            '  - Enterprise: Unlimited devices + all features',
+            '',
+            'DEVICE LIMIT ENFORCEMENT:',
+            '- routes_device_management.py: Added Community Edition 2-device limit',
+            '- Returns HTTP 403 with upgrade prompt when limit exceeded',
+            '- Response includes edition, current_devices, max_devices, upgrade_url',
+            '',
+            'USER INTERFACE UPDATES:',
+            '- templates/index.html: Added fixed footer with edition badge',
+            '  - Community Edition: Green badge + "Upgrade to Enterprise" link',
+            '  - Enterprise Edition: Orange badge + license email + expiration date',
+            '- static/app.js: Added showUpgradeModal() function (120 lines)',
+            '  - Beautiful modal with pricing ($99 Professional, $299 Enterprise)',
+            '  - Lists Enterprise benefits (unlimited devices, RBAC, SSO, analytics)',
+            '  - Links to https://panfm.io/pricing',
+            '- static/devices.js: Intercepts 403 errors and shows upgrade modal',
+            '',
+            'TEMPLATE VARIABLE PASSING:',
+            '- routes_operations.py: Updated index() to pass edition data',
+            '  - version: VERSION_STRING',
+            '  - edition: community/enterprise',
+            '  - license_email: For Enterprise Edition',
+            '  - license_expires: Formatted expiration date',
+            '',
+            'VERSION RESET:',
+            '- Reset from v2.1.13 -> v1.0.0 for Community Edition initial release',
+            '- Updated codename from "System and traffic logs display issue" to "Community Edition"',
+            '- Build date: 20251125',
+            '',
+            'LICENSING MODEL:',
+            '- Apache 2.0 for Community Edition (permissive, patent protection)',
+            '- Proprietary for Enterprise Edition',
+            '- GitLab Model: Single public codebase, feature flags control features',
+            '- Only license_validator.py stays private (~200 lines)',
+            '',
+            'PRICING STRUCTURE:',
+            '- Community Edition: FREE (2 devices)',
+            '- Professional Edition: $99/mo (up to 50 devices)',
+            '- Enterprise Edition: $299/mo (unlimited devices + all features)',
+            '',
+            'GRANDFATHERING:',
+            '- Existing users automatically get 6-month free Enterprise trial',
+            '- Grace period via data/grandfathered.json',
+            '- Prevents disruption for current users',
+            '',
+            'FILES CREATED (8 NEW FILES):',
+            '- generate_rsa_keys.py (64 lines) - One-time key generation',
+            '- license_validator.py (247 lines) - PRIVATE - RSA license verification',
+            '- license_generator.py (260 lines) - INTERNAL - License creation tool',
+            '- keys/license_private.pem - NEVER COMMIT - Private signing key',
+            '- keys/license_public.pem - Public verification key',
+            '- licenses/license_trial_*.json - Test trial licenses',
+            '',
+            'FILES MODIFIED (5 FILES):',
+            '- config.py: +130 lines - Edition detection and feature flags',
+            '- routes_device_management.py: +12 lines - Device limit enforcement',
+            '- templates/index.html: +26 lines - Footer with edition badge',
+            '- static/app.js: +120 lines - Upgrade modal',
+            '- static/devices.js: +12 lines - 403 error handling',
+            '- routes_operations.py: +30 lines - Template variable passing',
+            '- version.py: Reset to v1.0.0',
+            '',
+            'NEXT STEPS (Phase 2-8):',
+            '- Phase 2: Create panfm-community public repository',
+            '- Phase 3: Create panfm-enterprise private repository',
+            '- Phase 4: Add Apache 2.0 LICENSE and CLA',
+            '- Phase 5: Stripe integration for payments',
+            '- Phase 6: Documentation and marketing site',
+            '- Phase 7: Launch and migration',
+            '- Phase 8: Monitor and iterate',
+        ]
+    },
     {
         'version': '2.1.11',
         'codename': 'Applications Page Filter Toggle',

@@ -39,7 +39,7 @@ services:
       - "5432:5432"  # PostgreSQL port (can disable in production)
     volumes:
       - ./timescaledb_data:/var/lib/postgresql/data
-      - ./init_timescaledb.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init_timescaledb_complete.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U panfm"]
@@ -75,7 +75,6 @@ services:
       - ./device_metadata.json:/app/device_metadata.json
       - ./mac_vendor_db.json:/app/mac_vendor_db.json
       - ./service_port_db.json:/app/service_port_db.json
-      - ./alerts.db:/app/alerts.db
       # Persist Flask secret key and sessions across container restarts (v1.14.0 - Enterprise Reliability)
       - ./data:/app/data
     environment:
@@ -121,7 +120,6 @@ services:
       - ./device_metadata.json:/app/device_metadata.json
       - ./mac_vendor_db.json:/app/mac_vendor_db.json
       - ./service_port_db.json:/app/service_port_db.json
-      - ./alerts.db:/app/alerts.db
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=False

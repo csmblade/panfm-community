@@ -77,15 +77,15 @@ def register_device_metadata_routes(app, csrf, limiter):
             # Check if bandwidth data is requested (v1.10.11)
             include_bandwidth = request.args.get('include_bandwidth', 'false').lower() == 'true'
 
-            # Query from database (max 90 seconds old)
+            # Query from database (max 5 minutes old - increased from 90s to prevent false "waiting" messages)
             storage = TimescaleStorage(TIMESCALE_DSN)
 
             if include_bandwidth:
                 debug("Fetching connected devices WITH bandwidth data (60-minute window)")
-                devices = storage.get_connected_devices_with_bandwidth(device_id, max_age_seconds=90, bandwidth_window_minutes=60)
+                devices = storage.get_connected_devices_with_bandwidth(device_id, max_age_seconds=300, bandwidth_window_minutes=60)
             else:
                 debug("Fetching connected devices WITHOUT bandwidth data")
-                devices = storage.get_connected_devices(device_id, max_age_seconds=90)
+                devices = storage.get_connected_devices(device_id, max_age_seconds=300)
 
             if not devices:
                 debug(f"No recent connected devices data for device {device_id}, waiting for collection")

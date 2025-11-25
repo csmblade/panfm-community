@@ -120,58 +120,66 @@ function formatBytes(bytes) {
 function renderTrafficLogsTable(logs, timestamp) {
     const tableDiv = document.getElementById('trafficLogsTable');
 
-    // Create search box and table HTML
+    // Create search box and table HTML with dark theme
     let tableHtml = `
         <div style="margin-bottom: 20px;">
             <input type="text"
                 id="trafficLogsSearchInput"
                 placeholder="Search by source, destination, app, protocol, or action..."
-                style="width: 100%; padding: 12px 15px; border: 2px solid #ff6600; border-radius: 8px; font-size: 0.95em; box-sizing: border-box;"
+                style="width: 100%; padding: 12px 15px; border: 2px solid #555; border-radius: 8px; font-size: 0.95em; box-sizing: border-box; background: #2a2a2a; color: #F2F0EF;"
             />
         </div>
-        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #ff6600;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
-                <thead>
-                    <tr style="border-bottom: 2px solid #ff6600;">
-                        <th style="padding: 10px; text-align: left; color: #333; font-weight: 600;">Time</th>
-                        <th style="padding: 10px; text-align: left; color: #333; font-weight: 600;">Source</th>
-                        <th style="padding: 10px; text-align: left; color: #333; font-weight: 600;">Destination</th>
-                        <th style="padding: 10px; text-align: left; color: #333; font-weight: 600;">App</th>
-                        <th style="padding: 10px; text-align: left; color: #333; font-weight: 600;">Proto</th>
-                        <th style="padding: 10px; text-align: left; color: #333; font-weight: 600;">Action</th>
-                        <th style="padding: 10px; text-align: left; color: #333; font-weight: 600;">Bytes</th>
-                        <th style="padding: 10px; text-align: left; color: #333; font-weight: 600;">Packets</th>
-                    </tr>
-                </thead>
-                <tbody id="trafficLogsTableBody">
+        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-top: 4px solid #F2F0EF;">
+            <div style="padding: 15px 20px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: white; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-primary);">
+                <div>
+                    <strong style="font-size: 1.1em;">Traffic Logs</strong>
+                    <span style="margin-left: 15px; opacity: 0.9; font-family: var(--font-secondary);">Showing ${logs.length} of ${allTrafficLogs.length} logs</span>
+                </div>
+            </div>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 2px solid #555; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Time</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Source</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Destination</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">App</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Proto</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Action</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Bytes</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Packets</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trafficLogsTableBody">
     `;
 
-    // Add rows for each log entry
+    // Add rows for each log entry with dark theme
     logs.forEach((log, index) => {
-        const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
         const actionColor = log.action === 'allow' ? '#10b981' : '#dc2626';
         const time = parsePaloAltoTime(log.time);
         const totalBytes = parseInt(log.bytes_sent || 0) + parseInt(log.bytes_received || 0);
         const formattedBytes = formatBytes(totalBytes);
 
         tableHtml += `
-            <tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
-                <td style="padding: 10px; color: #666; white-space: nowrap;">${time}</td>
-                <td style="padding: 10px; color: #333;">${log.src}:${log.sport}</td>
-                <td style="padding: 10px; color: #333;">${log.dst}:${log.dport}</td>
-                <td style="padding: 10px; color: #666;">${log.app}</td>
-                <td style="padding: 10px; color: #666;">${log.proto}</td>
-                <td style="padding: 10px; color: ${actionColor}; font-weight: 600;">${log.action}</td>
-                <td style="padding: 10px; color: #666;">${formattedBytes}</td>
-                <td style="padding: 10px; color: #666;">${parseInt(log.packets || 0).toLocaleString()}</td>
+            <tr style="${rowStyle} border-bottom: 1px solid #444; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #3a3a3a 0%, #333333 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #2a2a2a 0%, #252525 100%)' : 'linear-gradient(135deg, #333333 0%, #2d2d2d 100%)'}'; this.style.borderLeft='4px solid transparent';">
+                <td style="padding: 12px; color: #bbb; white-space: nowrap; font-family: var(--font-secondary);">${time}</td>
+                <td style="padding: 12px; color: #F2F0EF; font-family: var(--font-secondary);">${log.src}:${log.sport}</td>
+                <td style="padding: 12px; color: #F2F0EF; font-family: var(--font-secondary);">${log.dst}:${log.dport}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${log.app}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${log.proto}</td>
+                <td style="padding: 12px; color: ${actionColor}; font-weight: 600; font-family: var(--font-primary);">${log.action}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${formattedBytes}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${parseInt(log.packets || 0).toLocaleString()}</td>
             </tr>
         `;
     });
 
     tableHtml += `
-                </tbody>
-            </table>
-            <div style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 8px; color: #666; font-size: 0.9em;" id="trafficLogsFooter">
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 0; padding: 15px 20px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-top: 1px solid #555; color: #bbb; font-size: 0.9em; font-family: var(--font-secondary);" id="trafficLogsFooter">
                 Showing ${logs.length} of ${allTrafficLogs.length} logs | Last updated: ${new Date(timestamp).toLocaleString('en-US', { timeZone: window.userTimezone || 'UTC' })}
             </div>
         </div>
@@ -218,22 +226,22 @@ function filterTrafficLogs(searchTerm) {
     if (tableBody) {
         let rowsHtml = '';
         filteredLogs.forEach((log, index) => {
-            const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
+            const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
             const actionColor = log.action === 'allow' ? '#10b981' : '#dc2626';
             const time = parsePaloAltoTime(log.time);
             const totalBytes = parseInt(log.bytes_sent || 0) + parseInt(log.bytes_received || 0);
             const formattedBytes = formatBytes(totalBytes);
 
             rowsHtml += `
-                <tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
-                    <td style="padding: 10px; color: #666; white-space: nowrap;">${time}</td>
-                    <td style="padding: 10px; color: #333;">${log.src}:${log.sport}</td>
-                    <td style="padding: 10px; color: #333;">${log.dst}:${log.dport}</td>
-                    <td style="padding: 10px; color: #666;">${log.app}</td>
-                    <td style="padding: 10px; color: #666;">${log.proto}</td>
-                    <td style="padding: 10px; color: ${actionColor}; font-weight: 600;">${log.action}</td>
-                    <td style="padding: 10px; color: #666;">${formattedBytes}</td>
-                    <td style="padding: 10px; color: #666;">${parseInt(log.packets || 0).toLocaleString()}</td>
+                <tr style="${rowStyle} border-bottom: 1px solid #444; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #3a3a3a 0%, #333333 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #2a2a2a 0%, #252525 100%)' : 'linear-gradient(135deg, #333333 0%, #2d2d2d 100%)'}'; this.style.borderLeft='4px solid transparent';">
+                    <td style="padding: 12px; color: #bbb; white-space: nowrap; font-family: var(--font-secondary);">${time}</td>
+                    <td style="padding: 12px; color: #F2F0EF; font-family: var(--font-secondary);">${log.src}:${log.sport}</td>
+                    <td style="padding: 12px; color: #F2F0EF; font-family: var(--font-secondary);">${log.dst}:${log.dport}</td>
+                    <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${log.app}</td>
+                    <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${log.proto}</td>
+                    <td style="padding: 12px; color: ${actionColor}; font-weight: 600; font-family: var(--font-primary);">${log.action}</td>
+                    <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${formattedBytes}</td>
+                    <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${parseInt(log.packets || 0).toLocaleString()}</td>
                 </tr>
             `;
         });
@@ -241,7 +249,7 @@ function filterTrafficLogs(searchTerm) {
         if (filteredLogs.length === 0) {
             rowsHtml = `
                 <tr>
-                    <td colspan="8" style="padding: 20px; text-align: center; color: #999;">
+                    <td colspan="8" style="padding: 20px; text-align: center; color: #bbb; font-family: var(--font-secondary);">
                         No logs match your search criteria
                     </td>
                 </tr>
@@ -366,49 +374,57 @@ function renderSystemLogsTable() {
     // Sort the filtered logs based on selected criteria
     const sortedLogs = sortSystemLogs(filteredLogs, sortBy);
 
-            // Create table HTML
-            let tableHtml = `
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); border-top: 4px solid #ff6600;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="border-bottom: 2px solid #ff6600;">
-                                <th style="padding: 12px; text-align: left; color: #333; font-weight: 600;">Time</th>
-                                <th style="padding: 12px; text-align: left; color: #333; font-weight: 600;">Event ID</th>
-                                <th style="padding: 12px; text-align: left; color: #333; font-weight: 600;">Severity</th>
-                                <th style="padding: 12px; text-align: left; color: #333; font-weight: 600;">Module</th>
-                                <th style="padding: 12px; text-align: left; color: #333; font-weight: 600;">Subtype</th>
-                                <th style="padding: 12px; text-align: left; color: #333; font-weight: 600;">Description</th>
-                                <th style="padding: 12px; text-align: left; color: #333; font-weight: 600;">Result</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            // Add rows for each log entry
-            sortedLogs.forEach((log, index) => {
-                const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
-                const severityColor = log.severity === 'critical' ? '#dc2626' : (log.severity === 'high' ? '#f59e0b' : '#666');
-
-                tableHtml += `
-                    <tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
-                        <td style="padding: 12px; color: #666; font-size: 0.9em; white-space: nowrap;">${formatTimestamp(log.time)}</td>
-                        <td style="padding: 12px; color: #666;">${log.eventid}</td>
-                        <td style="padding: 12px; color: ${severityColor}; font-weight: 600;">${log.severity}</td>
-                        <td style="padding: 12px; color: #666;">${log.module}</td>
-                        <td style="padding: 12px; color: #666;">${log.subtype}</td>
-                        <td style="padding: 12px; color: #333; max-width: 400px; overflow: hidden; text-overflow: ellipsis;" title="${log.description}">${log.description}</td>
-                        <td style="padding: 12px; color: #666;">${log.result}</td>
-                    </tr>
-                `;
-            });
-
-    tableHtml += `
-                    </tbody>
-                </table>
-                <div style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 8px; color: #666; font-size: 0.9em;">
-                    Showing ${sortedLogs.length} of ${systemLogsMetadata.total} logs${searchTerm ? ' (search filtered)' : ''}${filterSeverity !== 'all' ? ` (filtered by ${filterSeverity})` : ''} | Last updated: ${new Date(systemLogsMetadata.timestamp).toLocaleString('en-US', { timeZone: window.userTimezone || 'UTC' })}
+    // Create table HTML with dark theme
+    let tableHtml = `
+        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-top: 4px solid #F2F0EF;">
+            <div style="padding: 15px 20px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: white; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-primary);">
+                <div>
+                    <strong style="font-size: 1.1em;">System Logs</strong>
+                    <span style="margin-left: 15px; opacity: 0.9; font-family: var(--font-secondary);">Showing ${sortedLogs.length} of ${systemLogsMetadata.total} logs</span>
                 </div>
             </div>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 2px solid #555; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Time</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Event ID</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Severity</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Module</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Subtype</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Description</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+
+    // Add rows for each log entry with dark theme
+    sortedLogs.forEach((log, index) => {
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
+        const severityColor = log.severity === 'critical' ? '#dc2626' : (log.severity === 'high' ? '#f59e0b' : '#bbb');
+
+        tableHtml += `
+            <tr style="${rowStyle} border-bottom: 1px solid #444; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #3a3a3a 0%, #333333 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #2a2a2a 0%, #252525 100%)' : 'linear-gradient(135deg, #333333 0%, #2d2d2d 100%)'}'; this.style.borderLeft='4px solid transparent';">
+                <td style="padding: 12px; color: #bbb; font-size: 0.9em; white-space: nowrap; font-family: var(--font-secondary);">${formatTimestamp(log.time)}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${log.eventid}</td>
+                <td style="padding: 12px; color: ${severityColor}; font-weight: 600; font-family: var(--font-primary);">${log.severity}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${log.module}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${log.subtype}</td>
+                <td style="padding: 12px; color: #F2F0EF; max-width: 400px; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-secondary);" title="${log.description}">${log.description}</td>
+                <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${log.result}</td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `
+                </tbody>
+            </table>
+            </div>
+            <div style="margin-top: 0; padding: 15px 20px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-top: 1px solid #555; color: #bbb; font-size: 0.9em; font-family: var(--font-secondary);">
+                Showing ${sortedLogs.length} of ${systemLogsMetadata.total} logs${searchTerm ? ' (search filtered)' : ''}${filterSeverity !== 'all' ? ` (filtered by ${filterSeverity})` : ''} | Last updated: ${new Date(systemLogsMetadata.timestamp).toLocaleString('en-US', { timeZone: window.userTimezone || 'UTC' })}
+            </div>
+        </div>
     `;
 
     tableDiv.innerHTML = tableHtml;

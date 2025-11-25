@@ -70,9 +70,12 @@ if exist "encryption.key\" (
 if not exist "encryption.key" (
     echo Creating encryption.key...
     python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())" > encryption.key
-    echo [OK] encryption.key created
+    icacls encryption.key /inheritance:r /grant:r "%USERNAME%:(R,W)" 2>nul
+    echo [OK] encryption.key created ^(permissions: read/write for current user only^)
 ) else (
     echo [OK] encryption.key already exists
+    REM Ensure correct permissions even if file exists
+    icacls encryption.key /inheritance:r /grant:r "%USERNAME%:(R,W)" 2>nul
 )
 
 REM ============================================================

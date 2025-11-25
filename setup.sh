@@ -59,9 +59,12 @@ if [ ! -f "encryption.key" ]; then
     echo "Creating encryption.key..."
     # Generate a random 32-byte key encoded in base64
     python3 -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())" > encryption.key
-    echo "✓ encryption.key created"
+    chmod 600 encryption.key 2>/dev/null || true
+    echo "✓ encryption.key created (permissions: 600)"
 else
     echo "✓ encryption.key already exists"
+    # Ensure correct permissions even if file exists
+    chmod 600 encryption.key 2>/dev/null || true
 fi
 
 # Create auth.json if it doesn't exist with default admin/admin credentials

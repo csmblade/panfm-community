@@ -21,6 +21,99 @@ AUTH_FILE = os.path.join(os.path.dirname(__file__), 'auth.json')
 METADATA_FILE = os.path.join(os.path.dirname(__file__), 'device_metadata.json')
 ALERTS_DB_FILE = os.path.join(os.path.dirname(__file__), 'alerts.db')  # Still uses SQLite
 # Note: throughput_history.db removed in v2.0.0 (replaced by TimescaleDB)
+LICENSE_FILE = os.path.join(os.path.dirname(__file__), 'data', 'license.json')
+
+# =========================================
+# Edition Detection (v1.0.0-ce Community/Enterprise)
+# =========================================
+# PANfm is available in two editions:
+# - Community Edition: Free, open-source (Apache 2.0), 2 devices max
+# - Enterprise Edition: Commercial, unlimited devices, advanced features
+
+def detect_edition():
+    """
+    Detect if running Community or Enterprise Edition
+
+    Returns:
+        str: 'community' or 'enterprise'
+
+    Detection logic:
+        1. Check for valid Enterprise Edition license file (data/license.json)
+        2. Default to Community Edition
+    """
+    # Check for valid Enterprise Edition license
+    if os.path.exists(LICENSE_FILE):
+        try:
+            # Try to import and validate license
+            # This import will fail in Community Edition builds (license_validator.py not included)
+            from license_validator import validate_license
+
+            with open(LICENSE_FILE, 'r') as f:
+                license_data = json.load(f)
+
+            if validate_license(license_data):
+                return 'enterprise'
+        except ImportError:
+            # Community Edition build - license_validator.py not present
+            pass
+        except Exception:
+            # License file corrupt or validation failed
+            pass
+
+    # Default to Community Edition
+    return 'community'
+
+
+def get_license_info():
+    """
+    Get Enterprise Edition license information if available
+
+    Returns:
+        dict or None: License info if valid EE license, None otherwise
+    """
+    if EDITION != 'enterprise':
+        return None
+
+    try:
+        from license_validator import get_license_info as _get_license_info
+        return _get_license_info()
+    except ImportError:
+        return None
+    except Exception:
+        return None
+
+
+# Detect edition on module load
+EDITION = detect_edition()
+
+# Edition-based configuration
+if EDITION == 'community':
+    # Community Edition limits
+    MAX_DEVICES = 2
+    ENABLE_RBAC = False
+    ENABLE_SSO = False
+    ENABLE_ADVANCED_ANALYTICS = False
+    ENABLE_CLUSTERING = False
+    ENABLE_CUSTOM_ALERTS = False
+else:
+    # Enterprise Edition - limits from license
+    license_info = get_license_info()
+    if license_info:
+        MAX_DEVICES = license_info.get('max_devices', 9999)
+        features = license_info.get('features', {})
+        ENABLE_RBAC = features.get('rbac', True)
+        ENABLE_SSO = features.get('sso', False)
+        ENABLE_ADVANCED_ANALYTICS = features.get('advanced_analytics', True)
+        ENABLE_CLUSTERING = features.get('clustering', False)
+        ENABLE_CUSTOM_ALERTS = True
+    else:
+        # Fallback if license info unavailable
+        MAX_DEVICES = 9999
+        ENABLE_RBAC = True
+        ENABLE_SSO = False
+        ENABLE_ADVANCED_ANALYTICS = True
+        ENABLE_CLUSTERING = False
+        ENABLE_CUSTOM_ALERTS = True
 
 # =========================================
 # TimescaleDB Configuration (v2.0.0)

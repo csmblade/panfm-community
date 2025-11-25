@@ -57,14 +57,14 @@ function renderAlertConfigs(configs) {
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                 <thead>
-                    <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Metric</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Threshold</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Channels</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Actions</th>
+                    <tr style="background: #3c3c3c; border-bottom: 2px solid #FA582D;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Metric</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Threshold</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Channels</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Status</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -77,17 +77,17 @@ function renderAlertConfigs(configs) {
             'info': '#17a2b8'
         };
         const severityColor = severityColors[config.severity] || '#6c757d';
-        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
 
         html += `
             <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
-                <td style="padding: 12px; color: #333;"><strong>${escapeHtml(getDeviceNameById(config.device_id))}</strong></td>
-                <td style="padding: 12px; color: #666;">${formatMetricName(config.metric_type)}</td>
-                <td style="padding: 12px; color: #666;"><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 4px;">${config.threshold_operator} ${config.threshold_value}</code></td>
+                <td style="padding: 12px; color: #F2F0EF;"><strong>${escapeHtml(getDeviceNameById(config.device_id))}</strong></td>
+                <td style="padding: 12px; color: #ccc;">${formatMetricName(config.metric_type)}</td>
+                <td style="padding: 12px; color: #ccc;"><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 4px;">${config.threshold_operator} ${config.threshold_value}</code></td>
                 <td style="padding: 12px; text-align: center;">
                     <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${config.severity}</span>
                 </td>
-                <td style="padding: 12px; color: #666;">${(config.notification_channels || []).join(', ') || 'None'}</td>
+                <td style="padding: 12px; color: #ccc;">${(config.notification_channels || []).join(', ') || 'None'}</td>
                 <td style="padding: 12px; text-align: center;">
                     ${config.enabled ?
                         '<span style="color: #28a745; font-weight: 600;">✓ Enabled</span>' :
@@ -104,7 +104,7 @@ function renderAlertConfigs(configs) {
     html += `
                     </tbody>
                 </table>
-            <div style="color: #666; text-align: right; margin-top: 10px; font-size: 0.85em; font-family: var(--font-secondary);">
+            <div style="color: #ccc; text-align: right; margin-top: 10px; font-size: 0.85em; font-family: var(--font-secondary);">
                 Total: ${configs.length} alert${configs.length !== 1 ? 's' : ''}
             </div>
         </div>
@@ -377,13 +377,13 @@ function renderAlertHistory(history) {
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                 <thead>
-                    <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Time</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Message</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Actions</th>
+                    <tr style="background: #3c3c3c; border-bottom: 2px solid #FA582D;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Time</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Message</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Status</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -396,19 +396,19 @@ function renderAlertHistory(history) {
             'info': '#17a2b8'
         };
         const severityColor = severityColors[alert.severity] || '#6c757d';
-        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
 
         const statusText = alert.acknowledged_at ? '✓ Acknowledged' : '🔴 Active';
 
         html += `
             <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
-                <td style="padding: 12px; color: #333;">${formatTimestamp(alert.triggered_at)}</td>
-                <td style="padding: 12px; color: #666;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
-                <td style="padding: 12px; color: #666;">${escapeHtml(alert.message)}</td>
+                <td style="padding: 12px; color: #F2F0EF;">${formatTimestamp(alert.triggered_at)}</td>
+                <td style="padding: 12px; color: #ccc;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
+                <td style="padding: 12px; color: #ccc;">${escapeHtml(alert.message)}</td>
                 <td style="padding: 12px; text-align: center;">
                     <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${alert.severity}</span>
                 </td>
-                <td style="padding: 12px; text-align: center; color: #666;">${statusText}</td>
+                <td style="padding: 12px; text-align: center; color: #ccc;">${statusText}</td>
                 <td style="padding: 12px; text-align: center;">
                     ${!alert.acknowledged_at ? `<button onclick="acknowledgeAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Acknowledge</button>` : ''}
                     ${!alert.resolved_at ? `<button onclick="resolveAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Resolve</button>` : ''}
@@ -1122,17 +1122,17 @@ function renderTemplatesInBrowser(templates) {
 
     templates.forEach(template => {
         html += `
-            <div style="background: #f8f9fa; border: 2px solid #e0e0e0; border-radius: 10px; padding: 20px; transition: all 0.3s; cursor: pointer;"
+            <div style="background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%); border: 2px solid #e0e0e0; border-radius: 10px; padding: 20px; transition: all 0.3s; cursor: pointer;"
                  onmouseover="this.style.borderColor='#FA582D'; this.style.boxShadow='0 4px 12px rgba(250, 88, 45, 0.2)'"
                  onmouseout="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'">
-                <h3 style="color: #333; margin: 0 0 10px 0; font-size: 1.1em; font-family: var(--font-primary);">${escapeHtml(template.name)}</h3>
-                <p style="color: #666; font-size: 0.9em; margin: 0 0 15px 0; min-height: 40px; font-family: var(--font-secondary);">${escapeHtml(template.description)}</p>
+                <h3 style="color: #F2F0EF; margin: 0 0 10px 0; font-size: 1.1em; font-family: var(--font-primary);">${escapeHtml(template.name)}</h3>
+                <p style="color: #ccc; font-size: 0.9em; margin: 0 0 15px 0; min-height: 40px; font-family: var(--font-secondary);">${escapeHtml(template.description)}</p>
                 <div style="display: flex; gap: 8px; margin-bottom: 15px;">
                     <span style="padding: 4px 12px; background: #FA582D; color: white; border-radius: 4px; font-size: 0.85em;">${escapeHtml(template.category)}</span>
                     <span style="padding: 4px 12px; background: #17a2b8; color: white; border-radius: 4px; font-size: 0.85em;">${template.alert_count} rules</span>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="viewTemplateDetails('${template.id}')" style="flex: 1; padding: 8px; background: #f0f0f0; color: #333; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-family: var(--font-primary);">View Details</button>
+                    <button onclick="viewTemplateDetails('${template.id}')" style="flex: 1; padding: 8px; background: #3a3a3a; color: #F2F0EF; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-family: var(--font-primary);">View Details</button>
                     <button onclick="closeTemplatesBrowserModal(); showApplyTemplateModal('${template.id}')" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9em; font-family: var(--font-primary);">Apply</button>
                 </div>
             </div>
@@ -1246,7 +1246,7 @@ function renderAlertHistoryInModal(alerts) {
     if (!container) return;
 
     if (alerts.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No alerts found.</p>';
+        container.innerHTML = '<p style="text-align: center; color: #ccc; padding: 40px;">No alerts found.</p>';
         return;
     }
 
@@ -1254,14 +1254,14 @@ function renderAlertHistoryInModal(alerts) {
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                 <thead>
-                    <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Time</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Metric</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Value</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Actions</th>
+                    <tr style="background: #3c3c3c; border-bottom: 2px solid #FA582D;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Time</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Metric</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Value</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Status</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1274,20 +1274,20 @@ function renderAlertHistoryInModal(alerts) {
             'info': '#17a2b8'
         };
         const severityColor = severityColors[alert.severity] || '#6c757d';
-        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
         const time = new Date(alert.triggered_at).toLocaleString();
         const isResolved = alert.resolved_at != null;
 
         html += `
             <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
-                <td style="padding: 12px; color: #333;">${time}</td>
-                <td style="padding: 12px; color: #666;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
-                <td style="padding: 12px; color: #666;">${formatMetricName(alert.metric_type)}</td>
-                <td style="padding: 12px; color: #666;">${alert.actual_value.toFixed(2)}</td>
+                <td style="padding: 12px; color: #F2F0EF;">${time}</td>
+                <td style="padding: 12px; color: #ccc;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
+                <td style="padding: 12px; color: #ccc;">${formatMetricName(alert.metric_type)}</td>
+                <td style="padding: 12px; color: #ccc;">${alert.actual_value.toFixed(2)}</td>
                 <td style="padding: 12px; text-align: center;">
                     <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${alert.severity}</span>
                 </td>
-                <td style="padding: 12px; text-align: center; color: #666;">${isResolved ? '✓ Resolved' : '⚠ Active'}</td>
+                <td style="padding: 12px; text-align: center; color: #ccc;">${isResolved ? '✓ Resolved' : '⚠ Active'}</td>
                 <td style="padding: 12px; text-align: center;">
                     ${!alert.acknowledged_at ? `<button onclick="acknowledgeAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Acknowledge</button>` : ''}
                     ${!isResolved ? `<button onclick="resolveAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Resolve</button>` : ''}
@@ -1516,7 +1516,7 @@ function renderAlertHistoryFull(alerts) {
     if (!container) return;
 
     if (alerts.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px; font-family: var(--font-secondary);">No alert history found.</p>';
+        container.innerHTML = '<p style="text-align: center; color: #ccc; padding: 40px; font-family: var(--font-secondary);">No alert history found.</p>';
         return;
     }
 
@@ -1530,12 +1530,12 @@ function renderAlertHistoryFull(alerts) {
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                 <thead>
-                    <tr style="background: #f5f5f5; border-bottom: 2px solid #dee2e6;">
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Time</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Message</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
+                    <tr style="background: #3c3c3c; border-bottom: 2px solid #dee2e6;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Time</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Message</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1543,26 +1543,26 @@ function renderAlertHistoryFull(alerts) {
 
     alerts.forEach((alert, index) => {
         const severityColor = severityColors[alert.severity] || '#6c757d';
-        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
         const time = new Date(alert.triggered_at).toLocaleString();
         const statusText = alert.acknowledged_at ? '✓ Acknowledged' : '🔴 Active';
         const deviceName = getDeviceNameById(alert.device_id);
 
         html += `
             <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
-                <td style="padding: 12px; color: #333; font-size: 0.9em;">${time}</td>
-                <td style="padding: 12px; color: #666; font-size: 0.9em;">${escapeHtml(deviceName)}</td>
-                <td style="padding: 12px; color: #666; font-size: 0.9em;">${escapeHtml(alert.message)}</td>
+                <td style="padding: 12px; color: #F2F0EF; font-size: 0.9em;">${time}</td>
+                <td style="padding: 12px; color: #ccc; font-size: 0.9em;">${escapeHtml(deviceName)}</td>
+                <td style="padding: 12px; color: #ccc; font-size: 0.9em;">${escapeHtml(alert.message)}</td>
                 <td style="padding: 12px; text-align: center;">
                     <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${alert.severity}</span>
                 </td>
-                <td style="padding: 12px; text-align: center; color: #666; font-size: 0.85em;">${statusText}</td>
+                <td style="padding: 12px; text-align: center; color: #ccc; font-size: 0.85em;">${statusText}</td>
             </tr>
         `;
     });
 
     html += `</tbody></table>
-             <div style="color: #666; text-align: right; margin-top: 10px; font-size: 0.85em; font-family: var(--font-secondary);">
+             <div style="color: #ccc; text-align: right; margin-top: 10px; font-size: 0.85em; font-family: var(--font-secondary);">
                  Showing ${alerts.length} most recent alert${alerts.length !== 1 ? 's' : ''}
              </div>
          </div>`;
@@ -1686,7 +1686,7 @@ function renderAlertsInTable(alerts, containerId, emptyMessage) {
     if (!container) return;
 
     if (alerts.length === 0) {
-        container.innerHTML = `<p style="text-align: center; color: #666; padding: 40px; font-family: var(--font-secondary);">${emptyMessage}</p>`;
+        container.innerHTML = `<p style="text-align: center; color: #ccc; padding: 40px; font-family: var(--font-secondary);">${emptyMessage}</p>`;
         return;
     }
 
@@ -1694,13 +1694,13 @@ function renderAlertsInTable(alerts, containerId, emptyMessage) {
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                 <thead>
-                    <tr style="background: #f5f5f5; border-bottom: 2px solid #FA582D;">
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Time</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Device</th>
-                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #333; font-family: var(--font-primary);">Message</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Severity</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Status</th>
-                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #333; font-family: var(--font-primary);">Actions</th>
+                    <tr style="background: #3c3c3c; border-bottom: 2px solid #FA582D;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Time</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Device</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Message</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Severity</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Status</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #F2F0EF; font-family: var(--font-primary);">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1713,19 +1713,19 @@ function renderAlertsInTable(alerts, containerId, emptyMessage) {
             'info': '#17a2b8'
         };
         const severityColor = severityColors[alert.severity] || '#6c757d';
-        const rowStyle = index % 2 === 0 ? 'background: #ffffff;' : 'background: #f8f9fa;';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
         const time = new Date(alert.triggered_at).toLocaleString();
         const statusText = alert.acknowledged_at ? '✓ Acknowledged' : '🔴 Active';
 
         html += `
             <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}'">
-                <td style="padding: 12px; color: #333;">${time}</td>
-                <td style="padding: 12px; color: #666;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
-                <td style="padding: 12px; color: #666; line-height: 1.5;">${formatAlertMessage(alert.message)}</td>
+                <td style="padding: 12px; color: #F2F0EF;">${time}</td>
+                <td style="padding: 12px; color: #ccc;">${escapeHtml(getDeviceNameById(alert.device_id))}</td>
+                <td style="padding: 12px; color: #ccc; line-height: 1.5;">${formatAlertMessage(alert.message)}</td>
                 <td style="padding: 12px; text-align: center;">
                     <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; background: ${severityColor}; color: white; font-size: 0.75em; font-weight: 600; text-transform: uppercase; font-family: var(--font-primary);">${alert.severity}</span>
                 </td>
-                <td style="padding: 12px; text-align: center; color: #666;">${statusText}</td>
+                <td style="padding: 12px; text-align: center; color: #ccc;">${statusText}</td>
                 <td style="padding: 12px; text-align: center;">
                     ${!alert.acknowledged_at ? `<button onclick="acknowledgeAlert(${alert.id})" style="padding: 6px 12px; margin: 0 4px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: var(--font-primary);">Acknowledge</button>` : ''}
                 </td>

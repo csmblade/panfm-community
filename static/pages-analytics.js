@@ -26,6 +26,9 @@ let currentAnalyticsRange = '24h';
 window.initAnalyticsPage = function() {
     console.log('Initializing Insights Dashboard...');
 
+    // Restore saved time range selection
+    restoreAnalyticsTimeRange();
+
     // Initialize charts if not already done
     if (!analyticsChart) {
         initAnalyticsChart();
@@ -116,6 +119,7 @@ function initAnalyticsChart() {
                 legend: {
                     position: 'top',
                     labels: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Roboto', sans-serif",
                             size: 12
@@ -145,6 +149,7 @@ function initAnalyticsChart() {
                         display: false
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 10
@@ -156,9 +161,10 @@ function initAnalyticsChart() {
                 y: {
                     beginAtZero: true,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
+                        color: 'rgba(242, 240, 239, 0.1)'
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 11
@@ -225,6 +231,7 @@ function initAnalyticsCpuChart() {
                 legend: {
                     position: 'top',
                     labels: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Roboto', sans-serif",
                             size: 11
@@ -254,6 +261,7 @@ function initAnalyticsCpuChart() {
                         display: false
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 9
@@ -266,9 +274,10 @@ function initAnalyticsCpuChart() {
                     beginAtZero: true,
                     max: 100,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
+                        color: 'rgba(242, 240, 239, 0.1)'
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 10
@@ -324,6 +333,7 @@ function initAnalyticsMemoryChart() {
                 legend: {
                     position: 'top',
                     labels: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Roboto', sans-serif",
                             size: 11
@@ -383,6 +393,7 @@ function initAnalyticsMemoryChart() {
                         display: false
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 9
@@ -395,9 +406,10 @@ function initAnalyticsMemoryChart() {
                     beginAtZero: true,
                     max: 100,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
+                        color: 'rgba(242, 240, 239, 0.1)'
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 10
@@ -489,6 +501,7 @@ function initAnalyticsSessionsChart() {
                     display: true,
                     position: 'top',
                     labels: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Roboto', sans-serif",
                             size: 12,
@@ -532,6 +545,7 @@ function initAnalyticsSessionsChart() {
                         display: false
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 10
@@ -547,9 +561,10 @@ function initAnalyticsSessionsChart() {
                     stacked: true,
                     beginAtZero: true,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
+                        color: 'rgba(242, 240, 239, 0.1)'
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 10
@@ -645,6 +660,7 @@ function initAnalyticsThreatsChart() {
                         display: false
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 10
@@ -657,9 +673,10 @@ function initAnalyticsThreatsChart() {
                     display: true,
                     beginAtZero: true,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
+                        color: 'rgba(242, 240, 239, 0.1)'
                     },
                     ticks: {
+                        color: '#F2F0EF',
                         font: {
                             family: "'Open Sans', sans-serif",
                             size: 10
@@ -693,6 +710,7 @@ function initComparisonCharts() {
                 display: true,
                 position: 'bottom',
                 labels: {
+                    color: '#F2F0EF',
                     font: { family: "'Roboto', sans-serif", size: 9 },
                     padding: 8,
                     boxWidth: 12,
@@ -713,6 +731,7 @@ function initComparisonCharts() {
                 display: true,
                 grid: { display: false },
                 ticks: {
+                    color: '#F2F0EF',
                     font: { size: 8 },
                     maxRotation: 45,
                     minRotation: 0,
@@ -722,8 +741,9 @@ function initComparisonCharts() {
             y: {
                 display: true,
                 beginAtZero: true,
-                grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                grid: { color: 'rgba(242, 240, 239, 0.1)' },
                 ticks: {
+                    color: '#F2F0EF',
                     font: { size: 8 },
                     maxTicksLimit: 5
                 }
@@ -747,7 +767,7 @@ function initComparisonCharts() {
                 ...commonOptions,
                 scales: {
                     ...commonOptions.scales,
-                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 8 }, maxTicksLimit: 5 } }
+                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#F2F0EF', font: { size: 8 }, maxTicksLimit: 5 } }
                 }
             }
         });
@@ -817,7 +837,7 @@ function initComparisonCharts() {
                 ...commonOptions,
                 scales: {
                     ...commonOptions.scales,
-                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 8 }, maxTicksLimit: 5 } }
+                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#F2F0EF', font: { size: 8 }, maxTicksLimit: 5 } }
                 }
             }
         });
@@ -839,7 +859,7 @@ function initComparisonCharts() {
                 ...commonOptions,
                 scales: {
                     ...commonOptions.scales,
-                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 8 }, maxTicksLimit: 5 } }
+                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#F2F0EF', font: { size: 8 }, maxTicksLimit: 5 } }
                 }
             }
         });
@@ -1399,7 +1419,7 @@ function updatePeakStatistics(samples) {
     const peakSessionsEl = document.getElementById('analyticsPeakSessions');
     const peakSessionsTimeEl = document.getElementById('analyticsPeakSessionsTime');
     if (peakSessionsEl) {
-        peakSessionsEl.textContent = peakSessions.toLocaleString();
+        peakSessionsEl.textContent = Math.round(peakSessions || 0).toLocaleString();
     }
     if (peakSessionsTimeEl && peakSessionsTime) {
         const sessionsDate = new Date(peakSessionsTime);
@@ -1416,9 +1436,10 @@ function updatePeakStatistics(samples) {
 
     samples.forEach(sample => {
         // CPU and Memory data is nested in cpu object
-        const cpuDP = sample.cpu?.data_plane_cpu || 0;
-        const cpuMgmt = sample.cpu?.mgmt_plane_cpu || 0;
-        const memory = sample.cpu?.memory_used_pct || 0;
+        // Ensure values are numbers (parseFloat handles strings from database)
+        const cpuDP = parseFloat(sample.cpu?.data_plane_cpu) || 0;
+        const cpuMgmt = parseFloat(sample.cpu?.mgmt_plane_cpu) || 0;
+        const memory = parseFloat(sample.cpu?.memory_used_pct) || 0;
 
         totalCpuDataPlane += cpuDP;
         totalCpuMgmt += cpuMgmt;
@@ -1437,30 +1458,30 @@ function updatePeakStatistics(samples) {
     const avgCpuDataPlaneEl = document.getElementById('avgCpuDataPlane');
     const peakCpuDataPlaneEl = document.getElementById('peakCpuDataPlane');
     if (avgCpuDataPlaneEl) {
-        avgCpuDataPlaneEl.textContent = `${avgCpuDataPlane.toFixed(1)}%`;
+        avgCpuDataPlaneEl.textContent = `${(avgCpuDataPlane || 0).toFixed(1)}%`;
     }
     if (peakCpuDataPlaneEl) {
-        peakCpuDataPlaneEl.textContent = `${peakCpuDataPlane.toFixed(1)}%`;
+        peakCpuDataPlaneEl.textContent = `${(peakCpuDataPlane || 0).toFixed(1)}%`;
     }
 
     // Update CPU Management Plane stats
     const avgCpuMgmtEl = document.getElementById('avgCpuMgmt');
     const peakCpuMgmtEl = document.getElementById('peakCpuMgmt');
     if (avgCpuMgmtEl) {
-        avgCpuMgmtEl.textContent = `${avgCpuMgmt.toFixed(1)}%`;
+        avgCpuMgmtEl.textContent = `${(avgCpuMgmt || 0).toFixed(1)}%`;
     }
     if (peakCpuMgmtEl) {
-        peakCpuMgmtEl.textContent = `${peakCpuMgmt.toFixed(1)}%`;
+        peakCpuMgmtEl.textContent = `${(peakCpuMgmt || 0).toFixed(1)}%`;
     }
 
     // Update Memory stats
     const avgMemoryEl = document.getElementById('avgMemory');
     const peakMemoryEl = document.getElementById('peakMemory');
     if (avgMemoryEl) {
-        avgMemoryEl.textContent = `${avgMemory.toFixed(1)}%`;
+        avgMemoryEl.textContent = `${(avgMemory || 0).toFixed(1)}%`;
     }
     if (peakMemoryEl) {
-        peakMemoryEl.textContent = `${peakMemory.toFixed(1)}%`;
+        peakMemoryEl.textContent = `${(peakMemory || 0).toFixed(1)}%`;
     }
 
     // Calculate session statistics (TCP, UDP, ICMP breakdown)
@@ -1471,9 +1492,10 @@ function updatePeakStatistics(samples) {
 
     samples.forEach(sample => {
         const sessions = sample.sessions || {};
-        const tcp = sessions.tcp || 0;
-        const udp = sessions.udp || 0;
-        const icmp = sessions.icmp || 0;
+        // Ensure values are integers (parseFloat then Math.round handles strings from database)
+        const tcp = Math.round(parseFloat(sessions.tcp) || 0);
+        const udp = Math.round(parseFloat(sessions.udp) || 0);
+        const icmp = Math.round(parseFloat(sessions.icmp) || 0);
         const total = tcp + udp + icmp;
 
         if (total > peakTotalSessions) peakTotalSessions = total;
@@ -1879,7 +1901,7 @@ function renderTopClientsTable(clients, totalClients) {
 
     // Build table HTML
     let html = `
-        <div style="margin-bottom: 15px; color: #666; font-size: 0.9em; font-family: var(--font-secondary);">
+        <div style="margin-bottom: 15px; color: #999; font-size: 0.9em; font-family: var(--font-secondary);">
             Showing top ${clients.length} of ${totalClients} unique clients
         </div>
         <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary);">
@@ -1898,20 +1920,23 @@ function renderTopClientsTable(clients, totalClients) {
 
     clients.forEach((client, index) => {
         const rank = index + 1;
-        let rankIcon = rank;
-        if (rank === 1) rankIcon = '🥇';
-        else if (rank === 2) rankIcon = '🥈';
-        else if (rank === 3) rankIcon = '🥉';
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
 
-        const rowColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
+        // Format Total MB - round to 2 decimal places, then format with commas
+        const totalMB = parseFloat(client.total_mb || 0).toFixed(2);
+        const formattedTotalMB = parseFloat(totalMB).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        // Format Avg Mbps - if 0 or very small, show with more precision
+        const avgMbps = parseFloat(client.avg_mbps || 0);
+        const formattedAvgMbps = avgMbps >= 0.01 ? avgMbps.toFixed(2) : avgMbps.toFixed(4);
 
         html += `
-            <tr style="background: ${rowColor}; border-bottom: 1px solid #eee;">
-                <td style="padding: 12px; text-align: center; font-size: 1.2em;">${rankIcon}</td>
-                <td style="padding: 12px; font-family: monospace; color: #333; font-weight: 500;">${escapeHtml(client.ip)}</td>
-                <td style="padding: 12px; color: #666;">${escapeHtml(client.hostname)}</td>
-                <td style="padding: 12px; text-align: right; font-weight: 600; color: #FA582D;">${client.total_mb.toLocaleString()}</td>
-                <td style="padding: 12px; text-align: right; color: #666;">${client.avg_mbps.toFixed(2)}</td>
+            <tr style="${rowStyle} border-bottom: 1px solid #444;">
+                <td style="padding: 12px; text-align: center; font-size: 1em; color: #ccc; font-weight: 600;">${rank}</td>
+                <td style="padding: 12px; font-family: monospace; color: #F2F0EF; font-weight: 500;">${escapeHtml(client.ip)}</td>
+                <td style="padding: 12px; color: #ccc;">${escapeHtml(client.hostname)}</td>
+                <td style="padding: 12px; text-align: right; font-weight: 600; color: #FA582D;">${formattedTotalMB}</td>
+                <td style="padding: 12px; text-align: right; color: #ccc;">${formattedAvgMbps}</td>
                 <td style="padding: 12px; text-align: center; color: #999; font-size: 0.9em;">${client.sample_count}</td>
             </tr>
         `;
@@ -1931,6 +1956,35 @@ function renderTopClientsTable(clients, totalClients) {
 window.refreshTopClients = function() {
     loadTopClients();
 };
+
+/**
+ * Save analytics time range selection to localStorage
+ */
+window.saveAnalyticsTimeRange = function() {
+    const select = document.getElementById('analyticsTimeRange');
+    if (select) {
+        const value = select.value;
+        localStorage.setItem('analyticsTimeRange', value);
+        console.log(`Saved analytics time range: ${value}`);
+    }
+};
+
+/**
+ * Restore analytics time range selection from localStorage
+ * Defaults to 6h if no saved value exists
+ */
+function restoreAnalyticsTimeRange() {
+    const select = document.getElementById('analyticsTimeRange');
+    if (select) {
+        const saved = localStorage.getItem('analyticsTimeRange');
+        const defaultValue = '6h'; // Default to 6 hours
+        const valueToUse = saved || defaultValue;
+
+        select.value = valueToUse;
+        currentAnalyticsRange = valueToUse;
+        console.log(`Restored analytics time range: ${valueToUse}`);
+    }
+}
 
 // Module loaded
 console.log('Insights Dashboard module loaded (v1.12.0)');

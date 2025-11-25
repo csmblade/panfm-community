@@ -28,6 +28,11 @@ let sankeyTotalFlows = null;
 let sankeyTotalVolume = null;
 let sankeyTimeRange = null;
 
+// Current modal state (for refresh functionality)
+let currentClientIp = null;
+let currentExpectedVolume = null;
+let currentFlowData = null;
+
 // Cache TTL in milliseconds (60 seconds to align with server-side cache)
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -87,6 +92,10 @@ async function openSankeyDiagram(clientIp, expectedTotalVolume = null) {
         return;
     }
 
+    // Store current state for refresh functionality
+    currentClientIp = clientIp;
+    currentExpectedVolume = expectedTotalVolume;
+
     // Show modal
     sankeyModal.style.display = 'flex';
 
@@ -103,6 +112,7 @@ async function openSankeyDiagram(clientIp, expectedTotalVolume = null) {
     // Fetch and render data
     try {
         const flowData = await fetchTrafficFlows(deviceId, clientIp);
+        currentFlowData = flowData;  // Store for refresh
 
         if (!flowData || !flowData.flows || flowData.flows.length === 0) {
             showSankeyError('No traffic flow data available for this client in the last 60 minutes.');
@@ -398,7 +408,8 @@ function renderSankeyDiagram(flows) {
         .text(d => d.name)
         .style('font-family', 'var(--font-secondary)')
         .style('font-size', '12px')
-        .style('fill', '#333');
+        .style('fill', '#F2F0EF')  // Dark theme text color
+        .style('font-weight', '500');
 }
 
 /**
@@ -433,11 +444,20 @@ function buildSankeyData(flows) {
         // Skip flows with zero bytes
         if (bytes === 0) return;
 
-        // Create destination label with port (e.g., "192.168.1.100:443")
-        const destLabel = destPort ? `${destIp}:${destPort}` : destIp;
+        // Apply reverse DNS lookup if enabled
+        const sourceLabel = window.ConnectedDevices && window.ConnectedDevices.isReverseDnsEnabled()
+            ? window.ConnectedDevices.getIpDisplayLabel(sourceIp)
+            : sourceIp;
+
+        const destIpLabel = window.ConnectedDevices && window.ConnectedDevices.isReverseDnsEnabled()
+            ? window.ConnectedDevices.getIpDisplayLabel(destIp)
+            : destIp;
+
+        // Create destination label with port (e.g., "192.168.1.100:443" or "hostname.com:443")
+        const destLabel = destPort ? `${destIpLabel}:${destPort}` : destIpLabel;
 
         // Get or create nodes for all three layers
-        const sourceIdx = getOrCreateNode(sourceIp, 'source');
+        const sourceIdx = getOrCreateNode(sourceLabel, 'source');
         const appIdx = getOrCreateNode(application, 'application');
         const destIdx = getOrCreateNode(destLabel, 'destination');
 
@@ -550,9 +570,37 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+/**
+ * Refresh the currently open Sankey diagram
+ * Used when reverse DNS setting is toggled
+ */
+function refreshSankeyDiagram() {
+    if (!sankeyModal || sankeyModal.style.display !== 'flex') {
+        console.log('[SANKEY] No modal open, skipping refresh');
+        return;
+    }
+
+    if (!currentFlowData || !currentFlowData.flows) {
+        console.log('[SANKEY] No flow data available, skipping refresh');
+        return;
+    }
+
+    console.log('[SANKEY] Refreshing diagram with current flow data...');
+
+    // Clear and re-render with current flow data
+    clearSankeyDiagram();
+    renderSankeyDiagram(currentFlowData.flows);
+    hideSankeyLoading();
+}
+
 // Export functions to global scope for inline onclick handlers
 window.openSankeyDiagram = openSankeyDiagram;
 window.closeSankeyModal = closeSankeyModal;
+
+// Export refresh function via SankeyModal namespace for DNS toggle
+window.SankeyModal = {
+    refresh: refreshSankeyDiagram
+};
 
 // Initialize modal when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {

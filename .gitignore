@@ -97,6 +97,8 @@ TYPOGRAPHY_GUIDE.md
 # Exception: Allow public documentation
 !README.md
 !CONTRIBUTING.md
+!LICENSE
+!NOTICE
 
 # Claude Code metadata
 # BOTH .claude/ and .claude-templates/ are private (contain project knowledge)
@@ -104,3 +106,42 @@ TYPOGRAPHY_GUIDE.md
 .claude-templates/
 
 mac_vendor_db.json
+
+# =========================================
+# Enterprise Edition & Licensing (v1.0.0)
+# =========================================
+# These files are NEVER committed to public repos
+
+# RSA key pairs for license signing (CRITICAL SECURITY)
+keys/
+license_private.pem
+license_public.pem
+
+# Enterprise Edition license validator (EE-only, not in Community Edition)
+license_validator.py
+
+# License generator tool (internal-only, not in any public repo)
+license_generator.py
+
+# License files (customer-specific)
+data/license.json
+
+# RSA key generation utility (internal-only)
+generate_rsa_keys.py
+
+# Sync scripts (internal deployment tools)
+sync-to-community.bat
+sync-to-community.sh
+.gitignore.community
+
+# Test files (development/testing only)
+test_*.py
+*_test.py
+final_test_*.py
+
+# Temporary fix/troubleshooting scripts (development only)
+fix_*.py
+remove_*.py
+migrate_*.py
+metadata_methods.py
+check_cpu_debug.bat

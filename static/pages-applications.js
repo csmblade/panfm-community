@@ -240,64 +240,153 @@ function renderCategoryChart() {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10);
 
-    const labels = sortedCategories.map(([category]) => category);
-    const dataValues = sortedCategories.map(([, bytes]) => bytes / (1024 * 1024)); // Convert to MB
+    // Clear any existing chart/SVG
+    const container = document.getElementById('trafficByCategoryChart');
+    container.innerHTML = '';
 
-    // Destroy previous chart if it exists
-    if (categoryChart) {
-        categoryChart.destroy();
+    // Find max bytes for scaling bubble size
+    const maxBytes = Math.max(...sortedCategories.map(([, bytes]) => bytes));
+    const minBubbleSize = 30;
+    const maxBubbleSize = 100;
+
+    // Generate gradient orange colors for bubbles
+    const orangeGradient = [
+        '#FA582D',  // Primary orange
+        '#E04F26',  // Darker orange
+        '#B8541E',  // Even darker
+        '#C23C14',  // Darkest orange
+        '#FF6F47',  // Lighter coral
+        '#FF8C5A',  // Light orange
+        '#E66432',  // Mid orange
+        '#C85A28',  // Dark orange
+        '#F07846',  // Bright orange
+        '#D25F2D'   // Medium orange
+    ];
+
+    // Prepare bubble data with scaled radii
+    const bubbleData = sortedCategories.map(([category, bytes], index) => {
+        const scale = Math.sqrt(bytes / maxBytes); // Use sqrt for better visual scaling
+        const radius = minBubbleSize + (scale * (maxBubbleSize - minBubbleSize));
+
+        return {
+            category: category,
+            bytes: bytes,
+            radius: radius,
+            color: orangeGradient[index % orangeGradient.length]
+        };
+    });
+
+    // Get container dimensions
+    const width = container.offsetWidth || 800;
+    const height = 400;
+
+    // Create SVG
+    const svg = d3.select(container)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background', 'transparent');
+
+    // Create force simulation for bubble packing
+    const simulation = d3.forceSimulation(bubbleData)
+        .force('charge', d3.forceManyBody().strength(5))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => d.radius + 2))
+        .force('x', d3.forceX(width / 2).strength(0.05))
+        .force('y', d3.forceY(height / 2).strength(0.05));
+
+    // Create bubble groups
+    const bubbles = svg.selectAll('g')
+        .data(bubbleData)
+        .enter()
+        .append('g')
+        .style('cursor', 'pointer');
+
+    // Add circles
+    bubbles.append('circle')
+        .attr('r', d => d.radius)
+        .attr('fill', d => d.color)
+        .attr('fill-opacity', 0.7)
+        .attr('stroke', d => d.color)
+        .attr('stroke-width', 2)
+        .attr('stroke-opacity', 1)
+        .on('mouseover', function(event, d) {
+            d3.select(this)
+                .attr('fill-opacity', 0.9)
+                .attr('stroke-width', 3);
+
+            // Show tooltip
+            tooltip.style('display', 'block')
+                .html(`<strong>${d.category}</strong><br/>Traffic: ${formatBytesHuman(d.bytes)}`)
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 28) + 'px');
+        })
+        .on('mouseout', function() {
+            d3.select(this)
+                .attr('fill-opacity', 0.7)
+                .attr('stroke-width', 2);
+
+            tooltip.style('display', 'none');
+        });
+
+    // Add text labels (category names)
+    bubbles.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '-0.3em')
+        .style('fill', '#F2F0EF')
+        .style('font-size', d => Math.max(10, d.radius / 5) + 'px')
+        .style('font-weight', '600')
+        .style('font-family', 'var(--font-primary)')
+        .style('pointer-events', 'none')
+        .style('user-select', 'none')
+        .text(d => {
+            // Truncate long category names
+            const maxChars = Math.floor(d.radius / 6);
+            return d.category.length > maxChars ? d.category.substring(0, maxChars) + '...' : d.category;
+        });
+
+    // Add traffic size labels
+    bubbles.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '1em')
+        .style('fill', '#F2F0EF')
+        .style('font-size', d => Math.max(9, d.radius / 6) + 'px')
+        .style('font-weight', '400')
+        .style('font-family', 'var(--font-secondary)')
+        .style('opacity', 0.9)
+        .style('pointer-events', 'none')
+        .style('user-select', 'none')
+        .text(d => formatBytesHuman(d.bytes));
+
+    // Create tooltip div (reuse if exists)
+    let tooltip = d3.select('body').select('.d3-bubble-tooltip');
+    if (tooltip.empty()) {
+        tooltip = d3.select('body')
+            .append('div')
+            .attr('class', 'd3-bubble-tooltip')
+            .style('position', 'absolute')
+            .style('display', 'none')
+            .style('background', 'rgba(45, 45, 45, 0.95)')
+            .style('color', '#F2F0EF')
+            .style('padding', '10px 15px')
+            .style('border-radius', '6px')
+            .style('border', '1px solid #FA582D')
+            .style('font-family', 'var(--font-secondary)')
+            .style('font-size', '13px')
+            .style('pointer-events', 'none')
+            .style('z-index', '10000')
+            .style('box-shadow', '0 4px 8px rgba(0,0,0,0.3)');
     }
 
-    // Create chart
-    const ctx = document.getElementById('trafficByCategoryChart');
-    categoryChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Traffic Volume (MB)',
-                data: dataValues,
-                backgroundColor: 'rgba(250, 88, 45, 0.8)',
-                borderColor: '#FA582D',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            indexAxis: 'y', // Horizontal bar chart
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return formatBytesHuman(context.raw * 1024 * 1024);
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return value.toFixed(0) + ' MB';
-                        }
-                    },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                },
-                y: {
-                    grid: {
-                        display: false
-                    }
-                }
-            }
-        }
+    // Update positions on simulation tick
+    simulation.on('tick', () => {
+        bubbles.attr('transform', d => `translate(${d.x},${d.y})`);
     });
+
+    // Let simulation run for a bit then slow it down
+    setTimeout(() => {
+        simulation.alphaDecay(0.05);
+    }, 1000);
 }
 
 function sortApplications(field) {
@@ -365,8 +454,8 @@ function renderApplicationsTable() {
 
     if (displayed.length === 0) {
         container.innerHTML = `
-            <div style="background: white; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                <p style="color: #999; font-size: 1.1em;">No applications found</p>
+            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <p style="color: #ccc; font-size: 1.1em;">No applications found</p>
             </div>
         `;
         return;
@@ -380,46 +469,61 @@ function renderApplicationsTable() {
     };
 
     let html = `
-        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 3px solid #FA582D; overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary); font-size: 0.9em; min-width: 1400px;">
-                <thead>
-                    <tr style="border-bottom: 2px solid #FA582D;">
-                        <th onclick="sortApplications('name')" style="padding: 12px; text-align: left; color: #333; font-weight: 600; cursor: pointer; user-select: none; font-family: var(--font-primary);">
-                            Application${getSortIndicator('name')}
-                        </th>
-                        <th onclick="sortApplications('category')" style="padding: 12px; text-align: left; color: #333; font-weight: 600; cursor: pointer; user-select: none; font-family: var(--font-primary);">
-                            Category${getSortIndicator('category')}
-                        </th>
-                        <th onclick="sortApplications('bytes_sent')" style="padding: 12px; text-align: right; color: #333; font-weight: 600; cursor: pointer; user-select: none; font-family: var(--font-primary);">
-                            Bytes Sent${getSortIndicator('bytes_sent')}
-                        </th>
-                        <th onclick="sortApplications('bytes_received')" style="padding: 12px; text-align: right; color: #333; font-weight: 600; cursor: pointer; user-select: none; font-family: var(--font-primary);">
-                            Bytes Received${getSortIndicator('bytes_received')}
-                        </th>
-                        <th onclick="sortApplications('bytes')" style="padding: 12px; text-align: right; color: #FA582D; font-weight: 600; cursor: pointer; user-select: none; font-family: var(--font-primary);">
-                            Total Volume${getSortIndicator('bytes')}
-                        </th>
-                        <th onclick="sortApplications('source_count')" style="padding: 12px; text-align: right; color: #333; font-weight: 600; cursor: pointer; user-select: none; font-family: var(--font-primary);">
-                            Sources${getSortIndicator('source_count')}
-                        </th>
-                        <th onclick="sortApplications('dest_count')" style="padding: 12px; text-align: right; color: #333; font-weight: 600; cursor: pointer; user-select: none; font-family: var(--font-primary);">
-                            Destinations${getSortIndicator('dest_count')}
-                        </th>
-                        <th style="padding: 12px; text-align: left; color: #333; font-weight: 600; font-family: var(--font-primary);">Protocols</th>
-                        <th style="padding: 12px; text-align: left; color: #333; font-weight: 600; font-family: var(--font-primary);">Top Ports</th>
-                        <th style="padding: 12px; text-align: left; color: #333; font-weight: 600; font-family: var(--font-primary);">VLANs</th>
-                    </tr>
-                </thead>
-                <tbody>
+        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-top: 4px solid #F2F0EF;">
+            <div style="padding: 15px 20px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); color: white; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-primary);">
+                <div>
+                    <strong style="font-size: 1.1em;">Applications</strong>
+                    <span style="margin-left: 15px; opacity: 0.9; font-family: var(--font-secondary);">Showing ${displayed.length} of ${filtered.length} applications</span>
+                </div>
+                <div style="font-size: 0.9em; opacity: 0.9; font-family: var(--font-secondary);">
+                    Total: ${allApplications.length}
+                </div>
+            </div>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary); font-size: 0.9em; background: transparent; min-width: 1400px;">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 2px solid #555; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                            <th onclick="sortApplications('name')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
+                                Application${getSortIndicator('name')}
+                            </th>
+                            <th onclick="sortApplications('category')" style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
+                                Category${getSortIndicator('category')}
+                            </th>
+                            <th onclick="sortApplications('bytes_sent')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
+                                Bytes Sent${getSortIndicator('bytes_sent')}
+                            </th>
+                            <th onclick="sortApplications('bytes_received')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
+                                Bytes Received${getSortIndicator('bytes_received')}
+                            </th>
+                            <th onclick="sortApplications('bytes')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #FA582D; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
+                                Total Volume${getSortIndicator('bytes')}
+                            </th>
+                            <th onclick="sortApplications('source_count')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
+                                Sources${getSortIndicator('source_count')}
+                            </th>
+                            <th onclick="sortApplications('dest_count')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
+                                Destinations${getSortIndicator('dest_count')}
+                            </th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Protocols</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Top Ports</th>
+                            <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">VLANs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
     `;
 
     displayed.forEach((app, index) => {
         const totalVolume = formatBytesHuman(app.bytes);
         const bytesSent = formatBytesHuman(app.bytes_sent || 0);
         const bytesReceived = formatBytesHuman(app.bytes_received || 0);
-        const protocols = app.protocols.slice(0, 3).join(', ') || 'N/A';
-        const ports = app.ports.slice(0, 5).join(', ') || 'N/A';
-        const vlans = (app.vlans || []).join(', ') || 'N/A';
+        const protocols = app.protocols.slice(0, 3).join(', ') || '-';
+        const ports = app.ports.slice(0, 5).join(', ') || '-';
+        // Strip "VLAN " prefix from VLAN numbers (column header already says "VLANs")
+        // Handle both "VLAN 10" and "VLAN10" formats, and show "-" if empty
+        const vlans = (app.vlans || [])
+            .map(v => String(v).replace(/^VLAN\s*/i, '').trim())
+            .filter(v => v && v !== '')
+            .join(', ') || '-';
         const category = app.category || 'unknown';
 
         // Category badge colors
@@ -433,24 +537,27 @@ function renderApplicationsTable() {
         };
         const categoryColor = categoryColors[category.toLowerCase()] || categoryColors['other'];
 
+        // Alternating row background (matches Connected Devices)
+        const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
+
         html += `
-            <tr style="border-bottom: 1px solid #eee; transition: background 0.2s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='white'">
-                <td onclick="showAppDetails(${index})" style="padding: 12px; cursor: pointer;">
+            <tr style="${rowStyle} border-bottom: 1px solid #444; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #3a3a3a 0%, #333333 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #2a2a2a 0%, #252525 100%)' : 'linear-gradient(135deg, #333333 0%, #2d2d2d 100%)'}'; this.style.borderLeft='4px solid transparent';">
+                <td onclick="showAppDetails(${index})" style="padding: 12px;">
                     <span style="color: #FA582D; font-weight: 600; text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='#C64620'" onmouseout="this.style.color='#FA582D'">${app.name}</span>
                 </td>
-                <td onclick="showAppDestinations(${index})" style="padding: 12px; cursor: pointer;">
+                <td onclick="showAppDestinations(${index})" style="padding: 12px;">
                     <span style="background: ${categoryColor}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 600; display: inline-block; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
                         ${category}
                     </span>
                 </td>
-                <td style="padding: 12px; color: #666; text-align: right;">${bytesSent}</td>
-                <td style="padding: 12px; color: #666; text-align: right;">${bytesReceived}</td>
+                <td style="padding: 12px; color: #ccc; text-align: right;">${bytesSent}</td>
+                <td style="padding: 12px; color: #ccc; text-align: right;">${bytesReceived}</td>
                 <td style="padding: 12px; color: #FA582D; text-align: right; font-weight: 600;">${totalVolume}</td>
-                <td style="padding: 12px; color: #666; text-align: right;">${app.source_count}</td>
-                <td style="padding: 12px; color: #666; text-align: right;">${app.dest_count}</td>
-                <td style="padding: 12px; color: #666;">${protocols}</td>
-                <td style="padding: 12px; color: #666; font-family: monospace;">${ports}</td>
-                <td style="padding: 12px; color: #666;">${vlans}</td>
+                <td style="padding: 12px; color: #ccc; text-align: right;">${app.source_count}</td>
+                <td style="padding: 12px; color: #ccc; text-align: right;">${app.dest_count}</td>
+                <td style="padding: 12px; color: #ccc;">${protocols}</td>
+                <td style="padding: 12px; color: #ccc; font-family: monospace;">${ports}</td>
+                <td style="padding: 12px; color: #ccc;">${vlans}</td>
             </tr>
         `;
     });
@@ -458,6 +565,7 @@ function renderApplicationsTable() {
     html += `
                 </tbody>
             </table>
+            </div>
         </div>
     `;
 
@@ -486,24 +594,22 @@ function showApplicationsError(message) {
  * Displays friendly message while waiting for first data collection
  */
 function showApplicationsWaiting(message, retryAfterSeconds) {
-    const tableBody = document.getElementById('applicationsTableBody');
-    tableBody.innerHTML = `
-        <tr>
-            <td colspan="7" style="text-align: center; padding: 60px 20px;">
-                <div style="font-size: 20px; color: #FA582D; margin-bottom: 15px;">
-                    ⏳ System Ready - Initial Data Collection
-                </div>
-                <div style="font-size: 16px; color: #666; font-family: var(--font-secondary); margin-bottom: 20px;">
-                    ${message}
-                </div>
-                <div style="font-size: 14px; color: #999;">
-                    This page will automatically refresh when data is available
-                </div>
-                <div style="margin-top: 20px;">
-                    <div class="loading-spinner" style="margin: 0 auto;"></div>
-                </div>
-            </td>
-        </tr>
+    const container = document.getElementById('applicationsTable');
+    container.innerHTML = `
+        <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 60px 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="font-size: 20px; color: #FA582D; margin-bottom: 15px;">
+                ⏳ System Ready - Initial Data Collection
+            </div>
+            <div style="font-size: 16px; color: #ccc; font-family: var(--font-secondary); margin-bottom: 20px;">
+                ${message}
+            </div>
+            <div style="font-size: 14px; color: #999;">
+                This page will automatically refresh when data is available
+            </div>
+            <div style="margin-top: 20px;">
+                <div class="loading-spinner" style="margin: 0 auto;"></div>
+            </div>
+        </div>
     `;
 
     // Clear summary tiles
@@ -777,8 +883,8 @@ async function showAppDestinations(appIndex) {
                         console.log(`IP: ${dest.ip}, Hostname: ${hostname}, Show: ${showHostname}`);
 
                         destHtml += `
-                            <div style="background: white; border: 1px solid #ddd; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
-                                ${showHostname ? `<div style="color: #333; font-weight: 600; margin-bottom: 3px;">${hostname}</div>` : ''}
+                            <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
+                                ${showHostname ? `<div style="color: #F2F0EF; font-weight: 600; margin-bottom: 3px;">${hostname}</div>` : ''}
                                 <div style="font-family: monospace; color: #FA582D; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
                                 <div style="font-size: 0.85em; color: #666; margin-bottom: 2px;">${portDisplay}</div>
                                 <div style="font-size: 0.8em; color: #FA582D; font-weight: 600;">${bytesDisplay}</div>
@@ -797,7 +903,7 @@ async function showAppDestinations(appIndex) {
                     const portDisplay = formatPortDisplay(dest.port);
                     const bytesDisplay = formatBytesHuman(dest.bytes || 0);
                     destHtml += `
-                        <div style="background: white; border: 1px solid #ddd; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
+                        <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
                             <div style="font-family: monospace; color: #FA582D; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
                             <div style="font-size: 0.85em; color: #666; margin-bottom: 2px;">${portDisplay}</div>
                             <div style="font-size: 0.8em; color: #FA582D; font-weight: 600; margin-bottom: 2px;">${bytesDisplay}</div>
@@ -814,7 +920,7 @@ async function showAppDestinations(appIndex) {
                 const portDisplay = formatPortDisplay(dest.port);
                 const bytesDisplay = formatBytesHuman(dest.bytes || 0);
                 destHtml += `
-                    <div style="background: white; border: 1px solid #ddd; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
+                    <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
                         <div style="font-family: monospace; color: #FA582D; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
                         <div style="font-size: 0.85em; color: #666; margin-bottom: 2px;">${portDisplay}</div>
                         <div style="font-size: 0.8em; color: #FA582D; font-weight: 600;">${bytesDisplay}</div>
@@ -902,8 +1008,8 @@ function showAppDetails(appIndex) {
             const subtitle = source.custom_name ? (source.original_hostname || source.hostname) : null;
             
             sourceHtml += `
-                <div style="background: white; border: 2px solid #FA582D; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
-                    <div style="color: #333; font-weight: 600; font-size: 0.95em; margin-bottom: ${showSubtitle ? '3px' : '0'};">
+                <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #FA582D; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
+                    <div style="color: #F2F0EF; font-weight: 600; font-size: 0.95em; margin-bottom: ${showSubtitle ? '3px' : '0'};">
                         ${displayName}
                     </div>
                     ${showSubtitle ? `<div style="color: #666; font-size: 0.8em; margin-bottom: 3px;">${subtitle}</div>` : ''}
@@ -920,7 +1026,7 @@ function showAppDetails(appIndex) {
         let sourceHtml = '';
         app.source_ips.forEach(ip => {
             sourceHtml += `
-                <div style="background: white; border: 2px solid #FA582D; border-radius: 6px; padding: 8px 12px; font-family: monospace; color: #333; font-size: 0.9em; font-weight: 500;">
+                <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #FA582D; border-radius: 6px; padding: 8px 12px; font-family: monospace; color: #F2F0EF; font-size: 0.9em; font-weight: 500;">
                     ${ip}
                 </div>
             `;
@@ -971,4 +1077,61 @@ function hideAppDetails() {
     const modal = document.getElementById('appDetailsModal');
     modal.style.display = 'none';
 }
+
+/**
+ * Toggle Applications Filter Visibility
+ * Mimics Connected Devices page filter toggle functionality
+ */
+function toggleApplicationsFilters() {
+    const filterArea = document.getElementById('applicationsFilterArea');
+    const toggleBtn = document.getElementById('toggleApplicationsFiltersBtn');
+
+    if (!filterArea || !toggleBtn) {
+        console.warn('[APPS] Filter area or toggle button not found');
+        return;
+    }
+
+    const isCurrentlyHidden = filterArea.style.display === 'none';
+
+    if (isCurrentlyHidden) {
+        // Show filters
+        filterArea.style.display = 'block';
+        toggleBtn.innerHTML = '▲ Hide Filters';
+        localStorage.setItem('applicationsFiltersVisible', 'true');
+        console.log('[APPS] Filters shown');
+    } else {
+        // Hide filters
+        filterArea.style.display = 'none';
+        toggleBtn.innerHTML = '▼ Show Filters';
+        localStorage.setItem('applicationsFiltersVisible', 'false');
+        console.log('[APPS] Filters hidden');
+    }
+}
+
+/**
+ * Restore Applications Filter Visibility State
+ * Called on page load to restore user's preference
+ */
+function restoreApplicationsFiltersState() {
+    const filterArea = document.getElementById('applicationsFilterArea');
+    const toggleBtn = document.getElementById('toggleApplicationsFiltersBtn');
+
+    if (!filterArea || !toggleBtn) return;
+
+    // Default: hidden (consistent with Connected Devices)
+    const filtersVisible = localStorage.getItem('applicationsFiltersVisible') === 'true';
+
+    if (filtersVisible) {
+        filterArea.style.display = 'block';
+        toggleBtn.innerHTML = '▲ Hide Filters';
+    } else {
+        filterArea.style.display = 'none';
+        toggleBtn.innerHTML = '▼ Show Filters';
+    }
+
+    console.log(`[APPS] Restored filter state: ${filtersVisible ? 'visible' : 'hidden'}`);
+}
+
+// Export toggle function for inline onclick handler
+window.toggleApplicationsFilters = toggleApplicationsFilters;
 

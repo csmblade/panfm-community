@@ -38,19 +38,30 @@ def get_system_logs(firewall_config, max_logs=50):
             if job_id is not None and job_id.text:
                 debug(f"System log job ID: {job_id.text}")
 
-                # Wait briefly and fetch job results
-                time.sleep(0.5)
-                result_params = {
-                    'type': 'log',
-                    'action': 'get',
-                    'job-id': job_id.text,
-                    'key': api_key
-                }
+                # Poll job status until complete (max 5 seconds)
+                for attempt in range(10):
+                    time.sleep(0.5)
+                    status_params = {
+                        'type': 'log',
+                        'action': 'get',
+                        'job-id': job_id.text,
+                        'key': api_key
+                    }
 
-                result_response = api_request_get(base_url, params=result_params, verify=False, timeout=10)
-                if result_response.status_code == 200:
-                    root = ET.fromstring(result_response.text)
-                    debug(f"System log job result fetched")
+                    status_response = api_request_get(base_url, params=status_params, verify=False, timeout=10)
+                    if status_response.status_code == 200:
+                        status_root = ET.fromstring(status_response.text)
+                        job_status = status_root.find('.//status')
+
+                        if job_status is not None and job_status.text == 'FIN':
+                            debug(f"System log job completed after {(attempt + 1) * 0.5}s")
+                            root = status_root
+                            break
+                        else:
+                            debug(f"System log job status: {job_status.text if job_status is not None else 'unknown'} (attempt {attempt + 1})")
+                else:
+                    debug("System log job did not complete in 5 seconds")
+                    return system_logs
 
             # Parse system log entries with all fields
             for entry in root.findall('.//entry'):
@@ -438,18 +449,30 @@ def get_traffic_logs(firewall_config, max_logs=50):
             if job_id is not None and job_id.text:
                 debug(f"Job ID received: {job_id.text}, fetching traffic log results...")
 
-                # Wait briefly and fetch job results
-                time.sleep(0.5)
-                result_params = {
-                    'type': 'log',
-                    'action': 'get',
-                    'job-id': job_id.text,
-                    'key': api_key
-                }
+                # Poll job status until complete (max 5 seconds)
+                for attempt in range(10):
+                    time.sleep(0.5)
+                    status_params = {
+                        'type': 'log',
+                        'action': 'get',
+                        'job-id': job_id.text,
+                        'key': api_key
+                    }
 
-                result_response = api_request_get(base_url, params=result_params, verify=False, timeout=10)
-                if result_response.status_code == 200:
-                    root = ET.fromstring(result_response.text)
+                    status_response = api_request_get(base_url, params=status_params, verify=False, timeout=10)
+                    if status_response.status_code == 200:
+                        status_root = ET.fromstring(status_response.text)
+                        job_status = status_root.find('.//status')
+
+                        if job_status is not None and job_status.text == 'FIN':
+                            debug(f"Traffic log job completed after {(attempt + 1) * 0.5}s")
+                            root = status_root
+                            break
+                        else:
+                            debug(f"Traffic log job status: {job_status.text if job_status is not None else 'unknown'} (attempt {attempt + 1})")
+                else:
+                    debug("Traffic log job did not complete in 5 seconds")
+                    return traffic_logs
 
             # Find all log entries
             for entry in root.findall('.//entry'):

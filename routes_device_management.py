@@ -4,7 +4,7 @@ Handles device list, create, read, update, delete, and connection testing
 """
 from flask import jsonify, request
 from auth import login_required
-from config import load_settings, save_settings
+from config import load_settings, save_settings, EDITION, MAX_DEVICES
 from device_manager import device_manager
 from firewall_api import get_device_system_info  # OPTIMIZED: Combined uptime+version
 from logger import debug, info, error, exception
@@ -137,6 +137,19 @@ def register_device_management_routes(app, csrf, limiter):
             existing_devices = device_manager.load_devices(decrypt_api_keys=False)
             was_first_device = len(existing_devices) == 0
             debug(f"Existing device count: {len(existing_devices)}, is_first_device: {was_first_device}")
+
+            # COMMUNITY EDITION: Check device limit
+            if EDITION == 'community' and len(existing_devices) >= MAX_DEVICES:
+                info(f"Community Edition device limit reached ({len(existing_devices)}/{MAX_DEVICES})")
+                return jsonify({
+                    'status': 'error',
+                    'error': f'Community Edition is limited to {MAX_DEVICES} devices',
+                    'edition': 'community',
+                    'current_devices': len(existing_devices),
+                    'max_devices': MAX_DEVICES,
+                    'upgrade_url': 'https://panfm.io/pricing',
+                    'message': f'Community Edition supports up to {MAX_DEVICES} devices. Upgrade to Enterprise Edition for unlimited devices.'
+                }), 403
 
             new_device = device_manager.add_device(name, ip, api_key, group, description, wan_interface=wan_interface)
             debug(f"Device added successfully: {new_device['name']} ({new_device['id']})")
