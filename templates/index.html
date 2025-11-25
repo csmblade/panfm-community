@@ -3463,27 +3463,10 @@
     <div style="position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(to right, #1a1a1a 0%, #2a2a2a 100%); padding: 12px 20px; border-top: 1px solid #333; font-family: var(--font-secondary); font-size: 0.85em; color: #999; z-index: 100; display: flex; justify-content: space-between; align-items: center;">
         <div>
             PANfm v{{ version }}
-            {% if edition == 'community' %}
-                <span style="background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); color: #fff; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-family: var(--font-primary); margin-left: 10px; font-size: 0.9em; box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);">Community Edition</span>
-            {% else %}
-                <span style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: #fff; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-family: var(--font-primary); margin-left: 10px; font-size: 0.9em; box-shadow: 0 2px 4px rgba(250, 88, 45, 0.3);">Enterprise Edition</span>
-            {% endif %}
+            <span style="background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); color: #fff; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-family: var(--font-primary); margin-left: 10px; font-size: 0.9em; box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);">Community Edition</span>
         </div>
-        <div>
-            {% if edition == 'community' %}
-                <a href="https://panfm.io/pricing" target="_blank" style="color: #FA582D; text-decoration: none; font-weight: 600; font-family: var(--font-primary); transition: color 0.2s;" onmouseover="this.style.color='#FF7A55'" onmouseout="this.style.color='#FA582D'">
-                    Upgrade to Enterprise Edition →
-                </a>
-            {% else %}
-                <span style="color: #999; font-family: var(--font-secondary);" title="{{ license_email }}">
-                    Licensed to: <span style="color: #FA582D; font-weight: 600;">{{ license_email }}</span>
-                </span>
-                {% if license_expires %}
-                    <span style="color: #666; margin-left: 15px;">
-                        Expires: <span style="color: #999;">{{ license_expires }}</span>
-                    </span>
-                {% endif %}
-            {% endif %}
+        <div style="color: #666;">
+            Free & Open-Source
         </div>
     </div>
 

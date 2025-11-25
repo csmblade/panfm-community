@@ -20,7 +20,7 @@ Self-hosted web dashboard for real-time monitoring, automated upgrades, and inte
 ✅ Connected device tracking with custom metadata
 ✅ Traffic flow visualization (Sankey diagrams)
 ✅ Application statistics & threat analysis
-✅ Enterprise-grade security (encryption, CSRF, rate limiting)
+✅ Production-grade security (encryption, CSRF, rate limiting)
 
 ---
 
@@ -50,32 +50,6 @@ open http://localhost:3000
 
 **Default Login:**
 Username: `admin` | Password: `admin` **⚠️ CHANGE IMMEDIATELY**
-
----
-
-## 📊 Community vs Enterprise Edition
-
-| Feature | Community | Enterprise |
-|---------|-----------|------------|
-| **Devices** | 2 devices | Unlimited |
-| **Real-time Monitoring** | ✅ | ✅ |
-| **Automated Upgrades** | ✅ | ✅ |
-| **Alert System** | ✅ | ✅ |
-| **RBAC (Role-Based Access)** | ❌ | ✅ |
-| **SSO (Single Sign-On)** | ❌ | ✅ |
-| **Advanced Analytics** | ❌ | ✅ |
-| **HA Clustering** | ❌ | ✅ |
-| **Custom Alerts** | ❌ | ✅ |
-| **Priority Support** | ❌ | ✅ |
-| **Price** | **FREE** | From $99/mo |
-
-### 💼 Upgrade to Enterprise
-
-Need more than 2 devices? [View pricing →](https://panfm.io/pricing)
-
-**Tiers:**
-- **Professional**: $99/month (up to 50 devices)
-- **Enterprise**: $299/month (unlimited devices, SSO, clustering)
 
 ---
 
@@ -141,7 +115,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open Pull Request
 
-**Contributor License Agreement:** By submitting a PR, you agree to allow your contribution in both Community and Enterprise editions. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+**Contributor License Agreement:** By submitting a PR, you agree to license your contribution under Apache 2.0. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
@@ -155,33 +129,20 @@ Third-party attributions: see [NOTICE](NOTICE)
 
 ## 🆘 Support
 
-### Community Support (FREE)
 - **GitHub Issues**: [Report bugs](https://github.com/csmblade/panfm-community/issues)
 - **Documentation**: [panfm.io/docs](https://panfm.io/docs)
 - **Reddit**: [r/paloaltonetworks](https://reddit.com/r/paloaltonetworks)
-
-### Enterprise Support (PAID)
-- Priority email support (4-hour SLA)
-- Custom feature development
-- Migration assistance
-
-[Learn more →](https://panfm.io/enterprise)
 
 ---
 
 ## 🗺️ Roadmap
 
-**Community Edition:**
 - [x] TimescaleDB migration (v2.0.0)
-- [x] Dual-licensing model (v1.0.0-ce)
+- [x] Community Edition launch (v1.0.0-ce)
 - [ ] Mobile-responsive UI (v1.1.0)
 - [ ] Dark mode (v1.2.0)
-
-**Enterprise Edition:**
-- [ ] RBAC (Role-Based Access Control)
-- [ ] SSO (SAML/OAuth)
-- [ ] HA Clustering
-- [ ] Compliance reporting
+- [ ] Multi-user support
+- [ ] Custom dashboards
 
 ---
 
@@ -201,4 +162,4 @@ If PANfm helps you manage firewalls, **star the repo**! ⭐
 
 **Made with ❤️ for network engineers**
 
-[Get Started](https://github.com/csmblade/panfm-community) | [Documentation](https://panfm.io/docs) | [Upgrade](https://panfm.io/pricing)
+[Get Started](https://github.com/csmblade/panfm-community) | [Documentation](https://panfm.io/docs)

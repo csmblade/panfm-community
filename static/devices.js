@@ -483,12 +483,7 @@ async function saveDevice(event) {
             if (response.status === 403 && response.data?.edition === 'community') {
                 console.log('[DEVICES] Community Edition device limit reached');
                 hideDeviceModal();
-                // Show upgrade modal (defined in app.js)
-                if (typeof showUpgradeModal === 'function') {
-                    showUpgradeModal(response.data);
-                } else {
-                    alert(response.data?.message || 'Community Edition device limit reached. Upgrade to Enterprise Edition for unlimited devices.');
-                }
+                alert(response.data?.message || 'Device limit reached. Community Edition supports up to 2 devices.');
                 return;
             }
             throw new Error('Failed to save device');
