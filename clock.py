@@ -14,9 +14,8 @@ from apscheduler.events import (
 )
 
 # Import application modules
-from config import ALERTS_DB_FILE, load_settings
+from config import load_settings
 from throughput_collector import init_collector, get_collector
-from alert_manager import AlertManager
 from logger import info, exception, warning, error, debug
 
 # Track current running job for graceful shutdown
@@ -110,7 +109,6 @@ def shutdown_handler(signum, frame):
             debug("Closing collector storage database connections")
             # Storage connections close automatically via context managers
 
-        # Close alert manager database connections
         print("[CLOCK SHUTDOWN] Flushing pending writes...")
         debug("Flushing any pending database writes")
 
@@ -422,6 +420,10 @@ def check_settings_changes(scheduler):
 def persist_scheduler_stats():
     """Persist scheduler stats to database every 60 seconds and check for settings changes."""
     global scheduler_stats, clock_start_time, scheduler_instance
+    import sys
+
+    print("[PERSIST STATS] Function called", flush=True)
+    sys.stdout.flush()
 
     try:
         # Check for settings changes and reschedule jobs if needed
@@ -439,15 +441,43 @@ def persist_scheduler_stats():
 
         # Get collector to access storage
         collector = get_collector()
+        print(f"[PERSIST DEBUG] collector={collector}, has storage={hasattr(collector, 'storage') if collector else False}")
         if collector and collector.storage:
-            success = collector.storage.insert_scheduler_stats(stats_to_save)
+            # Extract individual parameters from stats dictionary
+            # Convert last_execution from ISO string to datetime object if present
+            last_exec = scheduler_stats.get('last_execution')
+            print(f"[PERSIST DEBUG] last_exec (before conversion)={last_exec}, type={type(last_exec)}")
+            if last_exec and isinstance(last_exec, str):
+                try:
+                    from datetime import datetime as dt
+                    last_exec = dt.fromisoformat(last_exec.replace('Z', '+00:00'))
+                    print(f"[PERSIST DEBUG] last_exec (after conversion)={last_exec}, type={type(last_exec)}")
+                except Exception as conv_error:
+                    print(f"[PERSIST DEBUG] Datetime conversion failed: {conv_error}")
+                    last_exec = None
+
+            print(f"[PERSIST DEBUG] Calling insert_scheduler_stats with:")
+            print(f"  uptime_seconds={scheduler_stats.get('uptime_seconds', 0)}")
+            print(f"  total_executions={scheduler_stats.get('total_executions', 0)}")
+            print(f"  total_errors={scheduler_stats.get('total_errors', 0)}")
+            print(f"  last_execution={last_exec}")
+
+            success = collector.storage.insert_scheduler_stats(
+                uptime_seconds=scheduler_stats.get('uptime_seconds', 0),
+                total_executions=scheduler_stats.get('total_executions', 0),
+                total_errors=scheduler_stats.get('total_errors', 0),
+                last_execution=last_exec
+            )
+            print(f"[PERSIST DEBUG] insert_scheduler_stats returned: {success}")
             if success:
                 debug("Scheduler stats persisted to database")
             else:
                 warning("Failed to persist scheduler stats to database")
+        else:
+            print(f"[PERSIST DEBUG] Skipping insert - no collector or storage available")
 
-            # Cleanup old stats (keep last 24 hours)
-            deleted = collector.storage.cleanup_old_scheduler_stats(retention_hours=24)
+            # Cleanup old stats (keep last 30 days as per migration)
+            deleted = collector.storage.cleanup_old_scheduler_stats(days=30)
             if deleted > 0:
                 debug(f"Cleaned up {deleted} old scheduler stats records")
 
@@ -474,7 +504,7 @@ def process_scheduled_scans():
         current_job = None
 
 def cleanup_old_data():
-    """Daily cleanup of old throughput samples and expired alert cooldowns."""
+    """Daily cleanup of old throughput samples."""
     global current_job
     job_name = 'database_cleanup'
     current_job = job_name
@@ -514,19 +544,6 @@ def cleanup_old_data():
             system_count = collector.storage.cleanup_old_system_logs(retention_days)
             print(f"[CLOCK JOB] ✓ Deleted {system_count} old system logs")
             info("Deleted %d old system logs (retention: %d days)", system_count, retention_days)
-
-        # Cleanup expired alert cooldowns
-        print(f"[CLOCK JOB] Cleaning up expired alert cooldowns...")
-        alert_mgr = AlertManager(ALERTS_DB_FILE)
-        cooldown_count = alert_mgr.clear_expired_cooldowns()
-        print(f"[CLOCK JOB] ✓ Deleted {cooldown_count} expired cooldowns")
-        info("Deleted %d expired alert cooldowns", cooldown_count)
-
-        # Cleanup old alert history
-        print(f"[CLOCK JOB] Cleaning up resolved alerts older than {retention_days} days...")
-        alert_count = alert_mgr.cleanup_old_alert_history(retention_days)
-        print(f"[CLOCK JOB] ✓ Deleted {alert_count} old resolved alerts")
-        info("Deleted %d old resolved alerts (retention: %d days)", alert_count, retention_days)
 
         end_time = datetime.utcnow()
         duration = (end_time - start_time).total_seconds()
@@ -627,7 +644,7 @@ def main():
     scheduler.add_listener(on_scheduler_start, EVENT_SCHEDULER_START)
     scheduler.add_listener(on_scheduler_shutdown, EVENT_SCHEDULER_SHUTDOWN)
 
-    # Register Job 1: Throughput Collection + Alert Checking
+    # Register Job 1: Throughput Collection
     scheduler.add_job(
         func=run_collection,
         trigger='interval',

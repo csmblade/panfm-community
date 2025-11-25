@@ -290,6 +290,7 @@ function initSettingsTabs() {
                 // Load services status when services tab is opened
                 if (targetTab === 'services') {
                     refreshServicesStatus();
+                    populateClearDatabaseDeviceSelector();  // v2.1.2 - Per-device database wipe
                 }
             }
         });
@@ -1114,35 +1115,59 @@ function formatRelativeTime(date) {
  * Clear all data from the throughput history database
  */
 async function clearDatabase() {
-    // Confirm with user
-    const confirmed = confirm(
-        '⚠️ WARNING: This will permanently delete ALL historical throughput data from the database.\n\n' +
-        'This includes:\n' +
-        '• All throughput samples\n' +
-        '• All historical metrics\n' +
-        '• All charts data\n\n' +
-        'This action CANNOT be undone!\n\n' +
-        'Are you sure you want to continue?'
-    );
+    // Get selected device (if any)
+    const deviceSelect = document.getElementById('clearDatabaseDeviceSelect');
+    const deviceId = deviceSelect ? deviceSelect.value : '';
+    const deviceName = deviceSelect && deviceId ?
+        deviceSelect.options[deviceSelect.selectedIndex].text : 'All Devices';
+
+    // Build confirmation message based on selection
+    let confirmMessage;
+    if (deviceId) {
+        confirmMessage = `⚠️ WARNING: This will permanently delete ALL data for device:\n\n${deviceName}\n\n` +
+            'This includes:\n' +
+            '• All throughput samples\n' +
+            '• All historical metrics\n' +
+            '• All connected devices data\n' +
+            '• All threat logs\n' +
+            '• All application statistics\n\n' +
+            'This action CANNOT be undone!\n\n' +
+            'Are you sure you want to continue?';
+    } else {
+        confirmMessage = '⚠️ WARNING: This will permanently delete ALL data from the database for ALL devices.\n\n' +
+            'This includes:\n' +
+            '• All throughput samples\n' +
+            '• All historical metrics\n' +
+            '• All connected devices data\n' +
+            '• All threat logs\n' +
+            '• All application statistics\n\n' +
+            'This action CANNOT be undone!\n\n' +
+            'Are you sure you want to continue?';
+    }
+
+    const confirmed = confirm(confirmMessage);
 
     if (!confirmed) {
         return;
     }
 
     // Double confirmation for destructive action
-    const doubleConfirm = confirm(
-        '🔴 FINAL CONFIRMATION\n\n' +
-        'You are about to PERMANENTLY DELETE all database records.\n\n' +
-        'Click OK to proceed with deletion, or Cancel to abort.'
-    );
+    const doubleConfirmMsg = deviceId ?
+        `🔴 FINAL CONFIRMATION\n\nYou are about to PERMANENTLY DELETE all data for:\n${deviceName}\n\nClick OK to proceed with deletion, or Cancel to abort.` :
+        '🔴 FINAL CONFIRMATION\n\nYou are about to PERMANENTLY DELETE ALL database records for ALL devices.\n\nClick OK to proceed with deletion, or Cancel to abort.';
+
+    const doubleConfirm = confirm(doubleConfirmMsg);
 
     if (!doubleConfirm) {
         return;
     }
 
     try {
-        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
-        const response = await window.apiClient.post('/api/database/clear');
+        // Prepare request body with optional device_id
+        const requestBody = deviceId ? { device_id: deviceId } : {};
+
+        // Use centralized ApiClient (v2.1.2 - Per-device wipe support)
+        const response = await window.apiClient.post('/api/database/clear', requestBody);
 
         if (!response.ok) {
             throw new Error('Failed to clear database');
@@ -1151,7 +1176,11 @@ async function clearDatabase() {
         const data = response.data;
 
         if (data.status === 'success') {
-            alert(`✅ Database cleared successfully!\n\nDeleted ${data.deleted_count} samples from the database.`);
+            const successMsg = deviceId ?
+                `✅ Database cleared successfully for device:\n${deviceName}` :
+                '✅ Database cleared successfully for ALL devices!';
+            alert(successMsg);
+
             // Refresh the services status to show updated stats
             await refreshServicesStatus();
         } else {
@@ -1163,178 +1192,43 @@ async function clearDatabase() {
     }
 }
 
-
-// ===== Notification Channel Management =====
-
 /**
- * Load notification channel configurations and populate form fields
+ * Populate the device selector dropdown for database clearing
+ * Called when Services/Debug tab is opened
  */
-async function loadNotificationChannels() {
+async function populateClearDatabaseDeviceSelector() {
+    const select = document.getElementById('clearDatabaseDeviceSelect');
+    if (!select) {
+        return;  // Selector not found (might not be on Services tab yet)
+    }
+
     try {
-        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
-        const response = await window.apiClient.get('/api/settings/notifications');
+        // Use centralized ApiClient to fetch devices
+        const response = await window.apiClient.get('/api/devices');
 
         if (!response.ok) {
-            console.error('Failed to load notification channels');
+            console.error('Failed to load devices for database clear selector');
             return;
         }
 
-        const data = response.data;
+        const devices = response.data;
 
-        if (data.status === 'success' && data.channels) {
-            const channels = data.channels;
-
-            // Load Email settings
-            if (channels.email) {
-                document.getElementById('emailEnabled').checked = channels.email.enabled || false;
-                document.getElementById('emailSmtpHost').value = channels.email.smtp_host || '';
-                document.getElementById('emailSmtpPort').value = channels.email.smtp_port || 587;
-                document.getElementById('emailSmtpUser').value = channels.email.smtp_user || '';
-                document.getElementById('emailSmtpPassword').value = channels.email.smtp_password || '';
-                document.getElementById('emailFromEmail').value = channels.email.from_email || '';
-                document.getElementById('emailUseTls').checked = channels.email.use_tls !== false;
-                // Convert array to comma-separated string
-                const toEmails = Array.isArray(channels.email.to_emails) ? channels.email.to_emails.join(', ') : '';
-                document.getElementById('emailToEmails').value = toEmails;
-            }
-
-            // Load Slack settings
-            if (channels.slack) {
-                document.getElementById('slackEnabled').checked = channels.slack.enabled || false;
-                document.getElementById('slackWebhookUrl').value = channels.slack.webhook_url || '';
-                document.getElementById('slackChannel').value = channels.slack.channel || '#alerts';
-                document.getElementById('slackUsername').value = channels.slack.username || 'PANfm Alerts';
-            }
-
-            // Load Webhook settings
-            if (channels.webhook) {
-                document.getElementById('webhookEnabled').checked = channels.webhook.enabled || false;
-                document.getElementById('webhookUrl').value = channels.webhook.url || '';
-                // Convert headers object to JSON string for display
-                const headers = channels.webhook.headers || {};
-                document.getElementById('webhookHeaders').value = JSON.stringify(headers, null, 2);
-            }
-
-            console.log('Notification channels loaded successfully');
+        // Clear existing options except the first one (All Devices)
+        while (select.options.length > 1) {
+            select.remove(1);
         }
+
+        // Add device options
+        if (devices && devices.length > 0) {
+            devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.id;
+                option.textContent = `${device.name} (${device.ip})`;
+                select.appendChild(option);
+            });
+        }
+
     } catch (error) {
-        console.error('Error loading notification channels:', error);
+        console.error('Error populating device selector:', error);
     }
 }
-
-/**
- * Save notification channel configuration
- * @param channel - Channel type: 'email', 'slack', or 'webhook'
- */
-async function saveNotificationChannel(channel) {
-    try {
-        let config = {};
-
-        if (channel === 'email') {
-            // Parse comma-separated email list
-            const toEmailsStr = document.getElementById('emailToEmails').value.trim();
-            const toEmailsArray = toEmailsStr ? toEmailsStr.split(',').map(e => e.trim()).filter(e => e) : [];
-
-            config = {
-                enabled: document.getElementById('emailEnabled').checked,
-                smtp_host: document.getElementById('emailSmtpHost').value.trim(),
-                smtp_port: parseInt(document.getElementById('emailSmtpPort').value) || 587,
-                smtp_user: document.getElementById('emailSmtpUser').value.trim(),
-                smtp_password: document.getElementById('emailSmtpPassword').value,
-                from_email: document.getElementById('emailFromEmail').value.trim(),
-                to_emails: toEmailsArray,
-                use_tls: document.getElementById('emailUseTls').checked
-            };
-        } else if (channel === 'slack') {
-            config = {
-                enabled: document.getElementById('slackEnabled').checked,
-                webhook_url: document.getElementById('slackWebhookUrl').value.trim(),
-                channel: document.getElementById('slackChannel').value.trim() || '#alerts',
-                username: document.getElementById('slackUsername').value.trim() || 'PANfm Alerts'
-            };
-        } else if (channel === 'webhook') {
-            // Parse JSON headers
-            let headers = {};
-            const headersStr = document.getElementById('webhookHeaders').value.trim();
-            if (headersStr) {
-                try {
-                    headers = JSON.parse(headersStr);
-                } catch (e) {
-                    alert('Invalid JSON format for webhook headers. Please check your syntax.');
-                    return;
-                }
-            }
-
-            config = {
-                enabled: document.getElementById('webhookEnabled').checked,
-                url: document.getElementById('webhookUrl').value.trim(),
-                headers: headers
-            };
-        }
-
-        // Save via API (use ApiClient v1.14.0 - CSRF token auto-injected)
-        const response = await window.apiClient.post('/api/settings/notifications/' + channel, config);
-
-        if (!response.ok) {
-            throw new Error('Failed to save notification settings');
-        }
-
-        const data = response.data;
-
-        if (data.status === 'success') {
-            const channelCap = channel.charAt(0).toUpperCase() + channel.slice(1);
-            alert(channelCap + ' notification settings saved successfully!');
-        } else {
-            alert('Error saving ' + channel + ' settings: ' + (data.message || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error saving ' + channel + ' notification settings:', error);
-        alert('Error saving ' + channel + ' settings: ' + error.message);
-    }
-}
-
-/**
- * Test notification channel by sending a test message
- * @param channel - Channel type: 'email', 'slack', or 'webhook'
- */
-async function testNotificationChannel(channel) {
-    try {
-        // Show loading indicator
-        const channelCap = channel.charAt(0).toUpperCase() + channel.slice(1);
-        const confirmTest = confirm('Send a test notification via ' + channelCap + '?\n\nMake sure you have saved your settings first.');
-
-        if (!confirmTest) {
-            return;
-        }
-
-        // Use centralized ApiClient (v1.14.0 - CSRF token auto-injected)
-        const response = await window.apiClient.post('/api/settings/notifications/test/' + channel);
-
-        if (!response.ok) {
-            throw new Error('Failed to send test notification');
-        }
-
-        const data = response.data;
-
-        if (data.status === 'success') {
-            alert('Test ' + channelCap + ' notification sent successfully!\n\nCheck your ' + channelCap + ' to verify receipt.');
-        } else {
-            alert('Test ' + channelCap + ' notification failed:\n\n' + (data.message || 'Unknown error') + '\n\nPlease check your configuration.');
-        }
-    } catch (error) {
-        console.error('Error testing ' + channel + ' notification:', error);
-        alert('Error testing ' + channel + ' notification: ' + error.message);
-    }
-}
-
-// Load notification channels when settings page is opened
-document.addEventListener('DOMContentLoaded', function() {
-    // Load notification channels when Integrations tab is clicked
-    const integrationsTab = document.querySelector('.settings-tab[data-tab="integrations"]');
-    if (integrationsTab) {
-        integrationsTab.addEventListener('click', function() {
-            // Small delay to ensure tab content is visible
-            setTimeout(loadNotificationChannels, 100);
-        });
-    }
-});

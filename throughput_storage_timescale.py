@@ -2337,6 +2337,303 @@ class TimescaleStorage:
             if conn:
                 self._return_connection(conn)
 
+    # =====================================================
+    # Scheduler Stats Methods (v2.1.2 - Service Status Fix)
+    # =====================================================
+
+    def insert_scheduler_stats(self, uptime_seconds: int, total_executions: int,
+                               total_errors: int, last_execution: datetime) -> bool:
+        """
+        Insert scheduler statistics into scheduler_stats_history hypertable.
+
+        Args:
+            uptime_seconds: Scheduler uptime in seconds
+            total_executions: Total number of job executions
+            total_errors: Total number of errors
+            last_execution: Timestamp of last job execution
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT INTO scheduler_stats_history (
+                    timestamp, uptime_seconds, total_executions,
+                    total_errors, last_execution
+                ) VALUES (NOW(), %s, %s, %s, %s)
+            """, (uptime_seconds, total_executions, total_errors, last_execution))
+
+            conn.commit()
+            cursor.close()
+            debug("Inserted scheduler stats: uptime=%ds, executions=%d, errors=%d",
+                  uptime_seconds, total_executions, total_errors)
+            return True
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to insert scheduler stats: %s", str(e))
+            return False
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_latest_scheduler_stats(self) -> Optional[Dict]:
+        """
+        Get the most recent scheduler statistics.
+
+        Returns:
+            dict: Latest scheduler stats or None if no data
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT timestamp, uptime_seconds, total_executions,
+                       total_errors, last_execution
+                FROM scheduler_stats_history
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            if not row:
+                return None
+
+            return {
+                'timestamp': row[0],
+                'uptime_seconds': row[1],
+                'total_executions': row[2],
+                'total_errors': row[3],
+                'last_execution': row[4]
+            }
+
+        except Exception as e:
+            exception("Failed to get latest scheduler stats: %s", str(e))
+            return None
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def cleanup_old_scheduler_stats(self, days: int = 30) -> int:
+        """
+        Manually cleanup old scheduler stats (normally handled by retention policy).
+
+        Args:
+            days: Remove stats older than this many days
+
+        Returns:
+            int: Number of rows deleted
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                DELETE FROM scheduler_stats_history
+                WHERE timestamp < NOW() - INTERVAL '%s days'
+            """, (days,))
+
+            deleted = cursor.rowcount
+            conn.commit()
+            cursor.close()
+
+            info("Cleaned up %d old scheduler stats records", deleted)
+            return deleted
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to cleanup old scheduler stats: %s", str(e))
+            return 0
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    # =====================================================
+    # Database Management Methods (v2.1.2 - Service Status Fix)
+    # =====================================================
+
+    def get_oldest_sample_time(self, device_id: Optional[str] = None) -> Optional[datetime]:
+        """
+        Get timestamp of oldest sample in throughput_history.
+
+        Args:
+            device_id: Optional device filter
+
+        Returns:
+            datetime: Oldest sample timestamp or None if no data
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            if device_id:
+                cursor.execute("""
+                    SELECT MIN(time) FROM throughput_history
+                    WHERE device_id = %s
+                """, (device_id,))
+            else:
+                cursor.execute("SELECT MIN(time) FROM throughput_history")
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            return row[0] if row else None
+
+        except Exception as e:
+            exception("Failed to get oldest sample time: %s", str(e))
+            return None
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_device_sample_counts(self) -> Dict[str, int]:
+        """
+        Get sample count per device.
+
+        Returns:
+            dict: {device_id: sample_count}
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT device_id, COUNT(*) as count
+                FROM throughput_history
+                GROUP BY device_id
+                ORDER BY count DESC
+            """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            return {row[0]: row[1] for row in rows}
+
+        except Exception as e:
+            exception("Failed to get device sample counts: %s", str(e))
+            return {}
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def clear_device_data(self, device_id: str) -> bool:
+        """
+        Clear all data for a specific device from all hypertables.
+
+        Args:
+            device_id: Device identifier
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            # Delete from all hypertables
+            tables = [
+                'throughput_history',
+                'interface_metrics',
+                'connected_devices',
+                'threat_logs',
+                'application_samples',
+                'category_bandwidth',
+                'client_bandwidth',
+                'traffic_flows'
+            ]
+
+            total_deleted = 0
+            for table in tables:
+                cursor.execute(f"DELETE FROM {table} WHERE device_id = %s", (device_id,))
+                deleted = cursor.rowcount
+                total_deleted += deleted
+                debug("Deleted %d rows from %s for device %s", deleted, table, device_id)
+
+            conn.commit()
+            cursor.close()
+
+            info("Cleared %d total rows for device %s", total_deleted, device_id)
+            return True
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to clear device data: %s", str(e))
+            return False
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def clear_all_data(self) -> bool:
+        """
+        Clear ALL data from all hypertables (complete database wipe).
+
+        WARNING: This cannot be undone!
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            # Truncate all hypertables (faster than DELETE)
+            tables = [
+                'throughput_history',
+                'interface_metrics',
+                'connected_devices',
+                'threat_logs',
+                'application_samples',
+                'category_bandwidth',
+                'client_bandwidth',
+                'traffic_flows',
+                'scheduler_stats_history'
+            ]
+
+            for table in tables:
+                cursor.execute(f"TRUNCATE TABLE {table}")
+                debug("Truncated table: %s", table)
+
+            # Also clear device_status (regular table, not hypertable)
+            cursor.execute("TRUNCATE TABLE device_status")
+
+            conn.commit()
+            cursor.close()
+
+            info("Cleared ALL data from all hypertables")
+            return True
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to clear all data: %s", str(e))
+            return False
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
     def close(self):
         """Close connection pool."""
         if hasattr(self, 'pool') and self.pool:

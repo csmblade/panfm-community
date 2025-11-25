@@ -304,69 +304,49 @@ def register_system_routes(app, csrf, limiter):
                 result['scheduler']['last_collection'] = 'N/A'
                 result['scheduler']['next_collection'] = 'N/A'
 
-            # Get Database status
-            collector = get_collector()
-            if collector is not None:
-                storage = collector.storage
-                db_path = storage.db_path
+            # Get Database status (v2.1.2 - TimescaleDB)
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
 
-                if os.path.exists(db_path):
-                    # Get database file size
-                    db_size_bytes = os.path.getsize(db_path)
-                    if db_size_bytes < 1024:
-                        db_size_str = f"{db_size_bytes} bytes"
-                    elif db_size_bytes < 1024 * 1024:
-                        db_size_str = f"{db_size_bytes / 1024:.2f} KB"
-                    else:
-                        db_size_str = f"{db_size_bytes / (1024 * 1024):.2f} MB"
+            try:
+                storage = TimescaleStorage(TIMESCALE_DSN)
 
-                    result['database']['state'] = 'Connected'
-                    result['database']['size'] = db_size_str
-                    result['database']['path'] = db_path
+                # Get database statistics
+                db_stats = storage.get_storage_stats()
+                result['database']['state'] = 'Connected'
+                result['database']['size'] = db_stats.get('database_size_human', 'N/A')
+                result['database']['path'] = 'PostgreSQL/TimescaleDB'
 
-                    # Get total sample count
-                    conn = sqlite3.connect(db_path)
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT COUNT(*) FROM throughput_samples")
-                    total_samples = cursor.fetchone()[0]
-                    result['database']['total_samples'] = total_samples
+                # Get total sample count
+                total_samples = storage.get_sample_count()
+                result['database']['total_samples'] = total_samples
 
-                    # Get oldest sample timestamp
-                    cursor.execute("SELECT MIN(timestamp) FROM throughput_samples")
-                    oldest = cursor.fetchone()[0]
-                    result['database']['oldest_sample'] = oldest
+                # Get oldest sample timestamp
+                oldest = storage.get_oldest_sample_time()
+                result['database']['oldest_sample'] = oldest.isoformat() if oldest else 'N/A'
 
-                    # Get per-device statistics
-                    cursor.execute("""
-                        SELECT device_id, COUNT(*) as sample_count, MIN(timestamp) as oldest, MAX(timestamp) as newest
-                        FROM throughput_samples
-                        GROUP BY device_id
-                        ORDER BY sample_count DESC
-                    """)
-                    device_rows = cursor.fetchall()
+                # Get per-device statistics
+                device_counts = storage.get_device_sample_counts()
 
-                    from device_manager import device_manager
-                    devices = device_manager.load_devices()
-                    device_map = {d['id']: d['name'] for d in devices}
+                from device_manager import device_manager
+                devices = device_manager.load_devices()
+                device_map = {d['id']: d['name'] for d in devices}
 
-                    for row in device_rows:
-                        device_id, sample_count, oldest, newest = row
-                        device_name = device_map.get(device_id, device_id)
-                        result['device_stats'].append({
-                            'device_id': device_id,
-                            'device_name': device_name,
-                            'sample_count': sample_count,
-                            'oldest': oldest,
-                            'newest': newest
-                        })
+                for device_id, sample_count in device_counts.items():
+                    device_name = device_map.get(device_id, device_id)
+                    result['device_stats'].append({
+                        'device_id': device_id,
+                        'device_name': device_name,
+                        'sample_count': sample_count,
+                        'oldest': 'N/A',  # Can be added if needed
+                        'newest': 'N/A'   # Can be added if needed
+                    })
 
-                    conn.close()
-                else:
-                    result['database']['state'] = 'File Not Found'
-                    result['database']['size'] = '0 bytes'
-                    result['database']['path'] = db_path
-            else:
-                result['database']['state'] = 'Not Initialized'
+            except Exception as db_error:
+                exception(f"Failed to get database stats: {str(db_error)}")
+                result['database']['state'] = 'Error'
+                result['database']['size'] = 'N/A'
+                result['database']['path'] = str(db_error)
 
             return jsonify(result)
 
@@ -381,50 +361,60 @@ def register_system_routes(app, csrf, limiter):
     @limiter.limit("5 per hour")  # Very strict limit for destructive operation
     @login_required
     def clear_database():
-        """API endpoint to clear all data from throughput history database"""
-        from throughput_collector import get_collector
+        """
+        API endpoint to clear data from TimescaleDB.
+
+        Supports:
+        - Clear all data (no device_id in request body)
+        - Clear data for specific device (device_id in request body)
+        """
+        from throughput_storage_timescale import TimescaleStorage
+        from config import TIMESCALE_DSN
 
         debug("=== Clear Database API endpoint called ===")
 
         try:
-            collector = get_collector()
-            if collector is None:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Throughput collector not initialized'
-                }), 503
+            # Get optional device_id from request body
+            device_id = None
+            if request.is_json:
+                device_id = request.json.get('device_id')
 
-            storage = collector.storage
-            db_path = storage.db_path
+            storage = TimescaleStorage(TIMESCALE_DSN)
 
-            # Count rows before deletion
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM throughput_samples")
-            count_before = cursor.fetchone()[0]
+            if device_id:
+                # Clear data for specific device only
+                debug(f"Clearing data for device: {device_id}")
+                success = storage.clear_device_data(device_id)
 
-            # Delete all rows
-            cursor.execute("DELETE FROM throughput_samples")
-            conn.commit()
+                if success:
+                    info(f"Device data cleared for {device_id} by user {session.get('username', 'unknown')}")
+                    return jsonify({
+                        'status': 'success',
+                        'message': f'All data cleared for device {device_id}',
+                        'device_id': device_id
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Failed to clear data for device {device_id}'
+                    }), 500
 
-            # Verify deletion
-            cursor.execute("SELECT COUNT(*) FROM throughput_samples")
-            count_after = cursor.fetchone()[0]
+            else:
+                # Clear ALL data (complete database wipe)
+                debug("Clearing ALL database data")
+                success = storage.clear_all_data()
 
-            # Run VACUUM to reclaim disk space
-            cursor.execute("VACUUM")
-            conn.commit()
-            conn.close()
-
-            deleted_count = count_before - count_after
-
-            info(f"Database cleared: {deleted_count} samples deleted by user {session.get('username', 'unknown')}")
-
-            return jsonify({
-                'status': 'success',
-                'message': 'Database cleared successfully',
-                'deleted_count': deleted_count
-            })
+                if success:
+                    info(f"Database completely cleared by user {session.get('username', 'unknown')}")
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'All database data cleared successfully'
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Failed to clear database'
+                    }), 500
 
         except Exception as e:
             exception(f"Failed to clear database: {str(e)}")
