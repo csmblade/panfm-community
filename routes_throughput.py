@@ -54,24 +54,11 @@ def register_throughput_routes(app, csrf, limiter):
         device_id = settings.get('selected_device_id', '')
         refresh_interval = settings.get('refresh_interval', 60)
 
-        # If no device selected, auto-select the first enabled device
+        # v1.0.5: DO NOT auto-select device here - that causes race conditions!
+        # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
+        # If no device is selected, return a clear error for the frontend to handle
         if not device_id or device_id.strip() == '':
-            from device_manager import device_manager
-            devices = device_manager.load_devices()
-            enabled_devices = [d for d in devices if d.get('enabled', True)]
-            if enabled_devices:
-                device_id = enabled_devices[0].get('id')
-                debug(f"No device selected, auto-selected first enabled device: {device_id}")
-            else:
-                debug("No enabled devices found")
-                # Return user-friendly error instead of HTTP 500
-                return jsonify({
-                    'status': 'error',
-                    'message': 'No devices configured. Please add a device in Managed Devices.'
-                }), 400
-
-        # Final validation - ensure device_id is not blank after auto-selection
-        if not device_id or device_id.strip() == '':
+            debug("No device selected in settings")
             return jsonify({
                 'status': 'error',
                 'message': 'No device selected. Please select a device from the dropdown.'
@@ -245,16 +232,8 @@ def register_throughput_routes(app, csrf, limiter):
                 settings = load_settings()
                 device_id = settings.get('selected_device_id', '')
 
-                # Try auto-select first enabled device
-                if not device_id or device_id.strip() == '':
-                    from device_manager import device_manager
-                    devices = device_manager.load_devices()
-                    enabled_devices = [d for d in devices if d.get('enabled', True)]
-                    if enabled_devices:
-                        device_id = enabled_devices[0].get('id')
-                        debug(f"Auto-selected first enabled device: {device_id}")
-
-                # Final validation
+                # v1.0.5: DO NOT auto-select device here - that causes race conditions!
+                # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
                 if not device_id or device_id.strip() == '':
                     return jsonify({
                         'status': 'error',
@@ -408,16 +387,8 @@ def register_throughput_routes(app, csrf, limiter):
                 settings = load_settings()
                 device_id = settings.get('selected_device_id', '')
 
-                # Try auto-select first enabled device
-                if not device_id or device_id.strip() == '':
-                    from device_manager import device_manager
-                    devices = device_manager.load_devices()
-                    enabled_devices = [d for d in devices if d.get('enabled', True)]
-                    if enabled_devices:
-                        device_id = enabled_devices[0].get('id')
-                        debug(f"Auto-selected first enabled device: {device_id}")
-
-                # Final validation
+                # v1.0.5: DO NOT auto-select device here - that causes race conditions!
+                # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
                 if not device_id or device_id.strip() == '':
                     return jsonify({
                         'status': 'error',
@@ -526,16 +497,8 @@ def register_throughput_routes(app, csrf, limiter):
                 settings = load_settings()
                 device_id = settings.get('selected_device_id', '')
 
-                # Try auto-select first enabled device
-                if not device_id or device_id.strip() == '':
-                    from device_manager import device_manager
-                    devices = device_manager.load_devices()
-                    enabled_devices = [d for d in devices if d.get('enabled', True)]
-                    if enabled_devices:
-                        device_id = enabled_devices[0].get('id')
-                        debug(f"Auto-selected first enabled device: {device_id}")
-
-                # Final validation
+                # v1.0.5: DO NOT auto-select device here - that causes race conditions!
+                # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
                 if not device_id or device_id.strip() == '':
                     return jsonify({
                         'status': 'error',
@@ -645,16 +608,8 @@ def register_throughput_routes(app, csrf, limiter):
                 settings = load_settings()
                 device_id = settings.get('selected_device_id', '')
 
-                # Try auto-select first enabled device
-                if not device_id or device_id.strip() == '':
-                    from device_manager import device_manager
-                    devices = device_manager.load_devices()
-                    enabled_devices = [d for d in devices if d.get('enabled', True)]
-                    if enabled_devices:
-                        device_id = enabled_devices[0].get('id')
-                        debug(f"Auto-selected first enabled device: {device_id}")
-
-                # Final validation
+                # v1.0.5: DO NOT auto-select device here - that causes race conditions!
+                # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
                 if not device_id or device_id.strip() == '':
                     return jsonify({
                         'status': 'error',
@@ -823,19 +778,13 @@ def register_throughput_routes(app, csrf, limiter):
             settings = load_settings()
             device_id = settings.get('selected_device_id', '')
 
-            # Auto-select first enabled device if none selected
+            # v1.0.5: DO NOT auto-select device here - that causes race conditions!
+            # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
             if not device_id or device_id.strip() == '':
-                from device_manager import device_manager
-                devices = device_manager.load_devices()
-                enabled_devices = [d for d in devices if d.get('enabled', True)]
-                if enabled_devices:
-                    device_id = enabled_devices[0].get('id')
-                    debug(f"No device selected, auto-selected: {device_id}")
-                else:
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'No devices configured'
-                    }), 400
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No device selected. Please select a device from the dropdown.'
+                }), 400
 
             # Get firewall configuration
             from firewall_api import get_firewall_config
@@ -1175,5 +1124,120 @@ def register_throughput_routes(app, csrf, limiter):
             exception(f"[TAG-FLOW] Failed to retrieve tag-filtered flow data: {str(e)}")
             traceback.print_exc()
             return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    # ============================================================================
+    # ON-DEMAND COLLECTION ENDPOINTS (v1.0.3)
+    # Purpose: Trigger immediate data collection when user switches devices
+    # Pattern: Web queues request → Clock processes → Web polls status
+    # ============================================================================
+
+    @app.route('/api/throughput/collect-now', methods=['POST'])
+    @limiter.limit("10 per hour")  # Rate limit: Prevent firewall API abuse
+    @csrf.exempt  # CSRF handled by apiClient
+    @login_required
+    def collect_now():
+        """
+        Queue immediate throughput collection for a device.
+
+        Called by frontend when user switches devices to reduce wait time
+        from 60 seconds (next scheduled collection) to ~5-8 seconds.
+
+        Request body:
+            device_id (required): Device UUID to collect data for
+
+        Returns:
+            JSON with request_id for status polling:
+            {
+                'status': 'queued',
+                'request_id': 123,
+                'message': 'Collection queued, will execute within 5 seconds'
+            }
+        """
+        debug("=== On-Demand Collection Request ===")
+
+        try:
+            # Get device_id from request body
+            data = request.get_json() or {}
+            device_id = data.get('device_id')
+
+            if not device_id or device_id.strip() == '':
+                debug("collect-now: Missing device_id in request body")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'device_id is required'
+                }), 400
+
+            debug(f"collect-now: Queuing collection for device {device_id}")
+
+            # Create collection request in database queue
+            storage = get_storage()
+            request_id = storage.create_collection_request(device_id)
+
+            if request_id is None:
+                debug(f"collect-now: Failed to create collection request for device {device_id}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to queue collection request'
+                }), 500
+
+            debug(f"collect-now: Created request {request_id} for device {device_id}")
+
+            return jsonify({
+                'status': 'queued',
+                'request_id': request_id,
+                'message': 'Collection queued, will execute within 5 seconds'
+            })
+
+        except Exception as e:
+            exception(f"collect-now: Failed to queue collection: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to queue collection: {str(e)}'
+            }), 500
+
+    @app.route('/api/throughput/collect-status/<int:request_id>')
+    @limiter.limit("120 per minute")  # High rate limit for polling (every 500ms for 10 seconds)
+    @login_required
+    def collect_status(request_id):
+        """
+        Check status of an on-demand collection request.
+
+        Called by frontend to poll for collection completion.
+        Frontend polls every 500ms for up to 10 seconds.
+
+        Args:
+            request_id: Request ID from /api/throughput/collect-now
+
+        Returns:
+            JSON with request status:
+            {
+                'id': 123,
+                'device_id': 'device-uuid',
+                'status': 'queued|running|completed|failed',
+                'requested_at': '2025-01-01T00:00:00+00:00',
+                'started_at': '2025-01-01T00:00:01+00:00',  # null if not started
+                'completed_at': '2025-01-01T00:00:05+00:00',  # null if not completed
+                'error_message': null  # error message if status is 'failed'
+            }
+        """
+        try:
+            storage = get_storage()
+            result = storage.get_collection_request(request_id)
+
+            if result is None:
+                debug(f"collect-status: Request {request_id} not found")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Request {request_id} not found'
+                }), 404
+
+            return jsonify(result)
+
+        except Exception as e:
+            exception(f"collect-status: Failed to get status for request {request_id}: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to get request status: {str(e)}'
+            }), 500
 
     debug("Throughput routes registered successfully")

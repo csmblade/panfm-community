@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 0
-VERSION_PATCH = 1
+VERSION_PATCH = 3
 
 # Build metadata (optional)
 VERSION_BUILD = "20251126"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251126"  # YYYYMMDD format
 VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Dark Theme & UI Polish"
+VERSION_CODENAME = "Fast Device Switch"
 
 
 def get_version():
@@ -75,6 +75,70 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.0.3',
+        'codename': 'Fast Device Switch',
+        'date': '2025-11-26',
+        'type': 'patch',
+        'changes': [
+            'DEVICE SWITCHING IMPROVEMENTS:',
+            '',
+            'Fixed race conditions during device switching:',
+            '- Removed auto-select logic from backend routes (was causing conflicts)',
+            '- Device selection now exclusively controlled by frontend initializeCurrentDevice()',
+            '- Added device initialization state tracking (deviceInitialized, deviceInitializing)',
+            '- Added window.initialDataLoaded to track dashboard data loading',
+            '- Added window.onDemandCollectionInProgress to prevent duplicate collections',
+            '',
+            'New Device Switch Loading Overlay:',
+            '- Full-screen loading overlay during device switch for better UX',
+            '- Shows device name being switched to',
+            '- Progress messages during switch (Initializing, Loading data, etc.)',
+            '- Minimum 800ms display to avoid jarring flash',
+            '',
+            'On-Demand Data Collection:',
+            '- triggerOnDemandCollection() function for immediate data when needed',
+            '- Avoids 60-second wait when switching devices or on initial load',
+            '- Returns cached data if available, otherwise triggers fresh collection',
+            '',
+            'FILES MODIFIED:',
+            '- static/app.js: Device switch overlay, on-demand collection, state tracking',
+            '- static/devices.js: Updated device switching to use new overlay system',
+            '- routes_throughput.py: Removed backend auto-select (prevents race conditions)',
+            '- routes_analytics.py: Removed backend auto-select',
+            '- routes_threats.py: Removed backend auto-select',
+            '- routes_device_metadata.py: Removed backend auto-select',
+        ]
+    },
+    {
+        'version': '1.0.2',
+        'codename': 'Chord Diagram & Analytics',
+        'date': '2025-11-26',
+        'type': 'patch',
+        'changes': [
+            'TRAFFIC FLOW CHORD DIAGRAMS:',
+            '- Improved Sankey diagram rendering and performance',
+            '- Internet traffic filter checkboxes (Outbound/Inbound/Transit)',
+            '- Settings persistence for filter preferences',
+            '- Cached data for instant filter switching',
+            '',
+            'ANALYTICS PAGE IMPROVEMENTS:',
+            '- Enhanced analytics data visualization',
+            '- Improved time range selection',
+            '',
+            'THROUGHPUT STORAGE ENHANCEMENTS:',
+            '- Added system info columns to throughput storage',
+            '- Improved data collection reliability',
+            '- Enhanced PostgreSQL/TimescaleDB integration',
+            '',
+            'FILES MODIFIED:',
+            '- static/pages-connected-devices-sankey.js: Chord diagram improvements',
+            '- static/pages-analytics.js: Analytics page updates',
+            '- throughput_storage_timescale.py: New storage columns and methods',
+            '- throughput_collector.py: Improved collection logic',
+            '- init_timescaledb_complete.sql: Schema updates',
+        ]
+    },
     {
         'version': '1.0.1',
         'codename': 'Dark Theme & UI Polish',

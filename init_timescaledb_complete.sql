@@ -1612,3 +1612,44 @@ COMMENT ON COLUMN throughput_samples.uptime_seconds IS 'Firewall uptime in secon
 COMMENT ON COLUMN throughput_samples.pan_os_version IS 'PAN-OS version for upgrade tracking and compliance';
 COMMENT ON COLUMN throughput_samples.license_expired IS 'Number of expired licenses for compliance monitoring';
 COMMENT ON COLUMN throughput_samples.license_active IS 'Number of active licenses for license management';
+
+-- Migration 011: On-Demand Collection Queue
+-- Created: 2025-11-26
+-- Purpose: Enable on-demand throughput collection when switching devices
+-- v1.0.3 - Reduces device switch latency from 60s to ~5-8s
+
+-- Create collection_requests table for inter-process communication
+-- Web process queues requests, clock process processes them
+CREATE TABLE IF NOT EXISTS collection_requests (
+    id SERIAL PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'queued',  -- queued, running, completed, failed
+    requested_at TIMESTAMPTZ DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error_message TEXT
+);
+
+-- Index for efficient status queries (clock process polls for 'queued' requests)
+CREATE INDEX IF NOT EXISTS idx_collection_requests_status
+    ON collection_requests(status, requested_at);
+
+-- Index for device_id lookups (dedupe check)
+CREATE INDEX IF NOT EXISTS idx_collection_requests_device
+    ON collection_requests(device_id, status);
+
+-- Add comment for documentation
+COMMENT ON TABLE collection_requests IS 'On-demand collection queue: web process queues, clock process executes';
+COMMENT ON COLUMN collection_requests.status IS 'Request status: queued (waiting), running (collecting), completed (done), failed (error)';
+COMMENT ON COLUMN collection_requests.device_id IS 'Device UUID to collect data for';
+
+-- Automatic cleanup: Remove completed/failed requests older than 1 hour
+-- This keeps the table small and fast
+CREATE OR REPLACE FUNCTION cleanup_old_collection_requests()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM collection_requests
+    WHERE status IN ('completed', 'failed')
+      AND completed_at < NOW() - INTERVAL '1 hour';
+END;
+$$ LANGUAGE plpgsql;

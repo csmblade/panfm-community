@@ -30,21 +30,8 @@ def register_threat_routes(app, csrf, limiter):
         settings = load_settings()
         device_id = settings.get('selected_device_id', '')
 
-        # If no device selected, auto-select the first enabled device
-        if not device_id or device_id.strip() == '':
-            from device_manager import device_manager
-            devices = device_manager.load_devices()
-            enabled_devices = [d for d in devices if d.get('enabled', True)]
-            if enabled_devices:
-                device_id = enabled_devices[0].get('id')
-                debug(f"No device selected, auto-selected first enabled device: {device_id}")
-            else:
-                debug("No enabled devices found")
-                return jsonify({
-                    'status': 'error',
-                    'message': 'No devices configured. Please add a device in Managed Devices.'
-                }), 400
-
+        # v1.0.5: DO NOT auto-select device here - that causes race conditions!
+        # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
         if not device_id or device_id.strip() == '':
             return jsonify({
                 'status': 'error',

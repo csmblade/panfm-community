@@ -36,6 +36,184 @@ let currentFlowData = null;
 // Cache TTL in milliseconds (60 seconds to align with server-side cache)
 const CACHE_TTL_MS = 60 * 1000;
 
+// Cache for reverse DNS lookups (IP -> hostname)
+let reverseDnsCache = {};
+
+// Cache for source IP hostnames from connected devices table (IP -> hostname)
+let sourceHostnameCache = {};
+
+/**
+ * Load source IP hostnames from connected devices table
+ * This provides DHCP hostnames and custom device names for internal IPs
+ * @returns {Promise<void>}
+ */
+async function loadSourceHostnames() {
+    try {
+        console.log('[SANKEY] Loading source hostnames from connected devices...');
+        const response = await fetch('/api/connected-devices');
+        if (!response.ok) {
+            console.warn('[SANKEY] Failed to load connected devices for hostname lookup');
+            return;
+        }
+        const data = await response.json();
+        if (data.status === 'success' && data.devices) {
+            sourceHostnameCache = {};
+            data.devices.forEach(device => {
+                const ip = device.ip;
+                // Priority: custom_name > hostname > original_hostname
+                const hostname = device.custom_name || device.hostname || device.original_hostname;
+                if (ip && hostname && hostname !== ip) {
+                    sourceHostnameCache[ip] = hostname;
+                }
+            });
+            console.log(`[SANKEY] Loaded ${Object.keys(sourceHostnameCache).length} source hostnames`);
+        }
+    } catch (error) {
+        console.error('[SANKEY] Error loading source hostnames:', error);
+    }
+}
+
+/**
+ * Get hostname for source IP (from connected devices cache)
+ * @param {string} ip - Source IP address
+ * @returns {string} Hostname or original IP
+ */
+function getSourceHostname(ip) {
+    const cleanIp = stripSubnet(ip);
+    const hostname = sourceHostnameCache[cleanIp];
+    return hostname || ip;
+}
+
+/**
+ * Perform reverse DNS lookup for destination IPs
+ * Uses the same API as Applications page (/api/reverse-dns)
+ * v1.0.4: Strips subnet notation (/32) before lookup
+ * @param {Array} ipAddresses - Array of IP addresses to lookup
+ * @returns {Promise<Object>} Map of IP -> hostname
+ */
+async function performReverseDnsLookup(ipAddresses) {
+    if (!ipAddresses || ipAddresses.length === 0) {
+        return {};
+    }
+
+    // v1.0.4: Strip subnet notation from all IPs
+    const cleanIps = ipAddresses.map(ip => stripSubnet(ip));
+
+    // Filter out IPs we already have in cache
+    const uncachedIps = cleanIps.filter(ip => !reverseDnsCache[ip]);
+
+    if (uncachedIps.length === 0) {
+        console.log('[SANKEY] All IPs found in reverse DNS cache');
+        return reverseDnsCache;
+    }
+
+    console.log(`[SANKEY] Performing reverse DNS lookup for ${uncachedIps.length} IPs...`);
+
+    try {
+        // Use window.apiClient if available (same as Applications page)
+        let response;
+        if (window.apiClient && window.apiClient.post) {
+            response = await window.apiClient.post('/api/reverse-dns', {
+                ip_addresses: uncachedIps,
+                timeout: 2
+            });
+            if (response.ok && response.data && response.data.status === 'success') {
+                // Merge results into cache
+                Object.assign(reverseDnsCache, response.data.results);
+                console.log(`[SANKEY] Cached ${Object.keys(response.data.results).length} reverse DNS results`);
+            }
+        } else {
+            // Fallback to direct fetch
+            response = await fetch('/api/reverse-dns', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({
+                    ip_addresses: uncachedIps,
+                    timeout: 2
+                })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'success') {
+                    Object.assign(reverseDnsCache, data.results);
+                    console.log(`[SANKEY] Cached ${Object.keys(data.results).length} reverse DNS results`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('[SANKEY] Error performing reverse DNS lookup:', error);
+    }
+
+    return reverseDnsCache;
+}
+
+/**
+ * Get hostname for destination IP (from reverse DNS cache)
+ * v1.0.4: Strips subnet notation before lookup
+ * @param {string} ip - IP address (may include /32 subnet notation)
+ * @returns {string} Hostname or clean IP (without subnet)
+ */
+function getHostnameForIp(ip) {
+    const cleanIp = stripSubnet(ip);
+    const hostname = reverseDnsCache[cleanIp];
+    if (hostname && hostname !== cleanIp) {
+        console.log(`[SANKEY] DNS resolved: ${ip} -> ${hostname}`);
+        return hostname;
+    }
+    return cleanIp;  // Return clean IP without /32
+}
+
+/**
+ * Clear the reverse DNS cache (v1.0.4)
+ * Called when user toggles reverse DNS lookup on/off
+ * Ensures fresh lookups when re-enabled
+ */
+function clearSankeyDnsCache() {
+    const prevCount = Object.keys(reverseDnsCache).length;
+    reverseDnsCache = {};
+    console.log(`[SANKEY] Cleared reverse DNS cache (${prevCount} entries)`);
+}
+
+// Export clear function for use by toggle handler (v1.0.4)
+window.clearSankeyDnsCache = clearSankeyDnsCache;
+
+/**
+ * Check if reverse DNS lookup is enabled
+ * v1.0.4: Uses localStorage as source of truth (synced by toggle handler)
+ * @returns {boolean} True if enabled
+ */
+function isReverseDnsEnabled() {
+    // v1.0.4: Use localStorage as the single source of truth
+    // This is set by toggleReverseDnsLookup() and survives page navigation
+    const stored = localStorage.getItem('reverseDnsEnabled');
+    if (stored !== null) {
+        const enabled = stored === 'true';
+        console.log(`[SANKEY] Reverse DNS enabled (from localStorage): ${enabled}`);
+        return enabled;
+    }
+
+    // Fallback: check checkboxes (Connected Devices or Applications tab)
+    const checkbox1 = document.getElementById('enableReverseDnsLookup');
+    const checkbox2 = document.getElementById('enableReverseDnsLookupApps');
+    const enabled = (checkbox1 && checkbox1.checked) || (checkbox2 && checkbox2.checked);
+    console.log(`[SANKEY] Reverse DNS enabled (from checkbox): ${enabled}`);
+    return enabled;
+}
+
+/**
+ * Strip subnet notation from IP address (e.g., "192.168.1.1/32" -> "192.168.1.1")
+ * @param {string} ip - IP address possibly with subnet notation
+ * @returns {string} Clean IP address without subnet
+ */
+function stripSubnet(ip) {
+    if (!ip) return ip;
+    const slashIndex = ip.indexOf('/');
+    return slashIndex > 0 ? ip.substring(0, slashIndex) : ip;
+}
+
 /**
  * Initialize modal event handlers
  */
@@ -124,6 +302,32 @@ async function openSankeyDiagram(clientIp, expectedTotalVolume = null) {
         console.log('[SANKEY DEBUG] API Response:', flowData);
         console.log('[SANKEY DEBUG] First flow:', flowData.flows[0]);
         console.log('[SANKEY DEBUG] Expected total volume (from client_bandwidth):', expectedTotalVolume);
+
+        // v1.0.4: Always load source hostnames from connected devices (for internal IP resolution)
+        await loadSourceHostnames();
+
+        // v1.0.4: Update header with source hostname if available
+        const sourceHostname = getSourceHostname(clientIp);
+        if (sankeyClientInfo) {
+            if (sourceHostname !== clientIp && sourceHostname !== stripSubnet(clientIp)) {
+                sankeyClientInfo.innerHTML = `Source: <span style="font-weight: 600; color: #FA582D;">${escapeHtml(sourceHostname)}</span> <span style="color: #999; font-size: 0.9em;">(${escapeHtml(stripSubnet(clientIp))})</span>`;
+            } else {
+                sankeyClientInfo.innerHTML = `Source: <span style="font-weight: 600; color: #FA582D;">${escapeHtml(stripSubnet(clientIp))}</span>`;
+            }
+        }
+
+        // Perform reverse DNS lookup for destination IPs only if enabled
+        const dnsEnabled = isReverseDnsEnabled();
+        if (dnsEnabled) {
+            console.log('[SANKEY] Reverse DNS enabled, looking up destination IPs...');
+            // v1.0.4: Extract dest IPs and strip /32 subnet notation
+            const destIps = [...new Set(flowData.flows.map(f => stripSubnet(f.dest_ip)).filter(Boolean))];
+            console.log('[SANKEY] Destination IPs to lookup:', destIps);
+            await performReverseDnsLookup(destIps);
+            console.log('[SANKEY] DNS cache after lookup:', reverseDnsCache);
+        } else {
+            console.log('[SANKEY] Reverse DNS disabled, skipping lookup');
+        }
 
         // Update summary stats (pass expectedTotalVolume to display correct value)
         updateSankeyStats(flowData, expectedTotalVolume);
@@ -434,6 +638,8 @@ function buildSankeyData(flows) {
     }
 
     // Use 3-layer Sankey: source → application → destination
+    const dnsEnabled = isReverseDnsEnabled();
+
     flows.forEach(flow => {
         const sourceIp = flow.source_ip || 'unknown';
         const destIp = flow.dest_ip || 'unknown';
@@ -444,14 +650,9 @@ function buildSankeyData(flows) {
         // Skip flows with zero bytes
         if (bytes === 0) return;
 
-        // Apply reverse DNS lookup if enabled
-        const sourceLabel = window.ConnectedDevices && window.ConnectedDevices.isReverseDnsEnabled()
-            ? window.ConnectedDevices.getIpDisplayLabel(sourceIp)
-            : sourceIp;
-
-        const destIpLabel = window.ConnectedDevices && window.ConnectedDevices.isReverseDnsEnabled()
-            ? window.ConnectedDevices.getIpDisplayLabel(destIp)
-            : destIp;
+        // v1.0.4: Use source hostname from connected devices table if available
+        const sourceLabel = getSourceHostname(sourceIp);
+        const destIpLabel = dnsEnabled ? getHostnameForIp(destIp) : destIp;
 
         // Create destination label with port (e.g., "192.168.1.100:443" or "hostname.com:443")
         const destLabel = destPort ? `${destIpLabel}:${destPort}` : destIpLabel;

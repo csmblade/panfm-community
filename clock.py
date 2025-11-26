@@ -568,6 +568,96 @@ def cleanup_old_data():
     finally:
         current_job = None
 
+def process_collection_queue():
+    """
+    Process on-demand collection requests from queue (v1.0.3).
+
+    Called every 5 seconds to check for queued collection requests.
+    This enables fast device switching (<5-8 seconds) instead of
+    waiting up to 60 seconds for the next scheduled collection.
+
+    Pattern: Web queues request → This job processes → Web polls status
+    """
+    global current_job
+    job_name = 'collection_queue_processor'
+    current_job = job_name
+
+    # Initialize job stats if not exists
+    if job_name not in scheduler_stats['jobs']:
+        scheduler_stats['jobs'][job_name] = {
+            'success_count': 0,
+            'error_count': 0,
+            'requests_processed': 0,
+            'last_run': None,
+            'last_error': None
+        }
+
+    try:
+        collector = get_collector()
+        if not collector or not collector.storage:
+            # Collector not ready yet, skip this cycle
+            return
+
+        storage = collector.storage
+
+        # Get all pending collection requests
+        pending = storage.get_pending_collection_requests()
+
+        if not pending:
+            # No requests to process - this is normal, not an error
+            return
+
+        print(f"[QUEUE] Processing {len(pending)} on-demand collection request(s)")
+        debug(f"Processing {len(pending)} on-demand collection requests")
+
+        for request in pending:
+            request_id = request['id']
+            device_id = request['device_id']
+
+            try:
+                print(f"[QUEUE] Processing request {request_id} for device {device_id}")
+
+                # Mark as running
+                storage.update_collection_request(request_id, 'running')
+
+                # Perform single-device collection
+                collector.collect_single_device(device_id)
+
+                # Mark as completed
+                storage.update_collection_request(request_id, 'completed')
+
+                print(f"[QUEUE] ✓ Request {request_id} completed for device {device_id}")
+                debug(f"On-demand collection completed for device {device_id} (request {request_id})")
+
+                # Update stats
+                scheduler_stats['jobs'][job_name]['requests_processed'] += 1
+
+            except Exception as device_error:
+                # Mark as failed with error message
+                storage.update_collection_request(request_id, 'failed', str(device_error))
+
+                print(f"[QUEUE] ✗ Request {request_id} failed: {str(device_error)}")
+                warning(f"On-demand collection failed for device {device_id}: {str(device_error)}")
+
+                # Update error stats
+                scheduler_stats['jobs'][job_name]['error_count'] += 1
+
+        # Cleanup old completed/failed requests (keep queue table small)
+        storage.cleanup_old_collection_requests(hours=1)
+
+        # Update job stats
+        scheduler_stats['jobs'][job_name]['success_count'] += 1
+        scheduler_stats['jobs'][job_name]['last_run'] = datetime.utcnow().isoformat()
+
+    except Exception as e:
+        exception(f"Error in collection queue processor: {str(e)}")
+        scheduler_stats['jobs'][job_name]['error_count'] += 1
+        scheduler_stats['jobs'][job_name]['last_error'] = str(e)
+        # Don't re-raise - queue processor should continue running
+    finally:
+        current_job = None
+
+
 def main():
     """Main clock process entry point."""
     print("=" * 60)
@@ -699,6 +789,17 @@ def main():
         replace_existing=True
     )
     print(f"[CLOCK INIT] ✓ Job 'persist_scheduler_stats' registered (every 60 seconds)")
+
+    # Register Job 6: On-Demand Collection Queue Processor (every 5 seconds) - v1.0.3
+    scheduler.add_job(
+        func=process_collection_queue,
+        trigger='interval',
+        seconds=5,
+        id='process_collection_queue',
+        name='On-Demand Collection Queue Processor',
+        replace_existing=True
+    )
+    print(f"[CLOCK INIT] ✓ Job 'process_collection_queue' registered (every 5 seconds)")
 
     # Register signal handlers for graceful shutdown
     print(f"[CLOCK INIT] Registering signal handlers (SIGTERM, SIGINT)...")

@@ -1,6 +1,15 @@
 console.log('[APP.JS] ===== FILE LOADING STARTED =====');
 
 // ============================================================================
+// Device Initialization State (v1.0.5 - Enterprise Device Switching Fix)
+// Prevents race conditions during device selection initialization
+// ============================================================================
+window.deviceInitialized = false;
+window.deviceInitializing = false;
+window.initialDataLoaded = false;  // v1.0.6: Track if initial dashboard data has been loaded
+window.onDemandCollectionInProgress = false;  // v1.0.7: Track if on-demand collection is already running
+
+// ============================================================================
 // Performance Optimization: Frontend Caching Utility (v2.0.1)
 // ============================================================================
 const CacheUtil = {
@@ -104,6 +113,68 @@ window.currentHighLogs = [];
 window.currentMediumLogs = [];
 window.currentBlockedUrlLogs = [];
 window.currentTopApps = [];
+
+// ============================================================================
+// Device Switch Loading Overlay (v2.1.18 - Enterprise UX)
+// ============================================================================
+
+// Track overlay state for minimum display time
+let overlayShowTime = 0;
+const OVERLAY_MIN_DISPLAY_MS = 800; // Minimum 800ms display to avoid flash
+
+/**
+ * Show full-screen loading overlay during device switch
+ * @param {string} deviceName - Name of device being switched to
+ */
+function showDeviceSwitchOverlay(deviceName) {
+    const overlay = document.getElementById('deviceSwitchOverlay');
+    const message = document.getElementById('deviceSwitchMessage');
+    const progress = document.getElementById('deviceSwitchProgress');
+
+    if (overlay) {
+        if (message) message.textContent = `Switching to ${deviceName}...`;
+        if (progress) progress.textContent = 'Initializing...';
+        overlay.style.display = 'flex';
+        overlayShowTime = Date.now();
+        console.log('[OVERLAY] Shown at', overlayShowTime);
+    }
+}
+
+/**
+ * Update progress message on loading overlay
+ * @param {string} step - Current progress step description
+ */
+function updateDeviceSwitchProgress(step) {
+    const progress = document.getElementById('deviceSwitchProgress');
+    if (progress) {
+        progress.textContent = step;
+        console.log('[OVERLAY] Progress:', step);
+    }
+}
+
+/**
+ * Hide loading overlay when device switch completes
+ * Ensures minimum display time to avoid jarring flash
+ */
+async function hideDeviceSwitchOverlay() {
+    const overlay = document.getElementById('deviceSwitchOverlay');
+    if (overlay) {
+        // Ensure minimum display time
+        const elapsed = Date.now() - overlayShowTime;
+        if (elapsed < OVERLAY_MIN_DISPLAY_MS) {
+            const remaining = OVERLAY_MIN_DISPLAY_MS - elapsed;
+            console.log(`[OVERLAY] Waiting ${remaining}ms for minimum display time`);
+            await new Promise(resolve => setTimeout(resolve, remaining));
+        }
+        overlay.style.display = 'none';
+        console.log('[OVERLAY] Hidden after', Date.now() - overlayShowTime, 'ms');
+    }
+}
+
+// Make overlay functions globally accessible (for devices.js)
+window.showDeviceSwitchOverlay = showDeviceSwitchOverlay;
+window.updateDeviceSwitchProgress = updateDeviceSwitchProgress;
+window.hideDeviceSwitchOverlay = hideDeviceSwitchOverlay;
 
 // Enterprise Threat Configuration (v1.10.14)
 // Reusable, scalable configuration for threat severity tiles
@@ -1244,11 +1315,96 @@ function showInfo(message) {
     }, 5000);
 }
 
+// ============================================================================
+// v1.0.7: On-Demand Collection Helper
+// Triggers immediate data collection when no recent data exists
+// Used on initial page load and device switch to avoid 60s wait
+// ============================================================================
+async function triggerOnDemandCollection(deviceId) {
+    if (!deviceId) {
+        console.warn('[ON-DEMAND] No device ID provided, skipping collection');
+        return false;
+    }
+
+    if (window.onDemandCollectionInProgress) {
+        console.log('[ON-DEMAND] Collection already in progress, skipping');
+        return false;
+    }
+
+    window.onDemandCollectionInProgress = true;
+    console.log('[ON-DEMAND] Triggering collection for device:', deviceId);
+
+    try {
+        // Queue the collection request
+        const collectResponse = await window.apiClient.post('/api/throughput/collect-now', {
+            device_id: deviceId
+        });
+
+        if (!collectResponse.ok || !collectResponse.data.request_id) {
+            console.warn('[ON-DEMAND] Failed to queue collection:', collectResponse.data?.message);
+            return false;
+        }
+
+        const requestId = collectResponse.data.request_id;
+        console.log('[ON-DEMAND] Collection queued, request_id:', requestId);
+
+        // Show info message to user
+        showInfo('Collecting data from firewall... Please wait.');
+
+        // Poll for completion (max 12 seconds, every 500ms)
+        // Clock process runs every 5 seconds, so typical wait is 5-8 seconds
+        for (let i = 0; i < 24; i++) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const elapsedSeconds = Math.round((i + 1) * 0.5);
+            console.log(`[ON-DEMAND] Polling... ${elapsedSeconds}s`);
+
+            try {
+                const statusResponse = await window.apiClient.get(`/api/throughput/collect-status/${requestId}`);
+
+                if (statusResponse.ok) {
+                    const status = statusResponse.data.status;
+
+                    if (status === 'completed') {
+                        console.log('[ON-DEMAND] Collection completed - fresh data available');
+                        return true;
+                    } else if (status === 'failed') {
+                        console.warn('[ON-DEMAND] Collection failed:', statusResponse.data.error_message);
+                        return false;
+                    }
+                    // Continue polling if 'queued' or 'running'
+                }
+            } catch (pollError) {
+                console.warn('[ON-DEMAND] Status poll error:', pollError);
+                // Continue polling
+            }
+        }
+
+        console.warn('[ON-DEMAND] Collection timed out after 12 seconds');
+        return false;
+    } catch (error) {
+        console.error('[ON-DEMAND] Collection error:', error);
+        return false;
+    } finally {
+        window.onDemandCollectionInProgress = false;
+    }
+}
+
+// Make available globally
+window.triggerOnDemandCollection = triggerOnDemandCollection;
+
 // Fetch data from API
 async function fetchThroughputData() {
     try {
         // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
         const params = {};
+
+        // v2.1.18: Always include device_id to ensure correct device data
+        // This fixes the issue where metrics showed wrong device data after switching
+        if (window.currentDeviceId) {
+            params.device_id = window.currentDeviceId;
+        }
+
         if (window.currentTimeRange) {
             params.range = window.currentTimeRange;
         }
@@ -1283,7 +1439,41 @@ async function fetchThroughputData() {
             // Not an error - system is initializing and waiting for first data collection
             console.log('No recent data available - system initializing');
             updateStatus(false);
-            showInfo('Waiting for first data collection. Charts will appear in ~60 seconds.');
+
+            // v1.0.6: Clear "Loading..." states by calling updateCyberHealth with empty data
+            // This prevents Firewall Health tiles from being stuck at "Loading..." indefinitely
+            updateCyberHealth({
+                cpu: { data_plane_cpu: null, memory_used_pct: null },
+                total_pps: null,
+                sessions: { active: null, tcp: null, udp: null, icmp: null },
+                top_category_lan: null,
+                top_category_internet: null,
+                top_internal_client: null,
+                top_internet_client: null,
+                top_bandwidth_client_lan: null,
+                top_bandwidth_client_internet: null
+            });
+
+            // v1.0.7: Automatically trigger on-demand collection on initial page load
+            // This eliminates the 60-second wait when starting fresh containers
+            if (window.currentDeviceId && !window.onDemandCollectionInProgress) {
+                console.log('[APP] No data available - triggering automatic on-demand collection');
+                showInfo('No data available. Collecting from firewall...');
+
+                // Trigger collection and refresh data when complete
+                triggerOnDemandCollection(window.currentDeviceId).then(success => {
+                    if (success) {
+                        console.log('[APP] On-demand collection succeeded, refreshing dashboard');
+                        // Fetch data again now that collection is complete
+                        fetchThroughputData();
+                    } else {
+                        console.warn('[APP] On-demand collection failed or timed out');
+                        showInfo('Data collection taking longer than expected. Dashboard will update automatically.');
+                    }
+                });
+            } else {
+                showInfo('Waiting for first data collection. Charts will appear shortly.');
+            }
 
         } else {
             // Actual error case (status: 'error')
@@ -1330,12 +1520,12 @@ async function preloadChartData() {
 
         // Query data for current time range (Fixed v1.14.1 - was hardcoded to 30m)
         // CRITICAL: Only use main dashboard time ranges (5m, 15m, 30m, 60m)
-        // If currentTimeRange is from Insights dashboard (1h, 6h, 24h, etc.), default to 30m
+        // If currentTimeRange is from Insights dashboard (1h, 6h, 24h, etc.), default to 15m
         const mainDashboardRanges = ['5m', '15m', '30m', '60m'];
-        let timeRange = window.currentTimeRange || '30m';
+        let timeRange = window.currentTimeRange || '15m';
         if (!mainDashboardRanges.includes(timeRange)) {
-            console.warn(`Time range '${timeRange}' not valid for main dashboard, using '30m'`);
-            timeRange = '30m';
+            console.warn(`Time range '${timeRange}' not valid for main dashboard, using '15m'`);
+            timeRange = '15m';
         }
         console.log(`Preloading chart data for time range: ${timeRange}`);
         const response = await window.apiClient.get('/api/throughput/history', {
@@ -1467,6 +1657,20 @@ async function init() {
 
     console.log('Initializing Palo Alto Firewall Monitor...');
     isInitialized = true;
+
+    // FIX v2.1.17: Safeguard for device selection race condition
+    // If window.currentDeviceId is not set, wait briefly for initializeCurrentDevice() to complete
+    // This handles the case where init() runs before the async auto-select POST finishes
+    if (!window.currentDeviceId) {
+        console.warn('[INIT] No device ID set yet, waiting for auto-selection...');
+        await new Promise(resolve => setTimeout(resolve, 100));
+        // Double-check after wait
+        if (!window.currentDeviceId) {
+            console.warn('[INIT] Still no device ID after wait, initialization may show empty data initially');
+        } else {
+            console.log('[INIT] Device ID now available:', window.currentDeviceId);
+        }
+    }
 
     // OPTIMIZATION: Parallelize independent API calls for faster loading
     console.log('[OPTIMIZATION] Loading settings, devices, and metadata in parallel...');
@@ -1664,93 +1868,126 @@ async function init() {
 }
 
 /**
- * Initialize current device ID from settings (Enterprise Fix v1.12.0)
+ * Initialize current device ID from settings (Enterprise Fix v1.12.0, v1.0.5 Lock)
  * Ensures window.currentDeviceId is set before any page loads
  * This prevents blank device_id errors in Analytics and other pages
+ *
+ * v1.0.5: Added initialization lock to prevent race conditions where multiple
+ * modules try to initialize/auto-select devices simultaneously.
  */
 async function initializeCurrentDevice() {
-    console.log('[Global] Initializing current device...');
+    console.log('[DEVICE-INIT] Initializing current device...');
 
-    // Check if already initialized
-    if (window.currentDeviceId && window.currentDeviceId.trim() !== '') {
-        console.log('[Global] Device already initialized:', window.currentDeviceId);
+    // v1.0.5: Prevent concurrent initialization (race condition fix)
+    if (window.deviceInitializing) {
+        console.log('[DEVICE-INIT] Already initializing, waiting for completion...');
+        // Wait for existing initialization to complete
+        while (window.deviceInitializing) {
+            await new Promise(r => setTimeout(r, 50));
+        }
+        console.log('[DEVICE-INIT] Initialization completed by other caller:', window.currentDeviceId);
         return window.currentDeviceId;
     }
 
-    // Fetch current selected device from settings API (source of truth)
-    try {
-        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
-        const response = await window.apiClient.get('/api/settings');
-
-        if (!response.ok) {
-            throw new Error(`Failed to load settings: ${response.status}`);
-        }
-
-        const data = response.data;
-
-        if (data.status === 'success' && data.settings) {
-            const deviceId = data.settings.selected_device_id || '';
-            window.currentDeviceId = deviceId;
-
-            // OPTIMIZATION: Cache settings to avoid duplicate fetch in initSettings()
-            window.CacheUtil.set('settings', data.settings, 5 * 60 * 1000);
-            console.log('[Global] Settings cached for 5 minutes');
-
-            if (deviceId && deviceId.trim() !== '') {
-                console.log('[Global] Loaded device from settings:', deviceId);
-                return deviceId;
-            } else {
-                console.warn('[Global] No device selected in settings');
-            }
-        }
-    } catch (error) {
-        console.error('[Global] Failed to fetch settings:', error);
+    // v1.0.5: Already fully initialized - return immediately
+    if (window.deviceInitialized && window.currentDeviceId && window.currentDeviceId.trim() !== '') {
+        console.log('[DEVICE-INIT] Already initialized:', window.currentDeviceId);
+        return window.currentDeviceId;
     }
 
-    // If no device selected, try to auto-select first enabled device
-    try {
-        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
-        const devicesResponse = await window.apiClient.get('/api/devices');
+    // Set lock to prevent concurrent initialization
+    window.deviceInitializing = true;
+    console.log('[DEVICE-INIT] Lock acquired, starting initialization...');
 
-        if (!devicesResponse.ok) {
-            throw new Error(`Failed to load devices: ${devicesResponse.status}`);
+    try {
+        // Check if already set (without lock check)
+        if (window.currentDeviceId && window.currentDeviceId.trim() !== '') {
+            console.log('[DEVICE-INIT] Device already set:', window.currentDeviceId);
+            window.deviceInitialized = true;
+            return window.currentDeviceId;
         }
 
-        const devicesData = devicesResponse.data;
+        // Fetch current selected device from settings API (source of truth)
+        try {
+            // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+            const response = await window.apiClient.get('/api/settings');
 
-        if (devicesData.devices && devicesData.devices.length > 0) {
-            // Find first enabled device
-            const firstEnabledDevice = devicesData.devices.find(d => d.enabled !== false);
+            if (!response.ok) {
+                throw new Error(`Failed to load settings: ${response.status}`);
+            }
 
-            if (firstEnabledDevice) {
-                window.currentDeviceId = firstEnabledDevice.id;
-                console.log('[Global] Auto-selected first enabled device:', firstEnabledDevice.name);
+            const data = response.data;
 
-                // Persist selection to settings using ApiClient (CSRF token auto-injected)
-                try {
-                    await window.apiClient.post('/api/settings', {
-                        selected_device_id: firstEnabledDevice.id
-                    });
-                    console.log('[Global] Persisted device selection to settings');
-                } catch (error) {
-                    console.warn('[Global] Failed to persist device selection:', error);
+            if (data.status === 'success' && data.settings) {
+                const deviceId = data.settings.selected_device_id || '';
+                window.currentDeviceId = deviceId;
+
+                // OPTIMIZATION: Cache settings to avoid duplicate fetch in initSettings()
+                window.CacheUtil.set('settings', data.settings, 5 * 60 * 1000);
+                console.log('[Global] Settings cached for 5 minutes');
+
+                if (deviceId && deviceId.trim() !== '') {
+                    console.log('[DEVICE-INIT] Loaded device from settings:', deviceId);
+                    window.deviceInitialized = true;
+                    return deviceId;
+                } else {
+                    console.warn('[DEVICE-INIT] No device selected in settings');
                 }
-
-                return firstEnabledDevice.id;
-            } else {
-                console.warn('[Global] No enabled devices found');
             }
-        } else {
-            console.warn('[Global] No devices configured');
+        } catch (error) {
+            console.error('[DEVICE-INIT] Failed to fetch settings:', error);
         }
-    } catch (error) {
-        console.error('[Global] Failed to fetch devices:', error);
-    }
 
-    // No device available
-    window.currentDeviceId = '';
-    console.warn('[Global] No device initialized - user must select one');
-    return '';
+        // If no device selected, try to auto-select first enabled device
+        try {
+            // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+            const devicesResponse = await window.apiClient.get('/api/devices');
+
+            if (!devicesResponse.ok) {
+                throw new Error(`Failed to load devices: ${devicesResponse.status}`);
+            }
+
+            const devicesData = devicesResponse.data;
+
+            if (devicesData.devices && devicesData.devices.length > 0) {
+                // Find first enabled device
+                const firstEnabledDevice = devicesData.devices.find(d => d.enabled !== false);
+
+                if (firstEnabledDevice) {
+                    window.currentDeviceId = firstEnabledDevice.id;
+                    console.log('[DEVICE-INIT] Auto-selected first enabled device:', firstEnabledDevice.name);
+
+                    // Persist selection to settings using ApiClient (CSRF token auto-injected)
+                    try {
+                        await window.apiClient.post('/api/settings', {
+                            selected_device_id: firstEnabledDevice.id
+                        });
+                        console.log('[DEVICE-INIT] Persisted device selection to settings');
+                    } catch (error) {
+                        console.warn('[DEVICE-INIT] Failed to persist device selection:', error);
+                    }
+
+                    window.deviceInitialized = true;
+                    return firstEnabledDevice.id;
+                } else {
+                    console.warn('[DEVICE-INIT] No enabled devices found');
+                }
+            } else {
+                console.warn('[DEVICE-INIT] No devices configured');
+            }
+        } catch (error) {
+            console.error('[DEVICE-INIT] Failed to fetch devices:', error);
+        }
+
+        // No device available
+        window.currentDeviceId = '';
+        console.warn('[DEVICE-INIT] No device initialized - user must select one');
+        return '';
+    } finally {
+        // v1.0.5: Always release the lock when done
+        window.deviceInitializing = false;
+        console.log('[DEVICE-INIT] Lock released, initialized:', window.deviceInitialized);
+    }
 }
 
 // Export for use by other modules
@@ -1858,6 +2095,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Then run normal initialization
     await init();  // Fixed: await the async function
 
+    // Load dashboard time range from server settings (persists across reboots)
+    await loadDashboardTimeRange();
+
     // Note: Tag filter event listener removed - now using modal interface
     // Modal functions: openChordTagFilterModal(), applyChordTagFilter()
 
@@ -1875,19 +2115,20 @@ document.addEventListener('DOMContentLoaded', async function() {
 // ============================================================================
 
 // Current time range - global so modals can check if in historical mode
-// Load from localStorage if available, otherwise default to '30m'
+// Load from localStorage if available, otherwise default to '15m'
 // CRITICAL FIX (v1.14.1): Validate that loaded value is in allowed list
 // NOTE: validTimeRanges MUST match the actual options in the HTML dropdown (templates/index.html)
 const validTimeRanges = ['5m', '15m', '30m', '60m'];
+const DEFAULT_TIME_RANGE = '15m';  // Default to 15 minutes
 const storedTimeRange = localStorage.getItem('timeRange');
 console.log('[TIME RANGE] Loaded from localStorage:', storedTimeRange);
 if (storedTimeRange && validTimeRanges.includes(storedTimeRange)) {
     window.currentTimeRange = storedTimeRange;
     console.log('[TIME RANGE] Using saved time range:', storedTimeRange);
 } else {
-    console.warn(`[TIME RANGE] Invalid time range in localStorage: '${storedTimeRange}', defaulting to '30m'`);
-    window.currentTimeRange = '30m';
-    localStorage.setItem('timeRange', '30m');
+    console.warn(`[TIME RANGE] Invalid time range in localStorage: '${storedTimeRange}', defaulting to '${DEFAULT_TIME_RANGE}'`);
+    window.currentTimeRange = DEFAULT_TIME_RANGE;
+    localStorage.setItem('timeRange', DEFAULT_TIME_RANGE);
 }
 
 /**
@@ -1899,9 +2140,12 @@ async function handleTimeRangeChange(range) {
     console.log('This should load ONLY', range, 'of data, not 24 hours');
     window.currentTimeRange = range;
 
-    // Save to localStorage for site-wide persistence
+    // Save to localStorage for immediate site-wide persistence
     localStorage.setItem('timeRange', range);
     console.log('[TIME RANGE] Saved to localStorage:', range);
+
+    // Save to server settings for persistence across reboots/browser sessions
+    saveDashboardTimeRange(range);
 
     // Update dropdown value if it exists (for consistency across pages)
     const timeRangeSelect = document.getElementById('timeRangeSelect');
@@ -1918,6 +2162,60 @@ async function handleTimeRangeChange(range) {
 
     // Load historical data for the selected range
     await loadHistoricalThroughput(range);
+}
+
+/**
+ * Save dashboard time range to server settings for persistence across reboots
+ */
+async function saveDashboardTimeRange(range) {
+    try {
+        // Get current settings
+        const getResponse = await window.apiClient.get('/api/settings');
+        if (!getResponse.ok) {
+            console.warn('[TIME RANGE] Failed to get settings for saving time range');
+            return;
+        }
+
+        const settings = getResponse.data;
+        settings.dashboard_time_range = range;
+
+        // Save updated settings
+        const saveResponse = await window.apiClient.post('/api/settings', settings);
+        if (saveResponse.ok) {
+            console.log('[TIME RANGE] Saved to server settings:', range);
+        } else {
+            console.warn('[TIME RANGE] Failed to save time range to server');
+        }
+    } catch (error) {
+        console.error('[TIME RANGE] Error saving to server:', error);
+    }
+}
+
+/**
+ * Load dashboard time range from server settings (for persistence across reboots)
+ */
+async function loadDashboardTimeRange() {
+    try {
+        const response = await window.apiClient.get('/api/settings');
+        if (response.ok && response.data.dashboard_time_range) {
+            const serverRange = response.data.dashboard_time_range;
+            if (validTimeRanges.includes(serverRange)) {
+                console.log('[TIME RANGE] Loaded from server settings:', serverRange);
+                window.currentTimeRange = serverRange;
+                localStorage.setItem('timeRange', serverRange);
+
+                // Update dropdown if present
+                const timeRangeSelect = document.getElementById('timeRangeSelect');
+                if (timeRangeSelect) {
+                    timeRangeSelect.value = serverRange;
+                }
+                return serverRange;
+            }
+        }
+    } catch (error) {
+        console.warn('[TIME RANGE] Could not load from server, using localStorage/default');
+    }
+    return null;
 }
 
 /**
@@ -2468,6 +2766,245 @@ function initPageNavigation() {
 }
 
 /**
+ * Clear ALL data displays visually (v2.1.19 - Visual Reset Fix)
+ *
+ * This function performs ONLY visual clearing of UI elements, without loading new data.
+ * Used during device switching to show user that data is being reset BEFORE the overlay appears.
+ *
+ * Called by: onDeviceChange() in devices.js BEFORE showing the loading overlay
+ *
+ * @returns {Promise<void>}
+ */
+async function clearAllDataDisplays() {
+    console.log('=== clearAllDataDisplays called (v2.1.19) ===');
+
+    // ========================================================================
+    // 1. CLEAR MAIN CHART DATA
+    // ========================================================================
+    chartData.timestamps = [];
+    chartData.labels = [];
+    chartData.inbound = [];
+    chartData.outbound = [];
+    chartData.total = [];
+
+    // Clear D3 line chart visually and force re-initialization on next update
+    // v2.1.20: Set d3Chart to null to force full re-initialization
+    // This fixes the chart not fully redrawing after device switch
+    if (window.d3Chart && window.d3Chart.g) {
+        window.d3Chart.g.selectAll("*").remove();
+    }
+    // Force D3 chart to reinitialize on next updateD3Chart() call
+    window.d3Chart = null;
+
+    // ========================================================================
+    // 2. CLEAR HISTORICAL DATA ARRAYS
+    // ========================================================================
+    historicalData.inbound = [];
+    historicalData.outbound = [];
+    historicalData.total = [];
+    historicalData.sessions = [];
+    historicalData.tcp = [];
+    historicalData.udp = [];
+    historicalData.icmp = [];
+    historicalData.criticalThreats = [];
+    historicalData.mediumThreats = [];
+    historicalData.blockedUrls = [];
+    historicalData.urlFiltering = [];
+    historicalData.interfaceErrors = [];
+
+    // ========================================================================
+    // 3. CLEAR CHORD DIAGRAMS
+    // ========================================================================
+    if (typeof d3 !== 'undefined') {
+        const chordInternalSvg = d3.select('#chordInternalSvg');
+        if (!chordInternalSvg.empty()) {
+            chordInternalSvg.selectAll('*').remove();
+        }
+        const chordInternetSvg = d3.select('#chordInternetSvg');
+        if (!chordInternetSvg.empty()) {
+            chordInternetSvg.selectAll('*').remove();
+        }
+        const chordTagSvg = d3.select('#chordTagSvg');
+        if (!chordTagSvg.empty()) {
+            chordTagSvg.selectAll('*').remove();
+        }
+    }
+
+    // Show loading state in chord diagram placeholders
+    const chordInternalLoading = document.getElementById('chordInternalLoading');
+    const chordInternetLoading = document.getElementById('chordInternetLoading');
+    const chordTagLoading = document.getElementById('chordTagLoading');
+
+    if (chordInternalLoading) {
+        chordInternalLoading.style.display = 'block';
+        chordInternalLoading.textContent = 'Loading...';
+        chordInternalLoading.style.color = 'rgba(255,255,255,0.7)';
+    }
+    if (chordInternetLoading) {
+        chordInternetLoading.style.display = 'block';
+        chordInternetLoading.textContent = 'Loading...';
+        chordInternetLoading.style.color = 'rgba(255,255,255,0.7)';
+    }
+    if (chordTagLoading) {
+        chordTagLoading.style.display = 'block';
+        chordTagLoading.textContent = 'Loading...';
+        chordTagLoading.style.color = 'rgba(255,255,255,0.7)';
+    }
+
+    // Clear chord counts
+    const chordInternalCount = document.getElementById('chordInternalCount');
+    const chordInternetCount = document.getElementById('chordInternetCount');
+    const chordTagCount = document.getElementById('chordTagCount');
+    if (chordInternalCount) chordInternalCount.textContent = '--';
+    if (chordInternetCount) chordInternetCount.textContent = '--';
+    if (chordTagCount) chordTagCount.textContent = '--';
+
+    // ========================================================================
+    // 4. RESET DASHBOARD VALUES TO DASHES (MORE VISIBLE THAN "Loading...")
+    // ========================================================================
+    // Throughput stats - use dashes for clearer visual reset
+    const throughputIds = ['inboundValue', 'outboundValue', 'totalValue'];
+    throughputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<span style="font-size: 1.2em; color: #666;">--</span>';
+    });
+
+    // Reset averages
+    const avgIds = ['inboundAvg', 'outboundAvg', 'totalAvg'];
+    avgIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '--';
+    });
+
+    // Session stats
+    const sessionIds = ['sessionValue', 'tcpValue', 'udpValue', 'icmpValue'];
+    sessionIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<span style="font-size: 1.2em; color: #666;">--</span>';
+    });
+
+    // Threat stats
+    if (typeof THREAT_CONFIG !== 'undefined') {
+        Object.keys(THREAT_CONFIG).forEach(severity => {
+            const config = THREAT_CONFIG[severity];
+            const valueElement = document.getElementById(config.elementIds.value);
+            const latestElement = document.getElementById(config.elementIds.latest);
+            const lastSeenElement = document.getElementById(config.elementIds.lastSeen);
+            if (valueElement) valueElement.innerHTML = '<span style="font-size: 1.2em; color: #666;">--</span>';
+            if (latestElement) latestElement.textContent = '--';
+            if (lastSeenElement) lastSeenElement.textContent = '--';
+        });
+    }
+
+    // Interface errors and PPS
+    const metricIds = ['interfaceErrorsValue', 'totalPps', 'inboundPps', 'outboundPps'];
+    metricIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<span style="font-size: 1.2em; color: #666;">--</span>';
+    });
+
+    // ========================================================================
+    // 5. RESET SIDEBAR STATS
+    // ========================================================================
+    const sidebarPPS = document.getElementById('sidebarPPS');
+    const sidebarUptime = document.getElementById('sidebarUptime');
+    const sidebarWanIp = document.getElementById('sidebarWanIp');
+    const sidebarWanSpeed = document.getElementById('sidebarWanSpeed');
+    const sidebarApiStats = document.getElementById('sidebarApiStats');
+    const sidebarLastUpdate = document.getElementById('sidebarLastUpdate');
+    const sidebarPanosVersion = document.getElementById('sidebarPanosVersion');
+    const sidebarLicenseExpired = document.getElementById('sidebarLicenseExpired');
+    const sidebarLicenseLicensed = document.getElementById('sidebarLicenseLicensed');
+
+    if (sidebarPPS) sidebarPPS.textContent = '-- PPS';
+    if (sidebarUptime) sidebarUptime.textContent = '--';
+    if (sidebarWanIp) sidebarWanIp.textContent = '--';
+    if (sidebarWanSpeed) sidebarWanSpeed.textContent = '--';
+    if (sidebarApiStats) sidebarApiStats.textContent = '--';
+    if (sidebarLastUpdate) sidebarLastUpdate.textContent = '--';
+    if (sidebarPanosVersion) sidebarPanosVersion.textContent = '--';
+    if (sidebarLicenseExpired) sidebarLicenseExpired.textContent = '--';
+    if (sidebarLicenseLicensed) sidebarLicenseLicensed.textContent = '--';
+
+    // Sidebar last seen stats
+    const sidebarCritical = document.getElementById('sidebarCriticalLastSeen');
+    const sidebarMedium = document.getElementById('sidebarMediumLastSeen');
+    const sidebarBlocked = document.getElementById('sidebarBlockedUrlLastSeen');
+    if (sidebarCritical) sidebarCritical.textContent = '--';
+    if (sidebarMedium) sidebarMedium.textContent = '--';
+    if (sidebarBlocked) sidebarBlocked.textContent = '--';
+
+    // ========================================================================
+    // 6. RESET MINI CHARTS
+    // ========================================================================
+    miniChartData.sessions = [];
+    miniChartData.tcp = [];
+    miniChartData.udp = [];
+    miniChartData.pps = [];
+
+    if (sessionChart) {
+        sessionChart.data.datasets[0].data = [];
+        sessionChart.update('none');
+    }
+    if (tcpChart) {
+        tcpChart.data.datasets[0].data = [];
+        tcpChart.update('none');
+    }
+    if (udpChart) {
+        udpChart.data.datasets[0].data = [];
+        udpChart.update('none');
+    }
+    if (ppsChart) {
+        ppsChart.data.datasets[0].data = [];
+        ppsChart.update('none');
+    }
+
+    // ========================================================================
+    // 7. RESET FIREWALL HEALTH TILES
+    // ========================================================================
+    const cyberHealthIds = [
+        'cyberHealthCpu', 'cyberHealthMemory', 'cyberHealthPps', 'cyberHealthSessions',
+        'cyberHealthTopCategoryLAN', 'cyberHealthTopCategoryLANSent', 'cyberHealthTopCategoryLANReceived',
+        'cyberHealthTopCategoryInternet', 'cyberHealthTopCategoryInternetSent', 'cyberHealthTopCategoryInternetReceived',
+        'cyberHealthTopInternalIp', 'cyberHealthTopInternalHostname', 'cyberHealthTopInternalSent', 'cyberHealthTopInternalReceived',
+        'cyberHealthTopInternetIp', 'cyberHealthTopInternetHostname', 'cyberHealthTopInternetSent', 'cyberHealthTopInternetReceived',
+        'cyberHealthActiveAlerts'
+    ];
+
+    cyberHealthIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.innerHTML = '<span style="font-size: 1.2em; color: #666;">--</span>';
+        }
+    });
+
+    // ========================================================================
+    // 8. CLEAR THREAT LOGS AND APPLICATION DISPLAYS
+    // ========================================================================
+    const criticalLogs = document.getElementById('criticalLogs');
+    if (criticalLogs) {
+        criticalLogs.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">--</div>';
+    }
+    const mediumLogs = document.getElementById('mediumLogs');
+    if (mediumLogs) {
+        mediumLogs.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">--</div>';
+    }
+    const blockedUrlLogs = document.getElementById('blockedUrlLogs');
+    if (blockedUrlLogs) {
+        blockedUrlLogs.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">--</div>';
+    }
+    const topAppsContainer = document.getElementById('topAppsContainer');
+    if (topAppsContainer) {
+        topAppsContainer.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">--</div>';
+    }
+
+    console.log('=== clearAllDataDisplays complete ===');
+}
+
+// Export for devices.js access
+window.clearAllDataDisplays = clearAllDataDisplays;
+
+/**
  * CRITICAL: Centralized Device Change Handler
  *
  * This function is responsible for clearing and refreshing ALL data when
@@ -2491,6 +3028,9 @@ function initPageNavigation() {
 async function refreshAllDataForDevice() {
     console.log('=== refreshAllDataForDevice called ===');
     console.log('[DEBUG] currentVisiblePage =', currentVisiblePage);
+
+    // Progress: Step 1 - Clearing displays
+    updateDeviceSwitchProgress('Clearing displays...');
 
     // ========================================================================
     // 0. PRESERVE USER'S TIME RANGE SELECTION (Fixed v1.14.1)
@@ -2816,15 +3356,30 @@ async function refreshAllDataForDevice() {
         clearInterval(updateIntervalId);
     }
 
+    // Progress: Step 2 - Loading historical data
+    updateDeviceSwitchProgress('Loading historical data...');
+
     // Preload historical data for charts before starting real-time updates
     await preloadChartData();
 
-    // Fixed v1.14.1: Don't immediately call fetchThroughputData after preload
-    // This was adding a single latest sample to the historical chart, contaminating it
-    // Just start the interval, the first call will happen after UPDATE_INTERVAL
+    // Progress: Step 3 - Fetching current metrics (v2.1.18 - Enterprise UX Fix)
+    updateDeviceSwitchProgress('Fetching current metrics...');
+
+    // v2.1.18: Immediately fetch current metrics after device switch
+    // Previous v1.14.1 comment was incorrect - fetchThroughputData updates dashboard TILES,
+    // NOT the historical chart. The 60-second delay caused unacceptable UX.
+    // Historical chart is populated by preloadChartData() above.
+    console.log('Fetching current metrics for new device...');
+    await fetchThroughputData();
+    console.log('✓ Current metrics loaded');
+
+    // Then start the regular refresh interval
     console.log(`Starting auto-refresh with ${UPDATE_INTERVAL}ms interval...`);
     updateIntervalId = setInterval(fetchThroughputData, UPDATE_INTERVAL);
-    console.log(`✓ Auto-refresh interval started (first update in ${UPDATE_INTERVAL/1000}s)`);
+    console.log(`✓ Auto-refresh interval started`);
+
+    // Progress: Step 4 - Loading page-specific data
+    updateDeviceSwitchProgress('Loading page data...');
 
     // OPTIMIZATION: Only refresh the currently visible page (not all pages)
     // This reduces device switch from 8+ API calls to 1-2 calls
@@ -2876,18 +3431,14 @@ async function refreshAllDataForDevice() {
             }
         }
 
-        // Populate tag filter dropdown for new device and reload tag diagram if tags selected
+        // Restore saved tag filter selection and reload tag diagram if tags exist
+        // Note: populateTagFilterDropdown() loads from server settings, updates UI, and loads diagram
         if (typeof populateTagFilterDropdown === 'function') {
-            console.log('Populating tag filter dropdown for new device...');
+            console.log('[REFRESH] Restoring tag filter selection from saved settings...');
             try {
                 await populateTagFilterDropdown();
-                // Reload tag diagram if tags are selected
-                const tagSelect = document.getElementById('chordTagFilter');
-                if (tagSelect && tagSelect.selectedOptions.length > 0 && typeof loadTagFilteredChordDiagram === 'function') {
-                    await loadTagFilteredChordDiagram();
-                }
             } catch (error) {
-                console.error('[REFRESH] Error with tag filter:', error);
+                console.error('[REFRESH] Error restoring tag filter:', error);
             }
         }
     } else if (currentVisiblePage === 'connected-devices' && typeof loadConnectedDevices === 'function') {
@@ -3078,16 +3629,24 @@ function updateThreatTilesOnly(threats) {
 }
 
 function updateCyberHealth(data) {
-    // Tile 1: Data Plane CPU
+    // Tile 1: Data Plane CPU - NULL-SAFE (v1.0.6)
     const cpuElement = document.getElementById('cyberHealthCpu');
-    if (cpuElement && data.cpu && data.cpu.data_plane_cpu !== undefined) {
-        cpuElement.textContent = data.cpu.data_plane_cpu + '%';
+    if (cpuElement) {
+        if (data.cpu && data.cpu.data_plane_cpu !== undefined && data.cpu.data_plane_cpu !== null) {
+            cpuElement.textContent = data.cpu.data_plane_cpu + '%';
+        } else {
+            cpuElement.textContent = '--';
+        }
     }
 
-    // Tile 2: System Memory
+    // Tile 2: System Memory - NULL-SAFE (v1.0.6)
     const memoryElement = document.getElementById('cyberHealthMemory');
-    if (memoryElement && data.cpu && data.cpu.memory_used_pct !== undefined) {
-        memoryElement.textContent = data.cpu.memory_used_pct + '%';
+    if (memoryElement) {
+        if (data.cpu && data.cpu.memory_used_pct !== undefined && data.cpu.memory_used_pct !== null) {
+            memoryElement.textContent = data.cpu.memory_used_pct + '%';
+        } else {
+            memoryElement.textContent = '--';
+        }
     }
 
     // Tile 3: PPS (Packets Per Second) - NULL-SAFE
@@ -3999,6 +4558,25 @@ async function populateTagFilterDropdown() {
             }
         } else {
             console.log('[CHORD-TAG] No saved tag selections found');
+            // v2.1.20: Show empty state message when no tags saved
+            // This fixes "Loading..." showing permanently after device switch
+            const loadingElement = document.getElementById('chordTagLoading');
+            if (loadingElement) {
+                loadingElement.style.display = 'block';
+                loadingElement.textContent = 'Click ⚙️ to select tags...';
+                loadingElement.style.color = 'rgba(255,255,255,0.7)';
+            }
+            const countElement = document.getElementById('chordTagCount');
+            if (countElement) {
+                countElement.textContent = 'Select tags';
+            }
+            // Clear the SVG in case there's stale data
+            if (typeof d3 !== 'undefined') {
+                const svg = d3.select('#chordTagSvg');
+                if (!svg.empty()) {
+                    svg.selectAll('*').remove();
+                }
+            }
         }
     } catch (error) {
         console.error('[CHORD-TAG] Error loading saved tags:', error);

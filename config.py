@@ -198,7 +198,11 @@ DEFAULT_SETTINGS = {
     'internal_traffic_filters': {
         'rfc1918': True,    # RFC1918 private-to-private only (default: ON)
         'all': False        # All traffic regardless of IP type (default: OFF)
-    }
+    },
+    # Main dashboard time range (v2.1.15)
+    'dashboard_time_range': '15m',  # Default: 15 minutes (options: 5m, 15m, 30m, 60m)
+    # Tagged Traffic chord diagram filter (v2.1.16)
+    'chord_tag_filter': []  # List of selected tag names for Tagged Traffic diagram
 }
 
 # Lazy import to avoid circular dependency
@@ -221,6 +225,9 @@ def load_settings():
 
     Note: This function does NOT use logging to avoid circular dependencies
     since logger.is_debug_enabled() calls load_settings().
+
+    v1.0.3: Merges missing keys from DEFAULT_SETTINGS to handle new settings
+    added in later versions (e.g., chord_tag_filter, internal_traffic_filters).
     """
     # Ensure file exists before loading
     ensure_settings_file_exists()
@@ -229,7 +236,13 @@ def load_settings():
         if os.path.exists(SETTINGS_FILE):
             with open(SETTINGS_FILE, 'r') as f:
                 settings = json.load(f)
-                return settings
+
+                # v1.0.3: Merge missing keys from DEFAULT_SETTINGS
+                # This ensures new settings added in later versions are available
+                # even if the settings file was created before those keys existed
+                merged = DEFAULT_SETTINGS.copy()
+                merged.update(settings)  # User settings override defaults
+                return merged
 
         return DEFAULT_SETTINGS.copy()
     except Exception:

@@ -1695,6 +1695,119 @@ class ThroughputCollector:
 
         return stats
 
+    def collect_single_device(self, device_id: str):
+        """
+        Collect throughput data from a single device (on-demand collection).
+
+        Called by clock.py queue processor when user switches devices.
+        This enables fast device switching (<5-8 seconds) instead of
+        waiting up to 60 seconds for the next scheduled collection.
+
+        Args:
+            device_id: Device UUID to collect data for
+
+        Raises:
+            ValueError: If device not found or disabled
+            Exception: If collection fails
+        """
+        debug(f"On-demand collection starting for device {device_id}")
+
+        # Get device from device manager
+        device = device_manager.get_device(device_id)
+
+        if not device:
+            raise ValueError(f"Device {device_id} not found")
+
+        if not device.get('enabled', True):
+            raise ValueError(f"Device {device_id} is disabled")
+
+        device_name = device.get('name', 'Unknown')
+        debug(f"On-demand collection for device: {device_name} (ID: {device_id})")
+
+        # Collect throughput data (same logic as collect_all_devices but for single device)
+        try:
+            # Get throughput data from firewall
+            throughput_data = get_throughput_data(device_id)
+
+            # Enhanced Insights: Collect disk usage metrics
+            disk_usage = get_disk_usage(device_id)
+            if disk_usage:
+                throughput_data['disk_usage'] = disk_usage
+
+            # Enhanced Insights: Collect database versions
+            db_versions = get_database_versions(device_id)
+            if db_versions:
+                throughput_data['database_versions'] = db_versions
+
+            # Enhanced Insights: Collect CPU temperature
+            from firewall_api_metrics import get_cpu_temperature
+            temp_data = get_cpu_temperature(device_id)
+            if temp_data:
+                throughput_data['cpu_temp'] = temp_data.get('cpu_temp')
+                throughput_data['cpu_temp_max'] = temp_data.get('cpu_temp_max')
+                throughput_data['cpu_temp_alarm'] = temp_data.get('cpu_temp_alarm', False)
+
+            # Compute top bandwidth clients and add to data
+            top_clients = self._compute_top_bandwidth_client(device_id)
+            if top_clients:
+                throughput_data['top_bandwidth_client'] = top_clients.get('top_bandwidth', {})
+                throughput_data['top_internal_client'] = top_clients.get('top_internal', {})
+                throughput_data['top_internet_client'] = top_clients.get('top_internet', {})
+
+            # Compute top categories from application_statistics
+            top_categories = self._compute_top_categories(device_id)
+            if top_categories:
+                throughput_data['top_category_lan'] = top_categories.get('top_category_lan', {})
+                throughput_data['top_category_internet'] = top_categories.get('top_category_internet', {})
+
+            # Compute top applications by bandwidth
+            top_apps = self._compute_top_applications(device_id, top_count=5)
+            if top_apps:
+                throughput_data['top_applications'] = top_apps
+
+            # Compute aggregate internal/internet traffic metrics
+            traffic_metrics = self._compute_traffic_metrics(device_id)
+            if traffic_metrics:
+                throughput_data['internal_mbps'] = traffic_metrics.get('internal_mbps', 0)
+                throughput_data['internet_mbps'] = traffic_metrics.get('internet_mbps', 0)
+
+            # Compute threat count
+            threats_count = self._compute_threat_count(device_id)
+            if threats_count is not None:
+                throughput_data['threats_count'] = threats_count
+
+            # Compute interface errors
+            interface_errors = self._compute_interface_errors(device_id)
+            if interface_errors is not None:
+                throughput_data['interface_errors'] = interface_errors
+
+            if throughput_data and throughput_data.get('status') == 'success':
+                # Store throughput sample in database
+                if self.storage.insert_sample(device_id, throughput_data):
+                    debug(f"On-demand collection successful for device: {device_name}")
+
+                    # Store analytics data
+                    timestamp = throughput_data.get('timestamp')
+                    if timestamp:
+                        self._store_application_samples(device_id, timestamp)
+                        self._store_category_bandwidth(device_id, timestamp)
+                        self._store_client_bandwidth(device_id, timestamp)
+                        self._store_connected_devices(device_id, timestamp)
+
+                    # Collect logs
+                    self._collect_logs_for_device(device_id, device_name)
+
+                    info(f"On-demand collection completed for device {device_name}")
+                else:
+                    raise Exception(f"Failed to store throughput data in database for device {device_name}")
+            else:
+                error_msg = throughput_data.get('message', 'Unknown error') if throughput_data else 'No data returned'
+                raise Exception(f"Collection failed for device {device_name}: {error_msg}")
+
+        except Exception as e:
+            exception(f"On-demand collection failed for device {device_name}: {str(e)}")
+            raise
+
 
 # Global collector instance (initialized in app.py)
 collector = None

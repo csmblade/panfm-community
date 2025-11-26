@@ -2894,6 +2894,241 @@ class TimescaleStorage:
             if conn:
                 self._return_connection(conn)
 
+    # ========================================================================
+    # On-Demand Collection Queue Methods (v1.0.3)
+    # Purpose: Inter-process communication for device switch collection
+    # ========================================================================
+
+    def create_collection_request(self, device_id: str) -> Optional[int]:
+        """
+        Create an on-demand collection request for a device.
+
+        Called by web process when user switches devices.
+        Clock process polls for queued requests every 5 seconds.
+
+        Args:
+            device_id: Device UUID to collect data for
+
+        Returns:
+            Request ID if successful, None if failed
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            # Check if there's already a pending/running request for this device
+            cursor.execute("""
+                SELECT id FROM collection_requests
+                WHERE device_id = %s AND status IN ('queued', 'running')
+                ORDER BY requested_at DESC
+                LIMIT 1
+            """, (device_id,))
+            existing = cursor.fetchone()
+
+            if existing:
+                # Return existing request ID (dedupe)
+                cursor.close()
+                debug("Existing collection request found for device %s: %d", device_id, existing[0])
+                return existing[0]
+
+            # Create new request
+            cursor.execute("""
+                INSERT INTO collection_requests (device_id, status, requested_at)
+                VALUES (%s, 'queued', NOW())
+                RETURNING id
+            """, (device_id,))
+
+            request_id = cursor.fetchone()[0]
+            conn.commit()
+            cursor.close()
+
+            debug("Created collection request %d for device %s", request_id, device_id)
+            return request_id
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to create collection request for device %s: %s", device_id, str(e))
+            return None
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_collection_request(self, request_id: int) -> Optional[Dict]:
+        """
+        Get status of a collection request.
+
+        Called by web process to poll request status.
+
+        Args:
+            request_id: Request ID
+
+        Returns:
+            Dict with id, device_id, status, requested_at, started_at, completed_at, error_message
+            or None if not found
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            cursor.execute("""
+                SELECT id, device_id, status, requested_at, started_at, completed_at, error_message
+                FROM collection_requests
+                WHERE id = %s
+            """, (request_id,))
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            if row:
+                result = dict(row)
+                # Format timestamps as ISO strings
+                for field in ['requested_at', 'started_at', 'completed_at']:
+                    if result.get(field):
+                        result[field] = result[field].isoformat()
+                return result
+            return None
+
+        except Exception as e:
+            exception("Failed to get collection request %d: %s", request_id, str(e))
+            return None
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def get_pending_collection_requests(self) -> List[Dict]:
+        """
+        Get all queued collection requests (for clock process).
+
+        Called by clock process every 5 seconds to find pending requests.
+
+        Returns:
+            List of dicts with id, device_id, requested_at
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            cursor.execute("""
+                SELECT id, device_id, requested_at
+                FROM collection_requests
+                WHERE status = 'queued'
+                ORDER BY requested_at ASC
+            """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            return [dict(row) for row in rows]
+
+        except Exception as e:
+            exception("Failed to get pending collection requests: %s", str(e))
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def update_collection_request(self, request_id: int, status: str, error_message: str = None) -> bool:
+        """
+        Update status of a collection request.
+
+        Called by clock process to mark requests as running/completed/failed.
+
+        Args:
+            request_id: Request ID
+            status: New status ('running', 'completed', 'failed')
+            error_message: Error message if status is 'failed'
+
+        Returns:
+            True if successful, False otherwise
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            if status == 'running':
+                cursor.execute("""
+                    UPDATE collection_requests
+                    SET status = %s, started_at = NOW()
+                    WHERE id = %s
+                """, (status, request_id))
+            elif status in ('completed', 'failed'):
+                cursor.execute("""
+                    UPDATE collection_requests
+                    SET status = %s, completed_at = NOW(), error_message = %s
+                    WHERE id = %s
+                """, (status, error_message, request_id))
+            else:
+                cursor.execute("""
+                    UPDATE collection_requests
+                    SET status = %s
+                    WHERE id = %s
+                """, (status, request_id))
+
+            conn.commit()
+            cursor.close()
+
+            debug("Updated collection request %d to status '%s'", request_id, status)
+            return True
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to update collection request %d: %s", request_id, str(e))
+            return False
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
+    def cleanup_old_collection_requests(self, hours: int = 1) -> int:
+        """
+        Remove completed/failed collection requests older than specified hours.
+
+        Called periodically to keep the table small and fast.
+
+        Args:
+            hours: Delete requests completed more than this many hours ago
+
+        Returns:
+            Number of deleted rows
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                DELETE FROM collection_requests
+                WHERE status IN ('completed', 'failed')
+                  AND completed_at < NOW() - INTERVAL '%s hours'
+            """, (hours,))
+
+            deleted = cursor.rowcount
+            conn.commit()
+            cursor.close()
+
+            if deleted > 0:
+                debug("Cleaned up %d old collection requests", deleted)
+            return deleted
+
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            exception("Failed to cleanup old collection requests: %s", str(e))
+            return 0
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
     def close(self):
         """Close connection pool."""
         if hasattr(self, 'pool') and self.pool:

@@ -1479,10 +1479,10 @@
                         ▼ Show Filters
                     </button>
 
-                    <!-- Reverse DNS Lookup Checkbox -->
+                    <!-- Reverse DNS Lookup Checkbox (v1.0.4: Uses same ID and handler as Connected Devices) -->
                     <div style="display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); padding: 8px 16px; border-radius: 6px; border: 2px solid #555;">
-                        <input type="checkbox" id="enableReverseDnsCheckbox" style="width: 16px; height: 16px; cursor: pointer; accent-color: #F2F0EF;">
-                        <label for="enableReverseDnsCheckbox" style="color: #F2F0EF; font-size: 0.85em; font-weight: 600; cursor: pointer; font-family: var(--font-primary); user-select: none; margin: 0;">
+                        <input type="checkbox" id="enableReverseDnsLookupApps" onchange="toggleReverseDnsLookup(this.checked)" style="width: 16px; height: 16px; cursor: pointer; accent-color: #F2F0EF;">
+                        <label for="enableReverseDnsLookupApps" style="color: #F2F0EF; font-size: 0.85em; font-weight: 600; cursor: pointer; font-family: var(--font-primary); user-select: none; margin: 0;">
                             Enable Reverse DNS Lookups
                         </label>
                     </div>
@@ -1668,17 +1668,17 @@
 
                 <!-- Summary Stats -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
-                    <div style="background: linear-gradient(135deg, #FA582D 0%, #E04F26 100%); border-radius: 8px; padding: 15px; color: #F2F0EF;">
-                        <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px; font-family: var(--font-secondary);">Total Flows</div>
-                        <div id="sankeyTotalFlows" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary);">-</div>
+                    <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; padding: 15px; border: 1px solid #555; border-left: 3px solid #FA582D;">
+                        <div style="font-size: 0.8em; color: #FA582D; margin-bottom: 5px; font-family: var(--font-secondary);">Total Flows</div>
+                        <div id="sankeyTotalFlows" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary); color: #F2F0EF;">-</div>
                     </div>
-                    <div style="background: linear-gradient(135deg, #C64620 0%, #AD3D1A 100%); border-radius: 8px; padding: 15px; color: #F2F0EF;">
-                        <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px; font-family: var(--font-secondary);">Total Volume</div>
-                        <div id="sankeyTotalVolume" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary);">-</div>
+                    <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; padding: 15px; border: 1px solid #555; border-left: 3px solid #FA582D;">
+                        <div style="font-size: 0.8em; color: #FA582D; margin-bottom: 5px; font-family: var(--font-secondary);">Total Volume</div>
+                        <div id="sankeyTotalVolume" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary); color: #F2F0EF;">-</div>
                     </div>
-                    <div style="background: linear-gradient(135deg, #AD3D1A 0%, #933414 100%); border-radius: 8px; padding: 15px; color: #F2F0EF;">
-                        <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px; font-family: var(--font-secondary);">Time Range</div>
-                        <div id="sankeyTimeRange" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary);">60 min</div>
+                    <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-radius: 8px; padding: 15px; border: 1px solid #555; border-left: 3px solid #FA582D;">
+                        <div style="font-size: 0.8em; color: #FA582D; margin-bottom: 5px; font-family: var(--font-secondary);">Time Range</div>
+                        <div id="sankeyTimeRange" style="font-size: 1.8em; font-weight: 700; font-family: var(--font-primary); color: #F2F0EF;">60 min</div>
                     </div>
                 </div>
 
@@ -3421,7 +3421,7 @@
     <script defer src="/static/services/throughput-data-service.js?v=1732067200"></script>
     <!-- Load app.js SECOND - provides window.apiClient and init() for other modules -->
     <!-- defer ensures scripts execute in order AFTER DOM is ready and prevents race conditions -->
-    <script defer src="/static/app.js?v=1732408800"></script>
+    <script defer src="/static/app.js?v=1.0.10"></script>
     <script defer src="/static/logs.js"></script>
     <script defer src="/static/pages.js?v=1.10.10"></script>
 
@@ -3432,7 +3432,7 @@
     <script defer src="/static/pages-connected-devices-sankey.js"></script>
 
     <!-- Page-specific modules (depend on app.js) -->
-    <script defer src="/static/devices.js?v=1.8.4"></script>
+    <script defer src="/static/devices.js?v=1.0.9"></script>
     <script defer src="/static/settings.js?v=1.9.0"></script>
     <script defer src="/static/pages-nmap-scan.js"></script>
     <!-- Chord Tag Filter Modal -->
@@ -3461,5 +3461,16 @@
     <script defer src="/static/pages-content-updates.js"></script>
     <script defer src="/static/pages-backup-restore.js"></script>
     <script defer src="/static/pages-analytics.js"></script>
+
+    <!-- Device Switch Loading Overlay (v2.1.18 - Enterprise UX) -->
+    <div id="deviceSwitchOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+         background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; flex-direction: column;">
+        <div style="width: 60px; height: 60px; border: 4px solid #444; border-top: 4px solid #FA582D;
+             border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <div id="deviceSwitchMessage" style="color: #fff; font-family: var(--font-primary); font-size: 18px;
+             margin-top: 24px; font-weight: 500;">Switching to device...</div>
+        <div id="deviceSwitchProgress" style="color: #b0b0b0; font-family: var(--font-secondary); font-size: 14px;
+             margin-top: 10px;">Loading device data</div>
+    </div>
 </body>
 </html>

@@ -37,9 +37,13 @@ let devicesSortBy = 'name';
 let devicesSortDesc = false;
 
 async function loadDevices() {
+    console.log('=== loadDevices() called ===');
+    console.log('[LOAD-DEVICES] window.apiClient:', window.apiClient);
     try {
         // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
+        console.log('[LOAD-DEVICES] About to call /api/devices...');
         const response = await window.apiClient.get('/api/devices');
+        console.log('[LOAD-DEVICES] /api/devices response:', response);
 
         if (!response.ok) {
             console.error('Failed to load devices:', response.status);
@@ -70,26 +74,16 @@ async function updateDeviceSelector() {
     }
     console.log('deviceSelector element found');
 
-    // ALWAYS fetch selected device from backend settings (source of truth)
-    console.log('Fetching settings to get selected device...');
-    try {
-        // Use centralized ApiClient (v1.14.0 - Enterprise Reliability)
-        const response = await window.apiClient.get('/api/settings');
+    // v1.0.5: ONLY use window.currentDeviceId (set by initializeCurrentDevice in app.js)
+    // This is the SINGLE source of truth for device selection.
+    // DO NOT auto-select here - that causes race conditions with initializeCurrentDevice()
+    selectedDeviceId = window.currentDeviceId || '';
+    console.log('[DEVICE-SELECTOR] Using window.currentDeviceId:', selectedDeviceId);
 
-        if (!response.ok) {
-            console.error('Failed to fetch settings:', response.status);
-            selectedDeviceId = '';
-            return;
-        }
-
-        const data = response.data;
-        if (data.status === 'success') {
-            selectedDeviceId = data.settings.selected_device_id || '';
-            console.log('Got selectedDeviceId from settings:', selectedDeviceId);
-        }
-    } catch (error) {
-        console.error('Error fetching settings:', error);
-        selectedDeviceId = '';
+    // v1.0.5: If no device is selected, just log it - don't auto-select!
+    // Auto-selection ONLY happens in initializeCurrentDevice() during startup
+    if (!selectedDeviceId && currentDevices.length > 0) {
+        console.log('[DEVICE-SELECTOR] No device selected yet - waiting for user or initializeCurrentDevice()');
     }
 
     // Populate selector
@@ -130,6 +124,20 @@ async function updateDeviceSelector() {
                 updateStatus(true, '', device.name);
                 console.log('Updated status bubble with device name:', device.name);
             }
+
+            // v1.0.6: CRITICAL FIX - Load dashboard data on initial page load
+            // This was missing after v1.0.5 removed auto-selection triggers
+            // Only trigger if this is the initial load (deviceInitialized just became true)
+            if (window.deviceInitialized && !window.initialDataLoaded) {
+                window.initialDataLoaded = true;
+                console.log('[DEVICE-SELECTOR] Initial load - triggering refreshAllDataForDevice()');
+                if (typeof refreshAllDataForDevice === 'function') {
+                    // Use setTimeout to avoid blocking the selector population
+                    setTimeout(() => {
+                        refreshAllDataForDevice();
+                    }, 0);
+                }
+            }
         }
     } else {
         // No device selected even though devices exist
@@ -140,13 +148,63 @@ async function updateDeviceSelector() {
     }
 }
 
+// v1.0.5: Guard against concurrent device changes
+window.deviceChanging = false;
+
 async function onDeviceChange() {
     console.log('=== onDeviceChange fired ===');
-    console.log('Device dropdown changed!');
 
     const selector = document.getElementById('deviceSelector');
-    selectedDeviceId = selector.value;
-    console.log('Selected device ID:', selectedDeviceId);
+    const newDeviceId = selector.value;
+
+    // v1.0.5: Guard 1 - Prevent spurious calls with same device
+    if (newDeviceId === window.currentDeviceId) {
+        console.log('[DEVICE-CHANGE] Same device selected, ignoring:', newDeviceId);
+        return;
+    }
+
+    // v1.0.5: Guard 2 - Prevent concurrent device changes (race condition)
+    if (window.deviceChanging) {
+        console.warn('[DEVICE-CHANGE] Device change already in progress, ignoring');
+        // Reset selector to current device
+        selector.value = window.currentDeviceId || '';
+        return;
+    }
+
+    // v1.0.5: Guard 3 - Don't process if initialization is still running
+    if (window.deviceInitializing) {
+        console.warn('[DEVICE-CHANGE] Device initialization in progress, ignoring');
+        // Reset selector to current device
+        selector.value = window.currentDeviceId || '';
+        return;
+    }
+
+    // Set the lock
+    window.deviceChanging = true;
+    console.log('[DEVICE-CHANGE] Lock acquired, changing from', window.currentDeviceId, 'to', newDeviceId);
+
+    // Use try/finally to ensure lock is released
+    try {
+        selectedDeviceId = newDeviceId;
+        console.log('[DEVICE-CHANGE] New device ID:', selectedDeviceId);
+
+    // Get device name for overlay display
+    const device = currentDevices.find(d => d.id === selectedDeviceId);
+    const deviceName = device?.name || 'new device';
+
+    // v2.1.19: Clear UI displays FIRST so user sees visual feedback BEFORE overlay
+    // This fixes the issue where UI appeared unchanged after device switch
+    if (typeof window.clearAllDataDisplays === 'function') {
+        console.log('[DEVICE] Clearing displays before overlay...');
+        await window.clearAllDataDisplays();
+        // Brief pause so user can see the cleared state (300ms)
+        await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    // v2.1.18: Show loading overlay for data loading phase
+    if (typeof window.showDeviceSwitchOverlay === 'function') {
+        window.showDeviceSwitchOverlay(deviceName);
+    }
 
     // FIX: Update global device ID for all modules that use it
     // This ensures preloadChartData() and other functions use the NEW device
@@ -268,6 +326,64 @@ async function onDeviceChange() {
                 }
             }
 
+            // ============================================================================
+            // v1.0.3: On-Demand Collection for Fast Device Switching
+            // Queue immediate data collection to reduce wait time from 60s to ~5-8s
+            // Pattern: Queue request → Clock process collects → Poll for completion
+            // ============================================================================
+            console.log('[DEVICE] Triggering on-demand collection for device:', selectedDeviceId);
+            try {
+                const collectResponse = await window.apiClient.post('/api/throughput/collect-now', {
+                    device_id: selectedDeviceId
+                });
+
+                if (collectResponse.ok && collectResponse.data.request_id) {
+                    const requestId = collectResponse.data.request_id;
+                    console.log('[DEVICE] Collection queued, request_id:', requestId);
+
+                    // Poll for completion (max 10 seconds, every 500ms)
+                    // Clock process runs every 5 seconds, so typical wait is 5-8 seconds
+                    for (let i = 0; i < 20; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                        // v1.0.6: Show progress in overlay during collection
+                        const elapsedSeconds = Math.round((i + 1) * 0.5);
+                        if (typeof window.updateDeviceSwitchProgress === 'function') {
+                            window.updateDeviceSwitchProgress(`Collecting fresh data... ${elapsedSeconds}s`);
+                        }
+
+                        const statusResponse = await window.apiClient.get(`/api/throughput/collect-status/${requestId}`);
+
+                        if (statusResponse.ok) {
+                            const status = statusResponse.data.status;
+                            console.log(`[DEVICE] Collection status: ${status} (${elapsedSeconds}s)`);
+
+                            if (status === 'completed') {
+                                console.log('[DEVICE] On-demand collection completed - fresh data available');
+                                if (typeof window.updateDeviceSwitchProgress === 'function') {
+                                    window.updateDeviceSwitchProgress('Loading dashboard data...');
+                                }
+                                break;
+                            } else if (status === 'failed') {
+                                console.warn('[DEVICE] On-demand collection failed:', statusResponse.data.error_message);
+                                console.warn('[DEVICE] Falling back to cached data');
+                                if (typeof window.updateDeviceSwitchProgress === 'function') {
+                                    window.updateDeviceSwitchProgress('Loading cached data...');
+                                }
+                                break;
+                            }
+                            // Continue polling if 'queued' or 'running'
+                        }
+                    }
+                } else {
+                    console.warn('[DEVICE] Failed to queue on-demand collection:', collectResponse.data?.message);
+                    console.warn('[DEVICE] Using cached data (may be up to 60s old)');
+                }
+            } catch (collectError) {
+                console.warn('[DEVICE] On-demand collection error:', collectError);
+                console.warn('[DEVICE] Using cached data (may be up to 60s old)');
+            }
+
             // Call centralized function to clear and refresh ALL data
             // This function is defined in app.js and handles all data clearing/refreshing
             console.log('Calling refreshAllDataForDevice()...');
@@ -277,10 +393,24 @@ async function onDeviceChange() {
                 console.error('refreshAllDataForDevice function not found!');
             }
         }
-    } catch (error) {
-        console.error('Error in onDeviceChange:', error);
+    } catch (settingsError) {
+        // Catch for the inner try (line 215) - settings save errors
+        console.error('[DEVICE-CHANGE] Error saving settings:', settingsError);
     }
-    console.log('=== onDeviceChange complete ===');
+    } catch (error) {
+        console.error('[DEVICE-CHANGE] Error in onDeviceChange:', error);
+    } finally {
+        // v1.0.5: Always release the device change lock
+        window.deviceChanging = false;
+        console.log('[DEVICE-CHANGE] Lock released');
+
+        // v2.1.18: Always hide loading overlay when done (Enterprise UX)
+        // Note: hideDeviceSwitchOverlay is async (ensures minimum display time)
+        if (typeof window.hideDeviceSwitchOverlay === 'function') {
+            await window.hideDeviceSwitchOverlay();
+        }
+    }
+    console.log('[DEVICE-CHANGE] === onDeviceChange complete ===');
 }
 
 function sortDevices(field) {

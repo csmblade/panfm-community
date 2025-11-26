@@ -846,8 +846,8 @@ async function showAppDestinations(appIndex) {
     // Populate destinations list
     const destinationsList = document.getElementById('appDestinationsList');
     if (app.destinations && app.destinations.length > 0) {
-        // Check if reverse DNS lookup is enabled
-        const reverseDnsEnabled = document.getElementById('enableReverseDnsCheckbox').checked;
+        // Check if reverse DNS lookup is enabled (v1.0.4: Use correct checkbox ID)
+        const reverseDnsEnabled = document.getElementById('enableReverseDnsLookupApps')?.checked || false;
 
         if (reverseDnsEnabled) {
             // Show loading indicator

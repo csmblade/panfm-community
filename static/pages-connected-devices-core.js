@@ -776,6 +776,7 @@ const dnsCache = new Map();  // IP -> hostname cache
  * Toggle reverse DNS lookup feature
  * Saves state to localStorage for persistence
  * Clears DNS cache and triggers Sankey modal refresh if open
+ * v1.0.4: Also clears Sankey DNS cache and syncs Applications tab checkbox
  * @param {boolean} enabled - Whether reverse DNS is enabled
  */
 function toggleReverseDnsLookup(enabled) {
@@ -785,7 +786,18 @@ function toggleReverseDnsLookup(enabled) {
 
     // Clear DNS cache to force fresh lookups
     dnsCache.clear();
-    console.log('[DNS] Cache cleared');
+    console.log('[DNS] Connected Devices cache cleared');
+
+    // v1.0.4: Clear Sankey DNS cache
+    if (typeof window.clearSankeyDnsCache === 'function') {
+        window.clearSankeyDnsCache();
+    }
+
+    // v1.0.4: Sync all reverse DNS checkboxes (Connected Devices + Applications)
+    const connectedDevicesCheckbox = document.getElementById('enableReverseDnsLookup');
+    const applicationsCheckbox = document.getElementById('enableReverseDnsLookupApps');
+    if (connectedDevicesCheckbox) connectedDevicesCheckbox.checked = enabled;
+    if (applicationsCheckbox) applicationsCheckbox.checked = enabled;
 
     // If Sankey modal is open, trigger a refresh to apply DNS changes
     if (window.SankeyModal && typeof window.SankeyModal.refresh === 'function') {
@@ -797,14 +809,19 @@ function toggleReverseDnsLookup(enabled) {
 /**
  * Restore reverse DNS checkbox state from localStorage
  * Called on page load
+ * v1.0.4: Also syncs Applications tab checkbox
  */
 function restoreReverseDnsState() {
-    const checkbox = document.getElementById('enableReverseDnsLookup');
-    if (!checkbox) return;
-
     // Default: disabled
     reverseDnsEnabled = localStorage.getItem('reverseDnsEnabled') === 'true';
-    checkbox.checked = reverseDnsEnabled;
+
+    // v1.0.4: Sync both checkboxes (Connected Devices + Applications)
+    const connectedDevicesCheckbox = document.getElementById('enableReverseDnsLookup');
+    const applicationsCheckbox = document.getElementById('enableReverseDnsLookupApps');
+
+    if (connectedDevicesCheckbox) connectedDevicesCheckbox.checked = reverseDnsEnabled;
+    if (applicationsCheckbox) applicationsCheckbox.checked = reverseDnsEnabled;
+
     console.log(`[DNS] Restored reverse DNS state: ${reverseDnsEnabled ? 'enabled' : 'disabled'}`);
 }
 

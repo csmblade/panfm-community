@@ -96,9 +96,11 @@ TYPOGRAPHY_GUIDE.md
 *.md
 # Exception: Allow public documentation
 !README.md
+!README-COMMUNITY.md
 !CONTRIBUTING.md
 !LICENSE
 !NOTICE
+!CHANGELOG.md
 
 # Claude Code metadata
 # BOTH .claude/ and .claude-templates/ are private (contain project knowledge)

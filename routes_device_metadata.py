@@ -64,13 +64,15 @@ def register_device_metadata_routes(app, csrf, limiter):
             settings = load_settings()
             device_id = settings.get('selected_device_id', '')
 
-            if not device_id:
-                debug("No device selected, returning empty list")
+            # v1.0.5: DO NOT auto-select device here - that causes race conditions!
+            # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
+            if not device_id or device_id.strip() == '':
+                debug("[CONNECTED-DEVICES] No device selected in settings")
                 return jsonify({
                     'status': 'success',
                     'devices': [],
                     'total': 0,
-                    'message': 'No device selected',
+                    'message': 'No device selected. Please select a device from the dropdown.',
                     'timestamp': datetime.now().isoformat()
                 })
 

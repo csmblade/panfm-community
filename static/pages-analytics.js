@@ -1895,9 +1895,10 @@ window.loadTopClients = async function() {
 };
 
 /**
- * Format bytes to human-readable string (KB, MB, GB, TB)
+ * Format MB to human-readable string (KB, MB, GB, TB)
+ * Note: Input is in MB (megabytes), not bytes
  */
-function formatBytesHuman(mb) {
+function formatMBHuman(mb) {
     const bytes = mb * 1024 * 1024; // Convert MB to bytes
     if (bytes === 0) return '0 B';
 
@@ -1964,7 +1965,7 @@ function renderTopClientsTable(clients, totalClients) {
 
         // Format Volume - human readable (GB, MB, etc.)
         const totalMB = parseFloat(client.total_mb || 0);
-        const formattedVolume = formatBytesHuman(totalMB);
+        const formattedVolume = formatMBHuman(totalMB);
 
         // Format Avg Speed - human readable (Kbps, Mbps, Gbps)
         const avgMbps = parseFloat(client.avg_mbps || 0);
