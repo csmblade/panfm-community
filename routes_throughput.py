@@ -50,9 +50,19 @@ def register_throughput_routes(app, csrf, limiter):
         time_range = request.args.get('range')
 
         debug(f"=== Throughput API endpoint called (database-first, range={time_range}) ===")
+
+        # v1.0.4: Accept device_id from query parameter (fixes device switching issue)
+        # Frontend passes device_id on each request to ensure correct device data
+        # Fall back to settings if not provided (for backwards compatibility)
+        device_id = request.args.get('device_id')
         settings = load_settings()
-        device_id = settings.get('selected_device_id', '')
         refresh_interval = settings.get('refresh_interval', 60)
+
+        if not device_id or device_id.strip() == '':
+            device_id = settings.get('selected_device_id', '')
+            debug(f"No device_id in request, using from settings: {device_id}")
+        else:
+            debug(f"Using device_id from request parameter: {device_id}")
 
         # v1.0.5: DO NOT auto-select device here - that causes race conditions!
         # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
@@ -775,11 +785,15 @@ def register_throughput_routes(app, csrf, limiter):
         debug("=== Client-Destination Flow API endpoint called ===")
 
         try:
-            settings = load_settings()
-            device_id = settings.get('selected_device_id', '')
+            # v1.0.6: Accept device_id from query parameter (frontend passes it)
+            device_id = request.args.get('device_id')
 
-            # v1.0.5: DO NOT auto-select device here - that causes race conditions!
-            # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
+            # Fallback to settings for backward compatibility
+            if not device_id or device_id.strip() == '':
+                settings = load_settings()
+                device_id = settings.get('selected_device_id', '')
+                debug(f"No device_id in request, using from settings: {device_id}")
+
             if not device_id or device_id.strip() == '':
                 return jsonify({
                     'status': 'error',
@@ -996,12 +1010,17 @@ def register_throughput_routes(app, csrf, limiter):
 
             debug(f"[TAG-FLOW] Parsed {len(tag_filters)} tags: {tag_filters}")
 
-            # 2. Get selected device ID from settings
-            settings = load_settings()
-            device_id = settings.get('selected_device_id', '')
+            # 2. v1.0.6: Accept device_id from query parameter (frontend passes it)
+            device_id = request.args.get('device_id')
+
+            # Fallback to settings for backward compatibility
+            if not device_id or device_id.strip() == '':
+                settings = load_settings()
+                device_id = settings.get('selected_device_id', '')
+                debug(f"[TAG-FLOW] No device_id in request, using from settings: {device_id}")
 
             if not device_id:
-                debug("[TAG-FLOW] No device selected in settings")
+                debug("[TAG-FLOW] No device selected")
                 return jsonify({'status': 'error', 'message': 'No device selected'}), 400
 
             debug(f"[TAG-FLOW] Using device_id: {device_id}")

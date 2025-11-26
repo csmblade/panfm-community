@@ -160,7 +160,9 @@ async function loadDhcpLeases() {
     errorDiv.style.display = 'none';
 
     try {
-        const response = await window.apiClient.get('/api/dhcp-leases');
+        // v1.0.5: Pass device_id to eliminate race conditions during device switching
+        const url = window.buildDeviceUrl('/api/dhcp-leases');
+        const response = await window.apiClient.get(url);
         if (!response.ok) {
             throw new Error('Failed to load DHCP leases');
         }
@@ -1213,7 +1215,9 @@ async function loadInterfaces() {
     errorDiv.style.display = 'none';
 
     try {
-        const response = await window.apiClient.get('/api/interfaces');
+        // v1.0.5: Pass device_id to eliminate race conditions during device switching
+        const url = window.buildDeviceUrl('/api/interfaces');
+        const response = await window.apiClient.get(url);
         if (!response.ok) {
             throw new Error('Failed to load interfaces');
         }

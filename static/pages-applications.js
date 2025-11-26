@@ -24,9 +24,9 @@ async function loadApplications() {
     console.log('=== loadApplications called ===');
     try {
         // OPTIMIZATION: Reduced from 5000 to 1000 logs for faster loading
-        const response = await window.apiClient.get('/api/applications', {
-            params: { max_logs: 1000 }
-        });
+        // v1.0.5: Pass device_id to eliminate race conditions during device switching
+        const url = window.buildDeviceUrl('/api/applications', { max_logs: 1000 });
+        const response = await window.apiClient.get(url);
         if (!response.ok) {
             throw new Error('Failed to load applications');
         }

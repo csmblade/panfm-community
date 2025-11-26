@@ -27,8 +27,16 @@ def register_threat_routes(app, csrf, limiter):
         """
 
         debug("=== Threats API endpoint called (independent) ===")
-        settings = load_settings()
-        device_id = settings.get('selected_device_id', '')
+
+        # v1.0.5: Accept device_id from query parameter (frontend passes it)
+        # This eliminates race conditions between settings file save and API calls
+        device_id = request.args.get('device_id')
+
+        # Fallback to settings for backward compatibility
+        if not device_id or device_id.strip() == '':
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+            debug(f"No device_id in request, using from settings: {device_id}")
 
         # v1.0.5: DO NOT auto-select device here - that causes race conditions!
         # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js

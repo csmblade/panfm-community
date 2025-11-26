@@ -22,9 +22,9 @@ async function updateTrafficPage() {
 
     try {
         console.log('Fetching traffic logs...');
-        const response = await window.apiClient.get('/api/traffic-logs', {
-            params: { max_logs: 100 }
-        });
+        // v1.0.5: Pass device_id to eliminate race conditions during device switching
+        const url = window.buildDeviceUrl('/api/traffic-logs', { max_logs: 100 });
+        const response = await window.apiClient.get(url);
         console.log('Response status:', response.ok ? 'success' : 'error');
 
         if (!response.ok) {
@@ -267,7 +267,9 @@ function filterTrafficLogs(searchTerm) {
 // Update threat log display
 async function loadSystemLogs() {
     try {
-        const response = await window.apiClient.get('/api/system-logs');
+        // v1.0.5: Pass device_id to eliminate race conditions during device switching
+        const url = window.buildDeviceUrl('/api/system-logs');
+        const response = await window.apiClient.get(url);
         if (!response.ok) {
             throw new Error('Failed to load system logs');
         }

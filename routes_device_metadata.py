@@ -60,9 +60,15 @@ def register_device_metadata_routes(app, csrf, limiter):
         """API endpoint for connected devices (ARP entries) - reads from database"""
         debug("=== Connected Devices API endpoint called ===")
         try:
-            # Get current device ID from settings
-            settings = load_settings()
-            device_id = settings.get('selected_device_id', '')
+            # v1.0.5: Accept device_id from query parameter (frontend passes it)
+            # This eliminates race conditions between settings file save and API calls
+            device_id = request.args.get('device_id')
+
+            # Fallback to settings for backward compatibility
+            if not device_id or device_id.strip() == '':
+                settings = load_settings()
+                device_id = settings.get('selected_device_id', '')
+                debug(f"No device_id in request, using from settings: {device_id or 'NONE'}")
 
             # v1.0.5: DO NOT auto-select device here - that causes race conditions!
             # Device selection is ONLY handled by frontend initializeCurrentDevice() in app.js
@@ -123,7 +129,25 @@ def register_device_metadata_routes(app, csrf, limiter):
         """API endpoint for DHCP lease information"""
         debug("=== DHCP Leases API endpoint called ===")
         try:
-            firewall_config = get_firewall_config()
+            # v1.0.5: Accept device_id from query parameter (frontend passes it)
+            # This eliminates race conditions between settings file save and API calls
+            device_id = request.args.get('device_id')
+
+            # Fallback to settings for backward compatibility
+            if not device_id or device_id.strip() == '':
+                settings = load_settings()
+                device_id = settings.get('selected_device_id', '')
+                debug(f"No device_id in request, using from settings: {device_id or 'NONE'}")
+
+            if not device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No device selected',
+                    'leases': [],
+                    'total': 0
+                })
+
+            firewall_config = get_firewall_config(device_id)
 
             # Import DHCP function
             from firewall_api_dhcp import get_dhcp_leases_detailed

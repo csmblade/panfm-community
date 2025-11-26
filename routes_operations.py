@@ -101,9 +101,15 @@ def register_operations_routes(app, csrf, limiter):
             from firewall_api_logs import get_system_logs
             from firewall_api import get_firewall_config
 
-            settings = load_settings()
-            device_id = settings.get('selected_device_id')
-            debug(f"Selected device ID from settings: {device_id or 'NONE'}")
+            # v1.0.5: Accept device_id from query parameter (frontend passes it)
+            # This eliminates race conditions between settings file save and API calls
+            device_id = request.args.get('device_id')
+
+            # Fallback to settings for backward compatibility
+            if not device_id or device_id.strip() == '':
+                settings = load_settings()
+                device_id = settings.get('selected_device_id')
+                debug(f"No device_id in request, using from settings: {device_id or 'NONE'}")
 
             if not device_id:
                 return jsonify({
@@ -160,9 +166,15 @@ def register_operations_routes(app, csrf, limiter):
             from firewall_api_logs import get_traffic_logs
             from firewall_api import get_firewall_config
 
-            settings = load_settings()
-            device_id = settings.get('selected_device_id')
-            debug(f"Selected device ID from settings: {device_id or 'NONE'}")
+            # v1.0.5: Accept device_id from query parameter (frontend passes it)
+            # This eliminates race conditions between settings file save and API calls
+            device_id = request.args.get('device_id')
+
+            # Fallback to settings for backward compatibility
+            if not device_id or device_id.strip() == '':
+                settings = load_settings()
+                device_id = settings.get('selected_device_id')
+                debug(f"No device_id in request, using from settings: {device_id or 'NONE'}")
 
             if not device_id:
                 return jsonify({
@@ -225,8 +237,15 @@ def register_operations_routes(app, csrf, limiter):
         """
         debug("=== Applications API endpoint called (firewall-based) ===")
         try:
-            settings = load_settings()
-            device_id = settings.get('selected_device_id', '')
+            # v1.0.5: Accept device_id from query parameter (frontend passes it)
+            # This eliminates race conditions between settings file save and API calls
+            device_id = request.args.get('device_id')
+
+            # Fallback to settings for backward compatibility
+            if not device_id or device_id.strip() == '':
+                settings = load_settings()
+                device_id = settings.get('selected_device_id', '')
+                debug(f"No device_id in request, using from settings: {device_id or 'NONE'}")
 
             if not device_id:
                 return jsonify({
@@ -631,7 +650,25 @@ def register_operations_routes(app, csrf, limiter):
     def interfaces_info():
         """API endpoint for interface information"""
         debug("=== Interfaces API endpoint called ===")
-        firewall_config = get_firewall_config()
+
+        # v1.0.5: Accept device_id from query parameter (frontend passes it)
+        # This eliminates race conditions between settings file save and API calls
+        device_id = request.args.get('device_id')
+
+        # Fallback to settings for backward compatibility
+        if not device_id or device_id.strip() == '':
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+            debug(f"No device_id in request, using from settings: {device_id or 'NONE'}")
+
+        if not device_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'No device selected',
+                'interfaces': []
+            })
+
+        firewall_config = get_firewall_config(device_id)
         data = get_interface_info(firewall_config)
         debug(f"Interfaces API returning {len(data.get('interfaces', []))} interfaces")
         return jsonify(data)

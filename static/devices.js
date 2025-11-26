@@ -244,11 +244,11 @@ async function onDeviceChange() {
                 return;
             }
 
-            // FIX: Clear cached settings to ensure all modules see the new device
-            if (window.CacheUtil && typeof window.CacheUtil.delete === 'function') {
-                window.CacheUtil.delete('settings');
-                console.log('Cleared settings cache');
-            }
+            // v1.0.6: SIMPLE FIX - Just reload the page after device change
+            // This is the most reliable way to ensure all data refreshes correctly
+            console.log('[DEVICE] Device saved, reloading page for clean state...');
+            window.location.reload();
+            return;  // Stop execution - page will reload
 
             // Load interface for this device
             const device = currentDevices.find(d => d.id === selectedDeviceId);
@@ -647,24 +647,12 @@ async function saveDevice(event) {
             await loadDevices();
             console.log('Devices reloaded, currentDevices count:', currentDevices.length);
 
-            // If backend auto-selected this device (first device added), trigger data refresh
+            // If backend auto-selected this device (first device added), reload page
             if (autoSelected && newDeviceId && !deviceId) {
-                console.log('Backend auto-selected new device, triggering data refresh...');
-
-                // Force set the selected device ID locally to ensure it's set
-                selectedDeviceId = newDeviceId;
-                console.log('Forced selectedDeviceId to:', selectedDeviceId);
-
-                // Update the device selector dropdown immediately
-                await updateDeviceSelector();
-
-                // Trigger a full data refresh immediately
-                if (typeof refreshAllDataForDevice === 'function') {
-                    console.log('Calling refreshAllDataForDevice to load data for newly added device');
-                    // FIX: Update window.currentDeviceId before calling refresh
-                    window.currentDeviceId = newDeviceId;
-                    await refreshAllDataForDevice();
-                }
+                console.log('Backend auto-selected new device, reloading page...');
+                alert(data.message);
+                window.location.reload();
+                return;
             }
 
             alert(data.message);

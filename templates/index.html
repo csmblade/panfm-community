@@ -3418,23 +3418,23 @@
 
     <!-- Load JavaScript modules in order -->
     <!-- Load data services FIRST - provides enterprise-grade data layer (v2.1.0) -->
-    <script defer src="/static/services/throughput-data-service.js?v=1732067200"></script>
+    <script defer src="/static/services/throughput-data-service.js?v=1732750000"></script>
     <!-- Load app.js SECOND - provides window.apiClient and init() for other modules -->
     <!-- defer ensures scripts execute in order AFTER DOM is ready and prevents race conditions -->
-    <script defer src="/static/app.js?v=1.0.10"></script>
-    <script defer src="/static/logs.js"></script>
-    <script defer src="/static/pages.js?v=1.10.10"></script>
+    <script defer src="/static/app.js?v=1.0.6.1"></script>
+    <script defer src="/static/logs.js?v=1.0.6"></script>
+    <script defer src="/static/pages.js?v=1.0.6"></script>
 
     <!-- Connected Devices modules (Phase 6 refactoring - v1.8.2) - Load in order: core, metadata, export -->
-    <script defer src="/static/pages-connected-devices-core.js"></script>
-    <script defer src="/static/pages-connected-devices-metadata.js"></script>
-    <script defer src="/static/pages-connected-devices-export.js"></script>
-    <script defer src="/static/pages-connected-devices-sankey.js"></script>
+    <script defer src="/static/pages-connected-devices-core.js?v=1.0.6"></script>
+    <script defer src="/static/pages-connected-devices-metadata.js?v=1.0.6"></script>
+    <script defer src="/static/pages-connected-devices-export.js?v=1.0.6"></script>
+    <script defer src="/static/pages-connected-devices-sankey.js?v=1.0.6"></script>
 
     <!-- Page-specific modules (depend on app.js) -->
-    <script defer src="/static/devices.js?v=1.0.9"></script>
-    <script defer src="/static/settings.js?v=1.9.0"></script>
-    <script defer src="/static/pages-nmap-scan.js"></script>
+    <script defer src="/static/devices.js?v=1.0.8"></script>
+    <script defer src="/static/settings.js?v=1.0.6"></script>
+    <script defer src="/static/pages-nmap-scan.js?v=1.0.6"></script>
     <!-- Chord Tag Filter Modal -->
     <div id="chordTagFilterModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
         <div class="modal-content" style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
@@ -3456,11 +3456,11 @@
         </div>
     </div>
 
-    <script defer src="/static/pages-applications.js"></script>
-    <script defer src="/static/pages-panos-upgrade.js"></script>
-    <script defer src="/static/pages-content-updates.js"></script>
-    <script defer src="/static/pages-backup-restore.js"></script>
-    <script defer src="/static/pages-analytics.js"></script>
+    <script defer src="/static/pages-applications.js?v=1.0.5"></script>
+    <script defer src="/static/pages-panos-upgrade.js?v=1.0.5"></script>
+    <script defer src="/static/pages-content-updates.js?v=1.0.5"></script>
+    <script defer src="/static/pages-backup-restore.js?v=1.0.5"></script>
+    <script defer src="/static/pages-analytics.js?v=1.0.5"></script>
 
     <!-- Device Switch Loading Overlay (v2.1.18 - Enterprise UX) -->
     <div id="deviceSwitchOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;

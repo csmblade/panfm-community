@@ -133,8 +133,10 @@ async function loadConnectedDevices() {
     try {
         // Load metadata, tags, and locations in parallel with devices
         // v1.10.11: Request bandwidth data for Total Volume column
+        // v1.0.5: Pass device_id to eliminate race conditions during device switching
+        const connectedDevicesUrl = window.buildDeviceUrl('/api/connected-devices', { include_bandwidth: true });
         const [devicesResponse, metadataResponse, tagsResponse, locationsResponse] = await Promise.all([
-            window.apiClient.get('/api/connected-devices', { params: { include_bandwidth: true } }),
+            window.apiClient.get(connectedDevicesUrl),
             window.apiClient.get('/api/device-metadata'),
             window.apiClient.get('/api/device-metadata/tags'),
             window.apiClient.get('/api/device-metadata/locations')
