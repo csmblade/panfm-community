@@ -1,0 +1,414 @@
+/**
+ * PANfm - Responsive Stylesheet
+ * Mobile and tablet styles for iPad/mobile compatibility
+ *
+ * Breakpoints:
+ * - Tablet Landscape: max-width 1024px
+ * - Tablet Portrait / Mobile: max-width 768px
+ * - Phone: max-width 480px
+ */
+
+/* ==========================================================================
+   MOBILE MENU BUTTON (Hamburger)
+   ========================================================================== */
+
+.mobile-menu-btn {
+    display: none;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1002;
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%);
+    border: 1px solid #555;
+    border-radius: 8px;
+    color: #F2F0EF;
+    font-size: 24px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+.mobile-menu-btn:hover {
+    background: linear-gradient(135deg, #D4A017 0%, #B8860B 100%);
+    border-color: #D4A017;
+}
+
+.mobile-menu-btn.active {
+    background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%);
+    border-color: #FA582D;
+}
+
+/* ==========================================================================
+   SIDEBAR OVERLAY (for mobile)
+   ========================================================================== */
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   TABLET LANDSCAPE (max-width: 1024px)
+   ========================================================================== */
+
+@media (max-width: 1024px) {
+    /* Sidebar collapses by default on tablet */
+    .sidebar {
+        transform: translateX(-251px);
+    }
+
+    .sidebar.expanded {
+        transform: translateX(0);
+    }
+
+    /* Toggle button moves to edge when collapsed */
+    .sidebar-toggle {
+        left: -1px;
+    }
+
+    .sidebar.expanded + .sidebar-toggle {
+        left: 248px;
+    }
+
+    /* Stats grid - 3 columns on tablet */
+    .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* Dashboard panels - 2 columns */
+    .dashboard-panels {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    /* Reduce container max-width */
+    .container {
+        max-width: 100%;
+        padding: 0 10px;
+    }
+}
+
+/* ==========================================================================
+   TABLET PORTRAIT / MOBILE (max-width: 768px)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    /* Show hamburger menu */
+    .mobile-menu-btn {
+        display: flex;
+    }
+
+    /* Sidebar becomes overlay */
+    .sidebar {
+        position: fixed;
+        z-index: 1001;
+        height: 100vh;
+        transform: translateX(-251px);
+    }
+
+    .sidebar.expanded {
+        transform: translateX(0);
+    }
+
+    /* Show overlay when sidebar expanded */
+    .sidebar.expanded ~ .sidebar-overlay {
+        display: block;
+    }
+
+    /* Hide default toggle on mobile (use hamburger instead) */
+    .sidebar-toggle {
+        display: none;
+    }
+
+    /* Main content takes full width */
+    .main-content {
+        padding: 60px 10px 10px 10px; /* Top padding for hamburger */
+    }
+
+    /* Stats grid - 2 columns on mobile */
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    /* Stat cards - smaller on mobile */
+    .stat-card {
+        padding: 12px;
+        height: 100px;
+        max-height: 100px;
+    }
+
+    .stat-value {
+        font-size: 1.4em;
+    }
+
+    .stat-label {
+        font-size: 0.65em;
+    }
+
+    /* Dashboard panels - single column */
+    .dashboard-panels {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Charts smaller on mobile */
+    .chart-wrapper {
+        height: 250px;
+    }
+
+    /* Throughput metrics row - stack vertically */
+    .throughput-metrics-row {
+        flex-direction: column !important;
+    }
+
+    .throughput-metrics-row > div {
+        min-width: 100% !important;
+        margin-bottom: 10px;
+    }
+
+    /* Tables - horizontal scroll */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Modals - full width on mobile */
+    .modal-content,
+    [style*="max-width: 1200px"],
+    [style*="max-width: 1000px"],
+    [style*="max-width: 600px"] {
+        max-width: 95% !important;
+        padding: 15px !important;
+    }
+
+    /* Header adjustments */
+    .header {
+        padding-left: 50px; /* Space for hamburger */
+    }
+
+    .header h1 {
+        font-size: 1.3em;
+    }
+
+    /* Chord diagrams - smaller */
+    .chord-container,
+    [id$="ChordSvg"] {
+        height: 200px !important;
+    }
+
+    /* Hide some elements on mobile */
+    .hide-mobile {
+        display: none !important;
+    }
+
+    /* Settings tabs - horizontal scroll */
+    .settings-tabs {
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Form inputs full width */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    select,
+    textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Buttons - larger touch targets */
+    button,
+    .btn,
+    .btn-small,
+    .btn-primary {
+        min-height: 44px;
+        padding: 12px 16px;
+    }
+
+    /* Threat cards - smaller on mobile */
+    .threat-card {
+        height: 300px !important;
+        max-height: 300px !important;
+    }
+
+    .threat-logs-container {
+        max-height: 200px;
+    }
+
+    /* Comparison charts grid - 2 columns */
+    .comparison-charts-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+/* ==========================================================================
+   PHONE (max-width: 480px)
+   ========================================================================== */
+
+@media (max-width: 480px) {
+    /* Stats grid - single column on phone */
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Stat cards even smaller */
+    .stat-card {
+        height: 90px;
+        max-height: 90px;
+        padding: 10px;
+    }
+
+    .stat-value {
+        font-size: 1.2em;
+    }
+
+    /* Header */
+    .header h1 {
+        font-size: 1.1em;
+    }
+
+    /* Charts - minimum height */
+    .chart-wrapper {
+        height: 200px;
+    }
+
+    /* Modals - even more compact */
+    .modal-content {
+        padding: 10px !important;
+        margin: 5px;
+    }
+
+    /* Comparison charts - single column */
+    .comparison-charts-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Device selector in sidebar - smaller */
+    .sidebar-header {
+        padding: 15px 10px;
+    }
+
+    /* Menu items - larger touch targets */
+    .menu-item {
+        padding: 15px 20px;
+        font-size: 0.9em;
+    }
+
+    /* Threat cards - even smaller */
+    .threat-card {
+        height: 250px !important;
+        max-height: 250px !important;
+    }
+
+    .threat-logs-container {
+        max-height: 150px;
+    }
+
+    /* Tables - smaller font */
+    table {
+        font-size: 0.85em;
+    }
+
+    th, td {
+        padding: 8px 6px;
+    }
+}
+
+/* ==========================================================================
+   TOUCH DEVICE OPTIMIZATIONS
+   ========================================================================== */
+
+@media (hover: none) and (pointer: coarse) {
+    /* Remove hover effects on touch devices */
+    .stat-card:hover {
+        transform: none;
+    }
+
+    .menu-item:hover {
+        background: transparent;
+    }
+
+    /* Add active state for touch */
+    .stat-card:active {
+        transform: scale(0.98);
+    }
+
+    .menu-item:active {
+        background: #333;
+    }
+
+    /* Larger touch targets */
+    .clickable,
+    [onclick],
+    button {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* ==========================================================================
+   LANDSCAPE PHONE
+   ========================================================================== */
+
+@media (max-height: 500px) and (orientation: landscape) {
+    /* Reduce heights in landscape */
+    .chart-wrapper {
+        height: 180px;
+    }
+
+    .stat-card {
+        height: 80px;
+        max-height: 80px;
+    }
+
+    .threat-card {
+        height: 200px !important;
+        max-height: 200px !important;
+    }
+}
+
+/* ==========================================================================
+   PRINT STYLES
+   ========================================================================== */
+
+@media print {
+    .sidebar,
+    .sidebar-toggle,
+    .mobile-menu-btn,
+    .status-indicator {
+        display: none !important;
+    }
+
+    .main-content {
+        padding: 0;
+        margin: 0;
+    }
+
+    body {
+        background: white;
+    }
+
+    .stat-card,
+    .chart-container {
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+}
