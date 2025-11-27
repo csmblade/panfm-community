@@ -58,9 +58,48 @@ async function loadDevices() {
             renderDevicesTable();
             updateGroupOptions();
             await updateDeviceSelector();
+
+            // Community Edition: Disable Add Device button when at limit
+            updateAddDeviceButtonState();
         }
     } catch (error) {
         console.error('Error loading devices:', error);
+    }
+}
+
+/**
+ * Update the Add Device button state based on edition and device count
+ * Community Edition: Disabled (greyed out) when 2 devices are added
+ */
+function updateAddDeviceButtonState() {
+    const addDeviceBtn = document.getElementById('addDeviceBtn');
+    if (!addDeviceBtn) return;
+
+    const edition = window.panfmEdition || 'community';
+    const maxDevices = window.panfmMaxDevices || 2;
+    const deviceCount = currentDevices ? currentDevices.length : 0;
+
+    console.log(`[DEVICES] Edition: ${edition}, Devices: ${deviceCount}/${maxDevices}`);
+
+    if (edition === 'community' && deviceCount >= maxDevices) {
+        // Disable the button
+        addDeviceBtn.disabled = true;
+        addDeviceBtn.style.background = '#555';
+        addDeviceBtn.style.cursor = 'not-allowed';
+        addDeviceBtn.style.opacity = '0.6';
+        addDeviceBtn.title = `Community Edition is limited to ${maxDevices} devices. Upgrade to Enterprise for unlimited devices.`;
+        addDeviceBtn.onmouseover = null;
+        addDeviceBtn.onmouseout = null;
+        console.log('[DEVICES] Add Device button disabled - Community Edition limit reached');
+    } else {
+        // Enable the button
+        addDeviceBtn.disabled = false;
+        addDeviceBtn.style.background = '#FA582D';
+        addDeviceBtn.style.cursor = 'pointer';
+        addDeviceBtn.style.opacity = '1';
+        addDeviceBtn.title = '';
+        addDeviceBtn.onmouseover = function() { this.style.background = '#ff6b35'; };
+        addDeviceBtn.onmouseout = function() { this.style.background = '#FA582D'; };
     }
 }
 

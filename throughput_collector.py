@@ -174,13 +174,12 @@ class ThroughputCollector:
                             # ============================================================
                             timestamp = throughput_data.get('timestamp')
                             if timestamp:
-                                # Store analytics data in parallel tables (non-blocking, errors logged but not fatal)
-                                self._store_application_samples(device_id, timestamp)
-                                self._store_category_bandwidth(device_id, timestamp)
-                                self._store_client_bandwidth(device_id, timestamp)
-
-                                # Collect and store connected devices (for MAC-to-IP mapping and enrichment)
-                                self._store_connected_devices(device_id, timestamp)
+                                # v1.0.11: Analytics storage moved to separate scheduled job (collect_analytics_job)
+                                # These functions make heavy firewall API calls (5000 logs each) and were
+                                # causing collect_all_devices() to take 134+ seconds instead of <30 seconds.
+                                # Analytics now collected every 5 minutes via clock.py instead of every 60 seconds.
+                                # See: collect_analytics_all_devices() and clock.py collect_analytics_job()
+                                pass  # Analytics collected separately
 
                             # Check alert thresholds after successful data collection
                             self._check_alert_thresholds(device_id, device_name, throughput_data)
@@ -799,7 +798,9 @@ class ThroughputCollector:
             # Fetch application data (includes sources and destinations)
             # Note: This calls the firewall API directly (legacy method)
             # Future: Consider caching or using database source if available
-            app_data = get_application_statistics(firewall_config, max_logs=5000)
+            # v1.0.11: Reduced from 5000 to 1000 for faster collection
+            # 1000 logs is plenty for a 5-minute window (typical: 500-2500 logs)
+            app_data = get_application_statistics(firewall_config, max_logs=1000)
 
             if not app_data or 'applications' not in app_data:
                 debug(f"No application data for device {device_id}, skipping flow collection")
@@ -941,7 +942,9 @@ class ThroughputCollector:
                 return
 
             # Call firewall API to get real-time application statistics
-            app_data = get_application_statistics(firewall_config, max_logs=5000)
+            # v1.0.11: Reduced from 5000 to 1000 for faster collection
+            # 1000 logs is plenty for a 5-minute window (typical: 500-2500 logs)
+            app_data = get_application_statistics(firewall_config, max_logs=1000)
             if not app_data:
                 debug(f"No application statistics available from firewall API (device {device_id})")
                 return
@@ -996,7 +999,9 @@ class ThroughputCollector:
                 return
 
             # Call firewall API to get real-time application statistics
-            app_data = get_application_statistics(firewall_config, max_logs=5000)
+            # v1.0.11: Reduced from 5000 to 1000 for faster collection
+            # 1000 logs is plenty for a 5-minute window (typical: 500-2500 logs)
+            app_data = get_application_statistics(firewall_config, max_logs=1000)
             if not app_data:
                 debug(f"No application statistics available from firewall API (device {device_id})")
                 return
@@ -1127,7 +1132,8 @@ class ThroughputCollector:
                 return
 
             # Call firewall API to get real-time traffic logs
-            logs_data = get_traffic_logs(firewall_config, max_logs=5000)
+            # v1.0.11: Reduced from 5000 to 1000 for faster collection
+            logs_data = get_traffic_logs(firewall_config, max_logs=1000)
             if not logs_data or logs_data.get('status') != 'success':
                 debug(f"No traffic logs available from firewall API (device {device_id})")
                 return
@@ -1721,6 +1727,71 @@ class ThroughputCollector:
 
         except Exception as e:
             exception("Error in log collection cycle: %s", str(e))
+
+    def collect_analytics_all_devices(self):
+        """
+        Collect analytics data from all enabled devices (separated from throughput collection).
+
+        v1.0.11: These operations were previously in collect_all_devices() but caused it to take
+        134+ seconds because each makes heavy firewall API calls (5000 logs each).
+        Now runs as a separate scheduled job every 5 minutes.
+
+        Collects for each device:
+        - Application samples (get_application_statistics with 5000 logs)
+        - Category bandwidth (get_application_statistics with 5000 logs)
+        - Client bandwidth (get_traffic_logs with 5000 logs)
+        - Connected devices (get_connected_devices)
+        """
+        debug("Starting analytics collection cycle (separate from throughput)")
+
+        try:
+            # Get all devices
+            devices = device_manager.load_devices()
+
+            if not devices or len(devices) == 0:
+                debug("No devices configured, skipping analytics collection")
+                return
+
+            # Count enabled devices
+            enabled_devices = [d for d in devices if d.get('enabled', True)]
+            debug("Collecting analytics from %d enabled devices", len(enabled_devices))
+
+            success_count = 0
+            for device in enabled_devices:
+                device_id = device.get('id')
+                device_name = device.get('name', 'Unknown')
+
+                debug("Collecting analytics for device: %s (ID: %s)", device_name, device_id)
+
+                try:
+                    # Get current timestamp for analytics storage
+                    from datetime import datetime
+                    timestamp = datetime.utcnow().isoformat() + 'Z'
+
+                    # Store application samples (heavy API call: 5000 logs)
+                    self._store_application_samples(device_id, timestamp)
+
+                    # Store category bandwidth (heavy API call: 5000 logs)
+                    self._store_category_bandwidth(device_id, timestamp)
+
+                    # Store client bandwidth (heavy API call: 5000 logs)
+                    self._store_client_bandwidth(device_id, timestamp)
+
+                    # Store connected devices (for MAC-to-IP mapping)
+                    self._store_connected_devices(device_id, timestamp)
+
+                    success_count += 1
+                    debug("Analytics collection complete for device: %s", device_name)
+
+                except Exception as e:
+                    exception("Error collecting analytics for device %s: %s", device_name, str(e))
+                    continue
+
+            info("Analytics collection cycle complete: %d/%d devices successful",
+                 success_count, len(enabled_devices))
+
+        except Exception as e:
+            exception("Error in analytics collection cycle: %s", str(e))
 
     def force_cleanup(self) -> int:
         """

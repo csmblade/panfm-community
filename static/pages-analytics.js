@@ -14,7 +14,7 @@ let comparisonChart1 = null; // Throughput vs Sessions
 let comparisonChart2 = null; // CPU vs Memory
 let comparisonChart3 = null; // TCP vs UDP
 let comparisonChart4 = null; // Internal vs Internet
-let comparisonChart5 = null; // Threats vs Sessions
+// v1.0.14: Removed comparisonChart5 (Threats vs Sessions) - threat data now from dedicated timeline
 let comparisonChart6 = null; // Errors vs Throughput
 let analyticsData = [];
 let currentAnalyticsRange = '24h';
@@ -821,29 +821,9 @@ function initComparisonCharts() {
         });
     }
 
-    // Chart 5: Threats vs Sessions
-    const ctx5 = document.getElementById('comparisonChart5');
-    if (ctx5) {
-        comparisonChart5 = new Chart(ctx5.getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: 'Threats', data: [], borderColor: '#D32F2F', backgroundColor: 'rgba(211, 47, 47, 0.1)', yAxisID: 'y', tension: 0.4, borderWidth: 2, pointRadius: 0 },
-                    { label: 'Sessions', data: [], borderColor: '#9C27B0', backgroundColor: 'rgba(156, 39, 176, 0.1)', yAxisID: 'y1', tension: 0.4, borderWidth: 2, pointRadius: 0 }
-                ]
-            },
-            options: {
-                ...commonOptions,
-                scales: {
-                    ...commonOptions.scales,
-                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#F2F0EF', font: { size: 8 }, maxTicksLimit: 5 } }
-                }
-            }
-        });
-    }
+    // v1.0.14: Removed Chart 5 (Threats vs Sessions) - threat data now from dedicated timeline
 
-    // Chart 6: Interface Errors vs Throughput
+    // Chart 6: Interface Errors vs Throughput (renumbered to Chart 5 in UI)
     const ctx6 = document.getElementById('comparisonChart6');
     if (ctx6) {
         comparisonChart6 = new Chart(ctx6.getContext('2d'), {
@@ -865,7 +845,7 @@ function initComparisonCharts() {
         });
     }
 
-    console.log('All 6 comparison mini-charts initialized');
+    console.log('All 5 comparison mini-charts initialized');  // v1.0.14: Reduced from 6
 }
 
 /**
@@ -973,7 +953,8 @@ window.loadAnalyticsData = async function(retryCount = 0) {
             updateCpuChart(historyData.samples);
             updateMemoryChart(historyData.samples);
             updateSessionsChart(historyData.samples);
-            updateThreatsChart(historyData.samples);
+            // v1.0.13: Load threat timeline from dedicated endpoint (fixes inflated counts bug)
+            loadThreatTimeline(currentAnalyticsRange);
             updateComparisonCharts(historyData.samples);
             updatePeakStatistics(historyData.samples);
             updateDataRangeDisplay(historyData);
@@ -1210,18 +1191,71 @@ function updateSessionsChart(samples) {
 }
 
 /**
- * Update threats timeline chart with threat count data
- * @param {Array} samples - Array of throughput samples
+ * Load threat timeline data from dedicated API endpoint
+ * v1.0.13: Fixed bug where overlapping 5-min sliding windows caused
+ * inflated counts (17,000+ shown instead of actual ~50). Now queries
+ * threat_logs directly with TimescaleDB time_bucket() for accurate counts.
+ *
+ * @param {string} range - Time range (1h, 6h, 24h, 7d, 30d)
  */
-function updateThreatsChart(samples) {
-    if (!samples || samples.length === 0 || !analyticsThreatsChart) return;
+async function loadThreatTimeline(range) {
+    if (!analyticsThreatsChart) return;
+
+    // Use same device ID source as other analytics charts
+    const deviceId = window.currentDeviceId || '';
+    if (!deviceId) {
+        console.warn('No device selected for threat timeline');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/threats/timeline?device_id=${encodeURIComponent(deviceId)}&range=${range}`);
+
+        if (!response.ok) {
+            console.error(`Failed to fetch threat timeline: ${response.status}`);
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'success' && data.timeline) {
+            updateThreatsChart(data.timeline, data.total_threats);
+        } else {
+            console.warn('No threat timeline data:', data.message || 'Unknown error');
+            // Clear the chart if no data
+            analyticsThreatsChart.data.labels = [];
+            analyticsThreatsChart.data.datasets[0].data = [];
+            analyticsThreatsChart.update();
+        }
+    } catch (error) {
+        console.error('Error loading threat timeline:', error);
+    }
+}
+
+/**
+ * Update threats timeline chart with threat count data
+ * v1.0.13: Now receives actual threat counts per time bucket from dedicated endpoint
+ *
+ * @param {Array} timeline - Array of {bucket, count} objects from /api/threats/timeline
+ * @param {number} totalThreats - Pre-calculated total from backend
+ */
+function updateThreatsChart(timeline, totalThreats) {
+    if (!timeline || timeline.length === 0 || !analyticsThreatsChart) {
+        // Clear chart if no data
+        if (analyticsThreatsChart) {
+            analyticsThreatsChart.data.labels = [];
+            analyticsThreatsChart.data.datasets[0].data = [];
+            analyticsThreatsChart.update();
+        }
+        console.log('Threats chart: No data to display');
+        return;
+    }
 
     const labels = [];
     const threatsData = [];
-    let previousThreats = null;
 
-    samples.forEach((sample, index) => {
-        const date = new Date(sample.timestamp);
+    timeline.forEach(item => {
+        const date = new Date(item.bucket);
         let label;
 
         // Format labels based on time range
@@ -1236,32 +1270,16 @@ function updateThreatsChart(samples) {
         }
 
         labels.push(label);
-
-        // Calculate threat delta (new threats since last sample)
-        const currentThreats = sample.threats || 0;
-        let threatDelta = 0;
-
-        if (index === 0) {
-            // First sample: assume 0 delta (we don't know what came before)
-            threatDelta = 0;
-        } else if (previousThreats !== null && currentThreats >= previousThreats) {
-            // Normal case: calculate delta
-            threatDelta = currentThreats - previousThreats;
-        } else if (currentThreats < previousThreats) {
-            // Counter reset (firewall reboot) - show current count
-            threatDelta = currentThreats;
-        }
-
-        threatsData.push(threatDelta);
-        previousThreats = currentThreats;
+        threatsData.push(item.count || 0);
     });
 
     analyticsThreatsChart.data.labels = labels;
     analyticsThreatsChart.data.datasets[0].data = threatsData;
     analyticsThreatsChart.update();
 
-    const totalNewThreats = threatsData.reduce((a, b) => a + b, 0);
-    console.log(`Threats chart updated with ${samples.length} data points (${totalNewThreats} new threats detected)`);
+    // Use pre-calculated total from backend, or calculate from data
+    const total = totalThreats !== undefined ? totalThreats : threatsData.reduce((a, b) => a + b, 0);
+    console.log(`Threats chart updated with ${timeline.length} data points (${total} total threats in range)`);
 }
 
 /**
@@ -1280,7 +1298,7 @@ function updateComparisonCharts(samples) {
     const udpData = [];
     const internalData = [];
     const internetData = [];
-    const threatsData = [];
+    // v1.0.14: Removed threatsData - threat data now from dedicated timeline
     const errorsData = [];
 
     samples.forEach(sample => {
@@ -1310,7 +1328,7 @@ function updateComparisonCharts(samples) {
         udpData.push(sample.sessions?.udp || 0);
         internalData.push(sample.internal_mbps || 0);
         internetData.push(sample.internet_mbps || 0);
-        threatsData.push(sample.threats || 0);
+        // v1.0.14: Removed threatsData - threat data now from dedicated timeline
         errorsData.push(sample.interface_errors || 0);
     });
 
@@ -1346,15 +1364,9 @@ function updateComparisonCharts(samples) {
         comparisonChart4.update();
     }
 
-    // Update Chart 5: Threats vs Sessions
-    if (comparisonChart5) {
-        comparisonChart5.data.labels = labels;
-        comparisonChart5.data.datasets[0].data = threatsData;
-        comparisonChart5.data.datasets[1].data = sessionsData;
-        comparisonChart5.update();
-    }
+    // v1.0.14: Removed Chart 5 (Threats vs Sessions) - threat data now from dedicated timeline
 
-    // Update Chart 6: Errors vs Throughput
+    // Update Chart 6: Errors vs Throughput (renumbered to Chart 5 in UI)
     if (comparisonChart6) {
         comparisonChart6.data.labels = labels;
         comparisonChart6.data.datasets[0].data = errorsData;
@@ -1362,7 +1374,7 @@ function updateComparisonCharts(samples) {
         comparisonChart6.update();
     }
 
-    console.log(`All 6 comparison charts updated with ${samples.length} data points`);
+    console.log(`All 5 comparison charts updated with ${samples.length} data points`);  // v1.0.14: Reduced from 6
 }
 
 /**
@@ -1523,34 +1535,10 @@ function updatePeakStatistics(samples) {
         peakIcmpSessionsEl.textContent = peakIcmpSessions.toLocaleString();
     }
 
-    // Calculate threat statistics
-    let totalThreats = 0;
-    let peakHourlyThreats = 0;
+    // v1.0.14: Removed threat statistics from here - threats use dedicated timeline chart
+    // which queries threat_logs directly for accurate counts
 
-    samples.forEach(sample => {
-        const threats = sample.threats || 0;
-        totalThreats += threats;
-        if (threats > peakHourlyThreats) peakHourlyThreats = threats;
-    });
-
-    const avgHourlyThreats = samples.length > 0 ? totalThreats / samples.length : 0;
-
-    // Update threat stats
-    const totalThreatsEl = document.getElementById('totalThreats');
-    const peakHourlyThreatsEl = document.getElementById('peakHourlyThreats');
-    const avgHourlyThreatsEl = document.getElementById('avgHourlyThreats');
-
-    if (totalThreatsEl) {
-        totalThreatsEl.textContent = totalThreats.toLocaleString();
-    }
-    if (peakHourlyThreatsEl) {
-        peakHourlyThreatsEl.textContent = peakHourlyThreats.toLocaleString();
-    }
-    if (avgHourlyThreatsEl) {
-        avgHourlyThreatsEl.textContent = avgHourlyThreats.toFixed(1);
-    }
-
-    console.log(`Peak statistics updated - CPU DP: ${avgCpuDataPlane.toFixed(1)}%/${peakCpuDataPlane.toFixed(1)}%, CPU Mgmt: ${avgCpuMgmt.toFixed(1)}%/${peakCpuMgmt.toFixed(1)}%, Memory: ${avgMemory.toFixed(1)}%/${peakMemory.toFixed(1)}%, Sessions: ${peakTotalSessions.toLocaleString()} (TCP: ${peakTcpSessions.toLocaleString()}, UDP: ${peakUdpSessions.toLocaleString()}, ICMP: ${peakIcmpSessions.toLocaleString()}), Threats: ${totalThreats.toLocaleString()} (Peak: ${peakHourlyThreats.toLocaleString()}, Avg: ${avgHourlyThreats.toFixed(1)})`);
+    console.log(`Peak statistics updated - CPU DP: ${avgCpuDataPlane.toFixed(1)}%/${peakCpuDataPlane.toFixed(1)}%, CPU Mgmt: ${avgCpuMgmt.toFixed(1)}%/${peakCpuMgmt.toFixed(1)}%, Memory: ${avgMemory.toFixed(1)}%/${peakMemory.toFixed(1)}%, Sessions: ${peakTotalSessions.toLocaleString()} (TCP: ${peakTcpSessions.toLocaleString()}, UDP: ${peakUdpSessions.toLocaleString()}, ICMP: ${peakIcmpSessions.toLocaleString()})`);
 }
 
 /**

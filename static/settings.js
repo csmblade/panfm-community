@@ -29,6 +29,13 @@ async function loadSettings() {
             document.getElementById('tonyMode').checked = data.settings.tony_mode || false;
             document.getElementById('timezone').value = data.settings.timezone || 'UTC';
 
+            // Reverse DNS setting (v1.0.12)
+            document.getElementById('reverseDnsEnabled').checked = data.settings.reverse_dns_enabled || false;
+
+            // Store settings globally for use across all pages
+            window.panfmSettings = window.panfmSettings || {};
+            window.panfmSettings.reverse_dns_enabled = data.settings.reverse_dns_enabled || false;
+
             // Store timezone globally for use in time formatting functions
             window.userTimezone = data.settings.timezone || 'UTC';
 
@@ -93,6 +100,9 @@ async function saveSettingsData() {
         const tonyMode = document.getElementById('tonyMode').checked;
         const timezone = document.getElementById('timezone').value;
 
+        // Reverse DNS setting (v1.0.12)
+        const reverseDnsEnabled = document.getElementById('reverseDnsEnabled').checked;
+
         // Get current settings to preserve selected_device_id and monitored_interface
         const currentSettingsResponse = await window.apiClient.get('/api/settings');
 
@@ -100,7 +110,8 @@ async function saveSettingsData() {
             refresh_interval: refreshInterval,
             debug_logging: debugLogging,
             tony_mode: tonyMode,
-            timezone: timezone
+            timezone: timezone,
+            reverse_dns_enabled: reverseDnsEnabled
         };
 
         // Preserve selected_device_id and monitored_interface from current settings
@@ -126,6 +137,16 @@ async function saveSettingsData() {
             // Update local variables
             UPDATE_INTERVAL = refreshInterval * 1000;
             window.userTimezone = timezone;
+
+            // Update global reverse DNS setting (v1.0.12)
+            window.panfmSettings = window.panfmSettings || {};
+            window.panfmSettings.reverse_dns_enabled = reverseDnsEnabled;
+
+            // Clear DNS cache when settings change (provider or enabled state)
+            if (window.reverseDnsCache) {
+                window.reverseDnsCache = {};
+                console.log('Reverse DNS cache cleared due to settings change');
+            }
 
             // Restart update interval with new timing
             if (updateIntervalId) {
@@ -164,6 +185,8 @@ function resetSettingsData() {
     document.getElementById('debugLogging').checked = false;
     document.getElementById('tonyMode').checked = false;
     document.getElementById('timezone').value = 'UTC';
+    // Reverse DNS settings (v1.0.12)
+    document.getElementById('reverseDnsEnabled').checked = false;
 }
 
 // Update monitored interface from dashboard

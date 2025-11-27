@@ -27,6 +27,7 @@ let sankeyClientInfo = null;
 let sankeyTotalFlows = null;
 let sankeyTotalVolume = null;
 let sankeyTimeRange = null;
+let sankeyFlowLimit = null;  // v1.0.14: Flow limit dropdown
 
 // Current modal state (for refresh functionality)
 let currentClientIp = null;
@@ -107,7 +108,7 @@ async function performReverseDnsLookup(ipAddresses) {
         return reverseDnsCache;
     }
 
-    console.log(`[SANKEY] Performing reverse DNS lookup for ${uncachedIps.length} IPs...`);
+    console.log(`[SANKEY] Performing reverse DNS lookup for ${uncachedIps.length} IPs`);
 
     try {
         // Use window.apiClient if available (same as Applications page)
@@ -153,17 +154,49 @@ async function performReverseDnsLookup(ipAddresses) {
 /**
  * Get hostname for destination IP (from reverse DNS cache)
  * v1.0.4: Strips subnet notation before lookup
+ * v1.0.12: Handles both PTR and FreeIPAPI response formats
  * @param {string} ip - IP address (may include /32 subnet notation)
  * @returns {string} Hostname or clean IP (without subnet)
  */
 function getHostnameForIp(ip) {
     const cleanIp = stripSubnet(ip);
-    const hostname = reverseDnsCache[cleanIp];
+    const cached = reverseDnsCache[cleanIp];
+
+    if (!cached) {
+        return cleanIp;  // Not in cache
+    }
+
+    // v1.0.12: Handle object format from API (both PTR and FreeIPAPI)
+    let hostname;
+    if (typeof cached === 'object' && cached.hostname) {
+        hostname = cached.hostname;
+    } else if (typeof cached === 'string') {
+        hostname = cached;
+    } else {
+        return cleanIp;
+    }
+
     if (hostname && hostname !== cleanIp) {
         console.log(`[SANKEY] DNS resolved: ${ip} -> ${hostname}`);
         return hostname;
     }
     return cleanIp;  // Return clean IP without /32
+}
+
+/**
+ * Get enriched data for destination IP (FreeIPAPI only)
+ * v1.0.12: Returns geo/ISP info if available
+ * @param {string} ip - IP address
+ * @returns {Object|null} Enriched data or null
+ */
+function getEnrichedDataForIp(ip) {
+    const cleanIp = stripSubnet(ip);
+    const cached = reverseDnsCache[cleanIp];
+
+    if (typeof cached === 'object' && (cached.country || cached.isp)) {
+        return cached;
+    }
+    return null;
 }
 
 /**
@@ -182,26 +215,15 @@ window.clearSankeyDnsCache = clearSankeyDnsCache;
 
 /**
  * Check if reverse DNS lookup is enabled
- * v1.0.4: Uses localStorage as source of truth (synced by toggle handler)
+ * v1.0.12: Uses global Settings page setting (window.panfmSettings)
  * @returns {boolean} True if enabled
  */
 function isReverseDnsEnabled() {
-    // v1.0.4: Use localStorage as the single source of truth
-    // This is set by toggleReverseDnsLookup() and survives page navigation
-    const stored = localStorage.getItem('reverseDnsEnabled');
-    if (stored !== null) {
-        const enabled = stored === 'true';
-        console.log(`[SANKEY] Reverse DNS enabled (from localStorage): ${enabled}`);
-        return enabled;
-    }
-
-    // Fallback: check checkboxes (Connected Devices or Applications tab)
-    const checkbox1 = document.getElementById('enableReverseDnsLookup');
-    const checkbox2 = document.getElementById('enableReverseDnsLookupApps');
-    const enabled = (checkbox1 && checkbox1.checked) || (checkbox2 && checkbox2.checked);
-    console.log(`[SANKEY] Reverse DNS enabled (from checkbox): ${enabled}`);
+    const enabled = window.panfmSettings?.reverse_dns_enabled || false;
+    console.log(`[SANKEY] Reverse DNS enabled (from global settings): ${enabled}`);
     return enabled;
 }
+
 
 /**
  * Strip subnet notation from IP address (e.g., "192.168.1.1/32" -> "192.168.1.1")
@@ -228,6 +250,7 @@ function initSankeyModal() {
     sankeyTotalFlows = document.getElementById('sankeyTotalFlows');
     sankeyTotalVolume = document.getElementById('sankeyTotalVolume');
     sankeyTimeRange = document.getElementById('sankeyTimeRange');
+    sankeyFlowLimit = document.getElementById('sankeyFlowLimit');  // v1.0.14
 
     if (!sankeyModal || !closeSankeyModalBtn) {
         console.error('Sankey modal elements not found');
@@ -250,6 +273,19 @@ function initSankeyModal() {
             closeSankeyModal();
         }
     });
+
+    // v1.0.14: Flow limit dropdown change handler
+    if (sankeyFlowLimit) {
+        sankeyFlowLimit.addEventListener('change', () => {
+            console.log(`[SANKEY] Flow limit changed to: ${sankeyFlowLimit.value}`);
+            // Re-render diagram with new limit if we have flow data
+            if (currentFlowData && currentFlowData.flows) {
+                clearSankeyDiagram();
+                renderSankeyDiagram(currentFlowData.flows);
+                updateSankeyStats(currentFlowData, currentExpectedVolume);
+            }
+        });
+    }
 }
 
 /**
@@ -423,10 +459,12 @@ async function fetchTrafficFlows(deviceId, clientIp) {
  */
 function updateSankeyStats(flowData, expectedTotalVolume = null) {
     const totalFlowCount = (flowData.flows || []).length;
-    const displayedFlowCount = Math.min(totalFlowCount, 10);  // Updated to match 10-flow limit
+    // v1.0.14: Get flow limit from dropdown (default 50)
+    const flowLimit = sankeyFlowLimit ? parseInt(sankeyFlowLimit.value, 10) : 50;
+    const displayedFlowCount = Math.min(totalFlowCount, flowLimit);
 
     if (sankeyTotalFlows) {
-        if (totalFlowCount > 10) {
+        if (totalFlowCount > flowLimit) {
             sankeyTotalFlows.innerHTML = `<span style="font-size: 0.9em;">Top ${displayedFlowCount} of ${totalFlowCount.toLocaleString()}</span>`;
         } else {
             sankeyTotalFlows.textContent = totalFlowCount.toLocaleString();
@@ -464,17 +502,20 @@ function renderSankeyDiagram(flows) {
     // Clear previous diagram
     clearSankeyDiagram();
 
-    // Limit to top 10 flows by bytes to prevent layout issues with too many nodes
+    // v1.0.14: Get flow limit from dropdown (default 50)
+    const flowLimit = sankeyFlowLimit ? parseInt(sankeyFlowLimit.value, 10) : 50;
+
+    // Limit to top N flows by bytes to prevent layout issues with too many nodes
     const originalFlowCount = flows.length;
     flows.sort((a, b) => (b.bytes || 0) - (a.bytes || 0));
-    const limitedFlows = flows.slice(0, 10);
+    const limitedFlows = flows.slice(0, flowLimit);
     const totalOriginalBytes = flows.reduce((sum, f) => sum + (f.bytes || 0), 0);
     const totalLimitedBytes = limitedFlows.reduce((sum, f) => sum + (f.bytes || 0), 0);
     const percentageRepresented = totalOriginalBytes > 0
         ? ((totalLimitedBytes / totalOriginalBytes) * 100).toFixed(1)
         : 100;
 
-    console.log(`[SANKEY] Showing top 10 of ${originalFlowCount} flows (${percentageRepresented}% of traffic)`);
+    console.log(`[SANKEY] Showing top ${flowLimit} of ${originalFlowCount} flows (${percentageRepresented}% of traffic)`);
     flows = limitedFlows;
 
     // Check if d3 and d3.sankey are available
@@ -603,10 +644,10 @@ function renderSankeyDiagram(flows) {
         .append('title')
         .text(d => `${d.name}\n${formatBytesHuman(d.value)}`);
 
-    // Add labels
+    // Add labels - primary name (hostname or IP)
     node.append('text')
         .attr('x', d => d.x0 < chartWidth / 2 ? d.x1 + 6 : d.x0 - 6)
-        .attr('y', d => (d.y1 + d.y0) / 2)
+        .attr('y', d => d.originalIp ? (d.y1 + d.y0) / 2 - 6 : (d.y1 + d.y0) / 2)
         .attr('dy', '0.35em')
         .attr('text-anchor', d => d.x0 < chartWidth / 2 ? 'start' : 'end')
         .text(d => d.name)
@@ -614,6 +655,19 @@ function renderSankeyDiagram(flows) {
         .style('font-size', '12px')
         .style('fill', '#F2F0EF')  // Dark theme text color
         .style('font-weight', '500');
+
+    // v1.0.14: Add secondary label for IP address underneath hostname (destination nodes only)
+    node.filter(d => d.originalIp)
+        .append('text')
+        .attr('x', d => d.x0 < chartWidth / 2 ? d.x1 + 6 : d.x0 - 6)
+        .attr('y', d => (d.y1 + d.y0) / 2 + 6)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', d => d.x0 < chartWidth / 2 ? 'start' : 'end')
+        .text(d => d.originalIp)
+        .style('font-family', 'var(--font-secondary)')
+        .style('font-size', '10px')
+        .style('fill', '#888888')  // Dimmer color for IP
+        .style('font-weight', '400');
 }
 
 /**
@@ -627,10 +681,11 @@ function buildSankeyData(flows) {
     const nodeMap = new Map();
 
     // Helper to get or create node
-    function getOrCreateNode(name, type) {
+    // v1.0.14: Added originalIp field to track IP when hostname is resolved
+    function getOrCreateNode(name, type, originalIp = null) {
         const key = `${type}_${name}`;
         if (!nodeMap.has(key)) {
-            const node = { name, type };
+            const node = { name, type, originalIp };
             nodeMap.set(key, nodes.length);
             nodes.push(node);
         }
@@ -652,15 +707,22 @@ function buildSankeyData(flows) {
 
         // v1.0.4: Use source hostname from connected devices table if available
         const sourceLabel = getSourceHostname(sourceIp);
-        const destIpLabel = dnsEnabled ? getHostnameForIp(destIp) : destIp;
+        const cleanDestIp = stripSubnet(destIp);
+        const destHostname = dnsEnabled ? getHostnameForIp(destIp) : cleanDestIp;
 
         // Create destination label with port (e.g., "192.168.1.100:443" or "hostname.com:443")
-        const destLabel = destPort ? `${destIpLabel}:${destPort}` : destIpLabel;
+        const destLabel = destPort ? `${destHostname}:${destPort}` : destHostname;
+
+        // v1.0.14: Track original IP for destination nodes when DNS resolved
+        // This allows showing IP underneath hostname in the diagram
+        const destOriginalIp = (dnsEnabled && destHostname !== cleanDestIp)
+            ? (destPort ? `${cleanDestIp}:${destPort}` : cleanDestIp)
+            : null;
 
         // Get or create nodes for all three layers
         const sourceIdx = getOrCreateNode(sourceLabel, 'source');
         const appIdx = getOrCreateNode(application, 'application');
-        const destIdx = getOrCreateNode(destLabel, 'destination');
+        const destIdx = getOrCreateNode(destLabel, 'destination', destOriginalIp);
 
         // Create two links: source → application, application → destination
         links.push({

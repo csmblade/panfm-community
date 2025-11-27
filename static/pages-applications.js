@@ -162,7 +162,7 @@ function formatPortDisplay(port) {
         // Format: "Port: 443 (https)"  with description as title
         const serviceName = serviceInfo.name;
         const description = serviceInfo.description || '';
-        return `Port: ${port} <span style="color: #FA582D; font-weight: 600;" title="${description}">(${serviceName})</span>`;
+        return `Port: ${port} <span style="color: #F2F0EF; font-weight: 600;" title="${description}">(${serviceName})</span>`;
     }
 
     // No service name found - just show port
@@ -249,18 +249,18 @@ function renderCategoryChart() {
     const minBubbleSize = 30;
     const maxBubbleSize = 100;
 
-    // Generate gradient orange colors for bubbles
+    // Generate muted/darker orange colors for bubbles (v1.0.11 - matches dark theme)
     const orangeGradient = [
-        '#FA582D',  // Primary orange
-        '#E04F26',  // Darker orange
-        '#B8541E',  // Even darker
-        '#C23C14',  // Darkest orange
-        '#FF6F47',  // Lighter coral
-        '#FF8C5A',  // Light orange
-        '#E66432',  // Mid orange
-        '#C85A28',  // Dark orange
-        '#F07846',  // Bright orange
-        '#D25F2D'   // Medium orange
+        '#B8441F',  // Muted primary orange
+        '#A33D1C',  // Darker orange
+        '#8E3518',  // Deep orange
+        '#7A2E15',  // Dark rust
+        '#C44D22',  // Medium muted orange
+        '#9A4019',  // Burnt orange
+        '#853814',  // Dark burnt
+        '#703010',  // Very dark
+        '#B04520',  // Muted coral
+        '#964218'   // Dark amber
     ];
 
     // Prepare bubble data with scaled radii
@@ -306,13 +306,13 @@ function renderCategoryChart() {
     bubbles.append('circle')
         .attr('r', d => d.radius)
         .attr('fill', d => d.color)
-        .attr('fill-opacity', 0.7)
+        .attr('fill-opacity', 0.85)  // v1.0.11: Increased opacity for darker colors
         .attr('stroke', d => d.color)
         .attr('stroke-width', 2)
         .attr('stroke-opacity', 1)
         .on('mouseover', function(event, d) {
             d3.select(this)
-                .attr('fill-opacity', 0.9)
+                .attr('fill-opacity', 1.0)
                 .attr('stroke-width', 3);
 
             // Show tooltip
@@ -323,7 +323,7 @@ function renderCategoryChart() {
         })
         .on('mouseout', function() {
             d3.select(this)
-                .attr('fill-opacity', 0.7)
+                .attr('fill-opacity', 0.85)  // v1.0.11: Match base opacity
                 .attr('stroke-width', 2);
 
             tooltip.style('display', 'none');
@@ -370,7 +370,7 @@ function renderCategoryChart() {
             .style('color', '#F2F0EF')
             .style('padding', '10px 15px')
             .style('border-radius', '6px')
-            .style('border', '1px solid #FA582D')
+            .style('border', '1px solid #555')
             .style('font-family', 'var(--font-secondary)')
             .style('font-size', '13px')
             .style('pointer-events', 'none')
@@ -495,7 +495,7 @@ function renderApplicationsTable() {
                             <th onclick="sortApplications('bytes_received')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
                                 Bytes Received${getSortIndicator('bytes_received')}
                             </th>
-                            <th onclick="sortApplications('bytes')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #FA582D; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
+                            <th onclick="sortApplications('bytes')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
                                 Total Volume${getSortIndicator('bytes')}
                             </th>
                             <th onclick="sortApplications('source_count')" style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; white-space: nowrap; font-family: var(--font-primary); cursor: pointer; user-select: none; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">
@@ -543,16 +543,16 @@ function renderApplicationsTable() {
         html += `
             <tr style="${rowStyle} border-bottom: 1px solid #444; border-left: 4px solid transparent; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, #3a3a3a 0%, #333333 100%)'; this.style.borderLeft='4px solid #FA582D';" onmouseout="this.style.background='${index % 2 === 0 ? 'linear-gradient(135deg, #2a2a2a 0%, #252525 100%)' : 'linear-gradient(135deg, #333333 0%, #2d2d2d 100%)'}'; this.style.borderLeft='4px solid transparent';">
                 <td onclick="showAppDetails(${index})" style="padding: 12px;">
-                    <span style="color: #FA582D; font-weight: 600; text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='#C64620'" onmouseout="this.style.color='#FA582D'">${app.name}</span>
+                    <span style="color: #F2F0EF; font-weight: 600; text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='#bbb'" onmouseout="this.style.color='#F2F0EF'">${app.name}</span>
                 </td>
                 <td onclick="showAppDestinations(${index})" style="padding: 12px;">
-                    <span style="background: ${categoryColor}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 600; display: inline-block; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                    <span style="background: #555; color: #F2F0EF; padding: 4px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 600; display: inline-block; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
                         ${category}
                     </span>
                 </td>
-                <td style="padding: 12px; color: #ccc; text-align: right;">${bytesSent}</td>
-                <td style="padding: 12px; color: #ccc; text-align: right;">${bytesReceived}</td>
-                <td style="padding: 12px; color: #FA582D; text-align: right; font-weight: 600;">${totalVolume}</td>
+                <td style="padding: 12px; color: #bbb; text-align: right;">${bytesSent}</td>
+                <td style="padding: 12px; color: #bbb; text-align: right;">${bytesReceived}</td>
+                <td style="padding: 12px; color: #F2F0EF; text-align: right; font-weight: 600;">${totalVolume}</td>
                 <td style="padding: 12px; color: #ccc; text-align: right;">${app.source_count}</td>
                 <td style="padding: 12px; color: #ccc; text-align: right;">${app.dest_count}</td>
                 <td style="padding: 12px; color: #ccc;">${protocols}</td>
@@ -846,8 +846,8 @@ async function showAppDestinations(appIndex) {
     // Populate destinations list
     const destinationsList = document.getElementById('appDestinationsList');
     if (app.destinations && app.destinations.length > 0) {
-        // Check if reverse DNS lookup is enabled (v1.0.4: Use correct checkbox ID)
-        const reverseDnsEnabled = document.getElementById('enableReverseDnsLookupApps')?.checked || false;
+        // v1.0.12: Check global settings for reverse DNS
+        const reverseDnsEnabled = window.panfmSettings?.reverse_dns_enabled || false;
 
         if (reverseDnsEnabled) {
             // Show loading indicator
@@ -861,7 +861,7 @@ async function showAppDestinations(appIndex) {
                 // Extract IP addresses from destinations
                 const ipAddresses = app.destinations.map(dest => dest.ip);
 
-                // Call reverse DNS API
+                // Call reverse DNS API (v1.0.12)
                 const response = await window.apiClient.post('/api/reverse-dns', {
                     ip_addresses: ipAddresses,
                     timeout: 2
@@ -880,14 +880,13 @@ async function showAppDestinations(appIndex) {
                         const showHostname = hostname && hostname !== dest.ip;
                         const portDisplay = formatPortDisplay(dest.port);
                         const bytesDisplay = formatBytesHuman(dest.bytes || 0);
-                        console.log(`IP: ${dest.ip}, Hostname: ${hostname}, Show: ${showHostname}`);
 
                         destHtml += `
-                            <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
+                            <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #F2F0EF; border-radius: 4px; padding: 10px;">
                                 ${showHostname ? `<div style="color: #F2F0EF; font-weight: 600; margin-bottom: 3px;">${hostname}</div>` : ''}
-                                <div style="font-family: monospace; color: #FA582D; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
-                                <div style="font-size: 0.85em; color: #666; margin-bottom: 2px;">${portDisplay}</div>
-                                <div style="font-size: 0.8em; color: #FA582D; font-weight: 600;">${bytesDisplay}</div>
+                                <div style="font-family: monospace; color: #F2F0EF; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
+                                <div style="font-size: 0.85em; color: #bbb; margin-bottom: 2px;">${portDisplay}</div>
+                                <div style="font-size: 0.8em; color: #bbb; font-weight: 600;">${bytesDisplay}</div>
                             </div>
                         `;
                     });
@@ -903,10 +902,10 @@ async function showAppDestinations(appIndex) {
                     const portDisplay = formatPortDisplay(dest.port);
                     const bytesDisplay = formatBytesHuman(dest.bytes || 0);
                     destHtml += `
-                        <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
-                            <div style="font-family: monospace; color: #FA582D; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
-                            <div style="font-size: 0.85em; color: #666; margin-bottom: 2px;">${portDisplay}</div>
-                            <div style="font-size: 0.8em; color: #FA582D; font-weight: 600; margin-bottom: 2px;">${bytesDisplay}</div>
+                        <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #F2F0EF; border-radius: 4px; padding: 10px;">
+                            <div style="font-family: monospace; color: #F2F0EF; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
+                            <div style="font-size: 0.85em; color: #bbb; margin-bottom: 2px;">${portDisplay}</div>
+                            <div style="font-size: 0.8em; color: #bbb; font-weight: 600; margin-bottom: 2px;">${bytesDisplay}</div>
                             <div style="font-size: 0.8em; color: #d9534f;">DNS lookup failed</div>
                         </div>
                     `;
@@ -920,10 +919,10 @@ async function showAppDestinations(appIndex) {
                 const portDisplay = formatPortDisplay(dest.port);
                 const bytesDisplay = formatBytesHuman(dest.bytes || 0);
                 destHtml += `
-                    <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #FA582D; border-radius: 4px; padding: 10px;">
-                        <div style="font-family: monospace; color: #FA582D; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
-                        <div style="font-size: 0.85em; color: #666; margin-bottom: 2px;">${portDisplay}</div>
-                        <div style="font-size: 0.8em; color: #FA582D; font-weight: 600;">${bytesDisplay}</div>
+                    <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #F2F0EF; border-radius: 4px; padding: 10px;">
+                        <div style="font-family: monospace; color: #F2F0EF; font-weight: 600; margin-bottom: 3px;">${dest.ip}</div>
+                        <div style="font-size: 0.85em; color: #bbb; margin-bottom: 2px;">${portDisplay}</div>
+                        <div style="font-size: 0.8em; color: #bbb; font-weight: 600;">${bytesDisplay}</div>
                     </div>
                 `;
             });
@@ -1008,12 +1007,12 @@ function showAppDetails(appIndex) {
             const subtitle = source.custom_name ? (source.original_hostname || source.hostname) : null;
             
             sourceHtml += `
-                <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #FA582D; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
+                <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #F2F0EF; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
                     <div style="color: #F2F0EF; font-weight: 600; font-size: 0.95em; margin-bottom: ${showSubtitle ? '3px' : '0'};">
                         ${displayName}
                     </div>
-                    ${showSubtitle ? `<div style="color: #666; font-size: 0.8em; margin-bottom: 3px;">${subtitle}</div>` : ''}
-                    <div style="font-family: monospace; color: #FA582D; font-size: 0.85em; font-weight: 500;">
+                    ${showSubtitle ? `<div style="color: #bbb; font-size: 0.8em; margin-bottom: 3px;">${subtitle}</div>` : ''}
+                    <div style="font-family: monospace; color: #bbb; font-size: 0.85em; font-weight: 500;">
                         ${source.ip}
                     </div>
                     ${source.bytes ? `<div style="color: #999; font-size: 0.75em; margin-top: 3px;">${formatBytesHuman(source.bytes)}</div>` : ''}
@@ -1026,7 +1025,7 @@ function showAppDetails(appIndex) {
         let sourceHtml = '';
         app.source_ips.forEach(ip => {
             sourceHtml += `
-                <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 2px solid #FA582D; border-radius: 6px; padding: 8px 12px; font-family: monospace; color: #F2F0EF; font-size: 0.9em; font-weight: 500;">
+                <div style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border: 1px solid #555; border-left: 3px solid #F2F0EF; border-radius: 6px; padding: 8px 12px; font-family: monospace; color: #F2F0EF; font-size: 0.9em; font-weight: 500;">
                     ${ip}
                 </div>
             `;

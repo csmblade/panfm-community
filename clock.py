@@ -439,6 +439,76 @@ def collect_logs_job():
         current_job = None
 
 
+def collect_analytics_job():
+    """
+    Scheduled job to collect analytics data from all devices (v1.0.11).
+
+    This job runs every 5 minutes (300 seconds) because analytics collection
+    makes heavy firewall API calls (5000 logs each per function).
+
+    Previously these calls were in collect_all_devices() causing it to take
+    134+ seconds. Now separated to keep throughput collection fast (<30s).
+
+    Collects:
+    - Application samples (for trending)
+    - Category bandwidth (for top categories)
+    - Client bandwidth (for top clients)
+    - Connected devices (for MAC-to-IP mapping)
+    """
+    global current_job
+    job_name = 'analytics_collection'
+    current_job = job_name
+    start_time = datetime.utcnow()
+    print(f"[CLOCK JOB] ► collect_analytics_job() STARTED at {start_time.isoformat()}")
+
+    # Initialize job stats if not exists
+    if job_name not in scheduler_stats['jobs']:
+        scheduler_stats['jobs'][job_name] = {
+            'success_count': 0,
+            'error_count': 0,
+            'last_run': None,
+            'last_error': None
+        }
+
+    try:
+        collector = get_collector()
+        if not collector:
+            error("Collector not initialized, skipping analytics collection")
+            current_job = None
+            return
+
+        print(f"[CLOCK JOB] Calling collector.collect_analytics_all_devices()...")
+        info("Running scheduled analytics collection (5-minute interval)...")
+
+        # Call the collector's analytics method
+        collector.collect_analytics_all_devices()
+
+        end_time = datetime.utcnow()
+        duration = (end_time - start_time).total_seconds()
+
+        print(f"[CLOCK JOB] ✓ Analytics collection completed in {duration:.2f} seconds")
+        info("Scheduled analytics collection completed (duration: %.2fs)", duration)
+
+        # Update job stats
+        scheduler_stats['jobs'][job_name]['success_count'] += 1
+        scheduler_stats['jobs'][job_name]['last_run'] = end_time.isoformat()
+
+    except Exception as e:
+        end_time = datetime.utcnow()
+        duration = (end_time - start_time).total_seconds()
+
+        print(f"[CLOCK JOB] ✗ ERROR after {duration:.2f} seconds: {str(e)}")
+        exception("Error in analytics collection after %.2fs: %s", duration, str(e))
+
+        # Update job error stats
+        scheduler_stats['jobs'][job_name]['error_count'] += 1
+        scheduler_stats['jobs'][job_name]['last_error'] = str(e)
+
+        raise  # Re-raise to trigger EVENT_JOB_ERROR
+    finally:
+        current_job = None
+
+
 def check_settings_changes(scheduler):
     """
     Check if settings have changed and reschedule jobs if needed.
@@ -846,7 +916,20 @@ def main():
     )
     print(f"[CLOCK INIT] ✓ Job 'collect_logs' registered (every 5 minutes)")
 
-    # Register Job 5: Database Cleanup (daily at 02:00 UTC)
+    # Register Job 5: Analytics Collection (v1.0.11 - separated from throughput)
+    # Runs every 5 minutes because analytics collection makes heavy API calls (5000 logs each)
+    # Previously in collect_all_devices() causing 134+ second collection times
+    scheduler.add_job(
+        func=collect_analytics_job,
+        trigger='interval',
+        seconds=300,  # Every 5 minutes (same as logs)
+        id='collect_analytics',
+        name='Analytics Collection (App/Category/Client)',
+        replace_existing=True
+    )
+    print(f"[CLOCK INIT] ✓ Job 'collect_analytics' registered (every 5 minutes)")
+
+    # Register Job 6: Database Cleanup (daily at 02:00 UTC)
     scheduler.add_job(
         func=cleanup_old_data,
         trigger='cron',
@@ -858,7 +941,7 @@ def main():
     )
     print(f"[CLOCK INIT] ✓ Job 'cleanup_databases' registered (daily at 02:00 UTC)")
 
-    # Register Job 6: Scheduler Stats Persistence (every 60 seconds)
+    # Register Job 7: Scheduler Stats Persistence (every 60 seconds)
     scheduler.add_job(
         func=persist_scheduler_stats,
         trigger='interval',
@@ -869,7 +952,7 @@ def main():
     )
     print(f"[CLOCK INIT] ✓ Job 'persist_scheduler_stats' registered (every 60 seconds)")
 
-    # Register Job 7: On-Demand Collection Queue Processor (every 5 seconds) - v1.0.3
+    # Register Job 8: On-Demand Collection Queue Processor (every 5 seconds) - v1.0.3
     scheduler.add_job(
         func=process_collection_queue,
         trigger='interval',
@@ -925,12 +1008,20 @@ def main():
         print(f"[CLOCK INIT] ⚠ Initial log collection failed: {str(e)}")
         # Continue anyway - scheduler will retry in 5 minutes
 
+    try:
+        collect_analytics_job()  # Run analytics collection immediately (v1.0.11)
+        print("[CLOCK INIT] ✓ Initial analytics collection completed")
+    except Exception as e:
+        print(f"[CLOCK INIT] ⚠ Initial analytics collection failed: {str(e)}")
+        # Continue anyway - scheduler will retry in 5 minutes
+
     print("=" * 60)
     print(f"Initial collections complete - dashboard data available immediately")
     print(f"Recurring schedule:")
     print(f"  - Throughput collection: every {refresh_interval}s")
     print(f"  - Traffic flows: every 60s")
     print(f"  - Log collection: every 300s (5 min)")
+    print(f"  - Analytics collection: every 300s (5 min)")
     print("=" * 60)
 
     # Wait brief period before starting scheduler to avoid race condition

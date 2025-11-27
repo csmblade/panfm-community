@@ -732,6 +732,11 @@ def register_operations_routes(app, csrf, limiter):
                     current_settings['timezone'] = new_settings['timezone']
                     debug(f"timezone to save: {current_settings['timezone']}")
 
+                # Reverse DNS settings (v1.0.12)
+                if 'reverse_dns_enabled' in new_settings:
+                    current_settings['reverse_dns_enabled'] = new_settings['reverse_dns_enabled']
+                    debug(f"reverse_dns_enabled to save: {current_settings['reverse_dns_enabled']}")
+
                 # Save merged settings (preserves all other keys like chord_tag_filter, etc.)
                 if save_settings(current_settings):
                     return jsonify({

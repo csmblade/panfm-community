@@ -770,61 +770,34 @@ function restoreConnectedDevicesFilterState() {
 // REVERSE DNS LOOKUP
 // ============================================================================
 
-// Global reverse DNS state and cache
-let reverseDnsEnabled = false;
+// Global reverse DNS cache (shared across modules via window)
 const dnsCache = new Map();  // IP -> hostname cache
+window.reverseDnsCache = window.reverseDnsCache || {};  // Shared cache for all pages
 
 /**
- * Toggle reverse DNS lookup feature
- * Saves state to localStorage for persistence
- * Clears DNS cache and triggers Sankey modal refresh if open
- * v1.0.4: Also clears Sankey DNS cache and syncs Applications tab checkbox
- * @param {boolean} enabled - Whether reverse DNS is enabled
+ * Get reverse DNS enabled state from global settings
+ * v1.0.12: Moved to global Settings page
+ * @returns {boolean} Whether reverse DNS is enabled
+ */
+function isReverseDnsEnabled() {
+    return window.panfmSettings?.reverse_dns_enabled || false;
+}
+
+
+/**
+ * Legacy function - kept for backward compatibility
+ * @deprecated Use isReverseDnsEnabled() instead
  */
 function toggleReverseDnsLookup(enabled) {
-    reverseDnsEnabled = enabled;
-    localStorage.setItem('reverseDnsEnabled', enabled ? 'true' : 'false');
-    console.log(`[DNS] Reverse DNS lookup ${enabled ? 'enabled' : 'disabled'}`);
-
-    // Clear DNS cache to force fresh lookups
-    dnsCache.clear();
-    console.log('[DNS] Connected Devices cache cleared');
-
-    // v1.0.4: Clear Sankey DNS cache
-    if (typeof window.clearSankeyDnsCache === 'function') {
-        window.clearSankeyDnsCache();
-    }
-
-    // v1.0.4: Sync all reverse DNS checkboxes (Connected Devices + Applications)
-    const connectedDevicesCheckbox = document.getElementById('enableReverseDnsLookup');
-    const applicationsCheckbox = document.getElementById('enableReverseDnsLookupApps');
-    if (connectedDevicesCheckbox) connectedDevicesCheckbox.checked = enabled;
-    if (applicationsCheckbox) applicationsCheckbox.checked = enabled;
-
-    // If Sankey modal is open, trigger a refresh to apply DNS changes
-    if (window.SankeyModal && typeof window.SankeyModal.refresh === 'function') {
-        console.log('[DNS] Refreshing open Sankey modal...');
-        window.SankeyModal.refresh();
-    }
+    console.warn('[DNS] toggleReverseDnsLookup is deprecated. Use Settings page to change reverse DNS settings.');
 }
 
 /**
- * Restore reverse DNS checkbox state from localStorage
- * Called on page load
- * v1.0.4: Also syncs Applications tab checkbox
+ * Legacy function - no longer needed as settings are loaded globally
+ * @deprecated Settings are now loaded from window.panfmSettings
  */
 function restoreReverseDnsState() {
-    // Default: disabled
-    reverseDnsEnabled = localStorage.getItem('reverseDnsEnabled') === 'true';
-
-    // v1.0.4: Sync both checkboxes (Connected Devices + Applications)
-    const connectedDevicesCheckbox = document.getElementById('enableReverseDnsLookup');
-    const applicationsCheckbox = document.getElementById('enableReverseDnsLookupApps');
-
-    if (connectedDevicesCheckbox) connectedDevicesCheckbox.checked = reverseDnsEnabled;
-    if (applicationsCheckbox) applicationsCheckbox.checked = reverseDnsEnabled;
-
-    console.log(`[DNS] Restored reverse DNS state: ${reverseDnsEnabled ? 'enabled' : 'disabled'}`);
+    console.log(`[DNS] Using global settings: reverse_dns_enabled=${isReverseDnsEnabled()}`);
 }
 
 /**
@@ -834,7 +807,7 @@ function restoreReverseDnsState() {
  * @returns {string} Hostname or original IP if not found
  */
 function performReverseDnsLookup(ip) {
-    if (!reverseDnsEnabled) {
+    if (!isReverseDnsEnabled()) {
         return ip;  // Return IP as-is if DNS is disabled
     }
 
@@ -870,19 +843,11 @@ function performReverseDnsLookup(ip) {
  * @returns {string} Display label
  */
 function getIpDisplayLabel(ip) {
-    if (!reverseDnsEnabled) {
+    if (!isReverseDnsEnabled()) {
         return ip;
     }
     // Perform lookup (will use cache if available)
     return performReverseDnsLookup(ip);
-}
-
-/**
- * Check if reverse DNS lookup is enabled
- * @returns {boolean} True if enabled
- */
-function isReverseDnsEnabled() {
-    return reverseDnsEnabled;
 }
 
 // ============================================================================

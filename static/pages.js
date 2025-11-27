@@ -962,11 +962,11 @@ window.showTopAppsModal = function showTopAppsModal() {
         let tableHtml = `
             <table style="width: 100%; border-collapse: collapse;">
                 <thead>
-                    <tr style="background: linear-gradient(135deg, #AD3D1A 0%, #D14925 100%); color: white;">
-                        <th style="padding: 12px; text-align: left;">Rank</th>
-                        <th style="padding: 12px; text-align: left;">Application</th>
-                        <th style="padding: 12px; text-align: right;">Sessions</th>
-                        <th style="padding: 12px; text-align: left;">Usage Bar</th>
+                    <tr style="background: linear-gradient(135deg, #3c3c3c 0%, #2d2d2d 100%); border-bottom: 2px solid #555;">
+                        <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Rank</th>
+                        <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Application</th>
+                        <th style="padding: 14px 12px; text-align: right; font-weight: 700; color: #F2F0EF; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Sessions</th>
+                        <th style="padding: 14px 12px; text-align: left; font-weight: 700; color: #F2F0EF; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75em;">Usage Bar</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -975,17 +975,17 @@ window.showTopAppsModal = function showTopAppsModal() {
         const maxCount = window.currentTopApps[0]?.count || 1;
 
         window.currentTopApps.forEach((app, index) => {
-            const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
+            const rowStyle = index % 2 === 0 ? 'background: linear-gradient(135deg, #2a2a2a 0%, #252525 100%);' : 'background: linear-gradient(135deg, #333333 0%, #2d2d2d 100%);';
             const barWidth = maxCount > 0 ? (app.count / maxCount * 100) : 0;
 
             tableHtml += `
-                <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
-                    <td style="padding: 12px; color: #AD3D1A; font-weight: 700; font-size: 1.2em;">${index + 1}</td>
-                    <td style="padding: 12px; color: #333; font-weight: 600;">${app.name}</td>
-                    <td style="padding: 12px; text-align: right; color: #AD3D1A; font-weight: 700; font-size: 1.1em;">${app.count.toLocaleString()}</td>
+                <tr style="${rowStyle} border-bottom: 1px solid #444;">
+                    <td style="padding: 12px; color: #F2F0EF; font-weight: 700; font-size: 1.2em;">${index + 1}</td>
+                    <td style="padding: 12px; color: #F2F0EF; font-weight: 600;">${app.name}</td>
+                    <td style="padding: 12px; text-align: right; color: #bbb; font-weight: 700; font-size: 1.1em;">${app.count.toLocaleString()}</td>
                     <td style="padding: 12px;">
-                        <div style="background: #e0e0e0; border-radius: 4px; height: 20px; overflow: hidden; min-width: 200px;">
-                            <div style="background: linear-gradient(135deg, #AD3D1A 0%, #D14925 100%); height: 100%; width: ${barWidth}%; transition: width 0.3s ease;"></div>
+                        <div style="background: #444; border-radius: 4px; height: 20px; overflow: hidden; min-width: 200px;">
+                            <div style="background: linear-gradient(135deg, #555 0%, #666 100%); height: 100%; width: ${barWidth}%; transition: width 0.3s ease;"></div>
                         </div>
                     </td>
                 </tr>
@@ -1319,7 +1319,7 @@ function renderInterfacesTable() {
                 <td style="padding: 12px; color: #bbb; font-family: var(--font-secondary);">${iface.zone}</td>
                 <td style="padding: 12px;">
                     <div style="text-align: right; margin-bottom: 5px;">
-                        <span id="traffic-rate-${iface.name.replace(/[\/\.]/g, '-')}" style="font-size: 0.85em; color: #FA582D; font-weight: 600; font-family: var(--font-primary);">0 Mbps</span>
+                        <span id="traffic-rate-${iface.name.replace(/[\/\.]/g, '-')}" style="font-size: 0.85em; color: #F2F0EF; font-weight: 600; font-family: var(--font-primary);">0 Mbps</span>
                     </div>
                     <canvas id="traffic-chart-${iface.name.replace(/[\/\.]/g, '-')}" width="120" height="40" style="display: block;"></canvas>
                 </td>
@@ -1374,8 +1374,8 @@ function initializeInterfaceTrafficChart(interfaceName) {
             labels: Array(MAX_INTERFACE_TRAFFIC_POINTS).fill(''),
             datasets: [{
                 data: Array(MAX_INTERFACE_TRAFFIC_POINTS).fill(0),
-                borderColor: '#FA582D',
-                backgroundColor: 'rgba(250, 88, 45, 0.1)',
+                borderColor: '#888',
+                backgroundColor: 'rgba(136, 136, 136, 0.15)',
                 borderWidth: 2,
                 fill: true,
                 tension: 0.4,

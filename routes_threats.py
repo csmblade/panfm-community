@@ -117,3 +117,76 @@ def register_threat_routes(app, csrf, limiter):
                 'status': 'error',
                 'message': f'Failed to fetch threat data: {str(e)}'
             }), 500
+
+    @app.route('/api/threats/timeline')
+    @limiter.limit("600 per hour")
+    @login_required
+    def threats_timeline():
+        """API endpoint for threat timeline data (Analytics page chart)
+
+        v1.0.13: Fixed bug where overlapping 5-min sliding windows caused
+        inflated counts (17,000+ shown instead of actual ~50). Now queries
+        threat_logs directly with TimescaleDB time_bucket() for accurate counts.
+
+        Query params:
+            device_id: Device identifier
+            range: Time range (1h, 6h, 24h, 7d, 30d) - default 6h
+
+        Returns:
+            JSON with timeline array of {bucket, count} objects
+        """
+        debug("=== Threats Timeline API endpoint called ===")
+
+        # Get device ID from request or settings
+        device_id = request.args.get('device_id')
+        if not device_id or device_id.strip() == '':
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+        if not device_id or device_id.strip() == '':
+            return jsonify({
+                'status': 'error',
+                'message': 'No device selected'
+            }), 400
+
+        # Parse time range
+        time_range = request.args.get('range', '6h')
+
+        # Map range to hours and bucket size
+        range_config = {
+            '1h':  {'hours': 1,   'bucket_minutes': 5},    # 12 data points
+            '6h':  {'hours': 6,   'bucket_minutes': 10},   # 36 data points
+            '24h': {'hours': 24,  'bucket_minutes': 30},   # 48 data points
+            '7d':  {'hours': 168, 'bucket_minutes': 180},  # 56 data points (3 hours)
+            '30d': {'hours': 720, 'bucket_minutes': 720}   # 60 data points (12 hours)
+        }
+
+        config = range_config.get(time_range, range_config['6h'])
+        hours = config['hours']
+        bucket_minutes = config['bucket_minutes']
+
+        debug(f"Fetching threat timeline: device={device_id}, range={time_range}, hours={hours}, bucket={bucket_minutes}min")
+
+        try:
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+            timeline = storage.get_threat_timeline(device_id, hours, bucket_minutes)
+
+            total_threats = sum(t['count'] for t in timeline)
+            debug(f"Threat timeline: {len(timeline)} buckets, {total_threats} total threats")
+
+            return jsonify({
+                'status': 'success',
+                'range': time_range,
+                'total_threats': total_threats,
+                'timeline': timeline
+            })
+
+        except Exception as e:
+            exception("Failed to fetch threat timeline: %s", str(e))
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to fetch threat timeline: {str(e)}'
+            }), 500

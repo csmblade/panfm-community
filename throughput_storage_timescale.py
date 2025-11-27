@@ -1127,6 +1127,68 @@ class TimescaleStorage:
             if conn:
                 self._return_connection(conn)
 
+    def get_threat_timeline(self, device_id: str, hours: int = 6, bucket_minutes: int = 10) -> List[Dict]:
+        """
+        Get threat counts per time bucket for analytics timeline chart.
+
+        v1.0.13: Fixed bug where overlapping 5-min sliding windows caused
+        inflated counts (17,000+ instead of actual ~50). Now uses TimescaleDB
+        time_bucket() for non-overlapping intervals.
+
+        Args:
+            device_id: Device identifier
+            hours: Number of hours to look back
+            bucket_minutes: Size of each time bucket in minutes
+
+        Returns:
+            List of dicts with 'bucket' (ISO timestamp) and 'count' (int)
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Use TimescaleDB time_bucket for non-overlapping intervals
+            query = """
+                SELECT
+                    time_bucket(INTERVAL '%s minutes', time) AS bucket,
+                    COUNT(*) as count
+                FROM threat_logs
+                WHERE device_id = %s
+                  AND time >= NOW() - INTERVAL '%s hours'
+                GROUP BY bucket
+                ORDER BY bucket
+            """
+
+            # Note: We use string formatting for interval because psycopg2
+            # doesn't support parameterized intervals directly
+            cursor.execute(query % (bucket_minutes, '%s', hours), (device_id,))
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            # Convert to list of dicts with ISO timestamps
+            timeline = []
+            for row in rows:
+                timeline.append({
+                    'bucket': row['bucket'].isoformat() if row['bucket'] else None,
+                    'count': int(row['count'])
+                })
+
+            total = sum(t['count'] for t in timeline)
+            debug("Threat timeline: %d buckets, %d total threats (device=%s, hours=%d, bucket=%dmin)",
+                  len(timeline), total, device_id, hours, bucket_minutes)
+
+            return timeline
+
+        except Exception as e:
+            exception("Failed to get threat timeline: %s", str(e))
+            return []
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
     # ============================================================================
     # Analytics Query Methods (for Top Category/Clients Dashboard Tiles)
     # ============================================================================

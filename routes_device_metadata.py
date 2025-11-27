@@ -921,7 +921,7 @@ def register_device_metadata_routes(app, csrf, limiter):
     @login_required
     def reverse_dns_api():
         """
-        Perform reverse DNS lookups on a list of IP addresses.
+        Perform reverse DNS lookups on a list of IP addresses using standard PTR records.
 
         Request body:
             {
@@ -960,10 +960,10 @@ def register_device_metadata_routes(app, csrf, limiter):
 
             debug(f"Processing reverse DNS lookup for {len(ip_addresses)} IP addresses")
 
-            # Perform reverse DNS lookups
+            # Perform standard PTR lookup
             results = reverse_dns_lookup(ip_addresses, timeout)
 
-            debug("Reverse DNS lookup completed successfully")
+            debug(f"Reverse DNS lookup completed successfully")
             return jsonify({
                 'status': 'success',
                 'results': results

@@ -202,7 +202,9 @@ DEFAULT_SETTINGS = {
     # Main dashboard time range (v2.1.15)
     'dashboard_time_range': '15m',  # Default: 15 minutes (options: 5m, 15m, 30m, 60m)
     # Tagged Traffic chord diagram filter (v2.1.16)
-    'chord_tag_filter': []  # List of selected tag names for Tagged Traffic diagram
+    'chord_tag_filter': [],  # List of selected tag names for Tagged Traffic diagram
+    # Reverse DNS Lookup setting (v1.0.12)
+    'reverse_dns_enabled': False  # Global toggle for reverse DNS lookups
 }
 
 # Lazy import to avoid circular dependency

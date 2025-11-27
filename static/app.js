@@ -1952,6 +1952,11 @@ async function initializeCurrentDevice() {
                 const deviceId = data.settings.selected_device_id || '';
                 window.currentDeviceId = deviceId;
 
+                // Store global settings for use across all pages (v1.0.12)
+                window.panfmSettings = window.panfmSettings || {};
+                window.panfmSettings.reverse_dns_enabled = data.settings.reverse_dns_enabled || false;
+                console.log('[Global] Reverse DNS enabled:', window.panfmSettings.reverse_dns_enabled);
+
                 // OPTIMIZATION: Cache settings to avoid duplicate fetch in initSettings()
                 window.CacheUtil.set('settings', data.settings, 5 * 60 * 1000);
                 console.log('[Global] Settings cached for 5 minutes');
@@ -3922,6 +3927,87 @@ function updateActiveAlertsCount() {
 let cachedInternetTrafficData = null;
 let cachedInternalTrafficData = null;
 
+// v1.0.12: Cache for chord DNS lookups (shared with window for external access)
+let chordDnsCache = window.reverseDnsCache || {};
+
+/**
+ * Check if an IP address is private (RFC 1918)
+ * v1.0.12: Used to filter IPs for DNS lookup (only public IPs)
+ * @param {string} ip - IP address to check
+ * @returns {boolean} True if private
+ */
+function isPrivateIP(ip) {
+    if (!ip || typeof ip !== 'string') return false;
+    const parts = ip.split('.').map(p => parseInt(p));
+    if (parts.length !== 4) return false;
+
+    // 10.0.0.0/8
+    if (parts[0] === 10) return true;
+
+    // 172.16.0.0/12
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+
+    // 192.168.0.0/16
+    if (parts[0] === 192 && parts[1] === 168) return true;
+
+    // 127.0.0.0/8 (localhost)
+    if (parts[0] === 127) return true;
+
+    return false;
+}
+
+/**
+ * Perform DNS lookup for public IPs in chord diagram data
+ * v1.0.12: Only looks up public IPs to reduce API calls
+ * @param {Array} nodes - Array of IP addresses
+ * @returns {Promise<Object>} Map of IP -> hostname
+ */
+async function performChordDnsLookup(nodes) {
+    if (!nodes || nodes.length === 0) return {};
+
+    // Filter to only public IPs not in cache
+    const publicIps = nodes.filter(ip => !isPrivateIP(ip) && !chordDnsCache[ip]);
+
+    if (publicIps.length === 0) {
+        console.log('[CHORD] All IPs are cached or private');
+        return chordDnsCache;
+    }
+
+    console.log(`[CHORD] DNS lookup for ${publicIps.length} public IPs`);
+
+    try {
+        const response = await window.apiClient.post('/api/reverse-dns', {
+            ip_addresses: publicIps,
+            timeout: 2
+        });
+
+        if (response.ok && response.data?.status === 'success') {
+            Object.assign(chordDnsCache, response.data.results);
+            console.log(`[CHORD] Cached ${Object.keys(response.data.results).length} DNS results`);
+        }
+    } catch (error) {
+        console.error('[CHORD] DNS lookup error:', error);
+    }
+
+    return chordDnsCache;
+}
+
+/**
+ * Get display label for chord diagram node
+ * v1.0.12: Returns hostname for public IPs if available
+ * @param {string} ip - IP address
+ * @returns {string} Hostname or IP
+ */
+function getChordNodeLabel(ip) {
+    if (isPrivateIP(ip)) return ip;  // Keep private IPs as-is
+
+    const hostname = chordDnsCache[ip];
+    if (hostname && hostname !== ip) {
+        return hostname;
+    }
+    return ip;
+}
+
 /**
  * Load internal traffic filter preferences from settings
  */
@@ -4156,14 +4242,20 @@ function getFilteredInternetFlows(internetData) {
 
 /**
  * Render filtered internet traffic diagram
+ * v1.0.12: Now async to support DNS lookup for public IPs
  */
-function renderFilteredInternetTraffic(internetData) {
+async function renderFilteredInternetTraffic(internetData) {
     const filteredData = getFilteredInternetFlows(internetData);
 
     // Update flow count
     const internetCount = document.getElementById('chordInternetCount');
     if (internetCount) {
         internetCount.textContent = `${filteredData.flows.length} flows`;
+    }
+
+    // v1.0.12: Perform DNS lookup for public IPs if enabled
+    if (window.panfmSettings?.reverse_dns_enabled && filteredData.nodes?.length > 0) {
+        await performChordDnsLookup(filteredData.nodes);
     }
 
     // Render the filtered chord diagram
@@ -4431,8 +4523,19 @@ function renderChordDiagram(svgId, data, type) {
             d3.select(this)
                 .style('opacity', 0.8);
 
+            // v1.0.12: Show hostname + IP in tooltip for internet/tagged traffic if DNS enabled
+            const ip = data.nodes[d.index];
+            let tooltipHtml = `<strong>${ip}</strong>`;
+
+            if ((type === 'internet' || type === 'tag_filter') && window.panfmSettings?.reverse_dns_enabled) {
+                const hostname = getChordNodeLabel(ip);
+                if (hostname !== ip) {
+                    tooltipHtml = `<strong>${hostname}</strong><br/><span style="color:#888">${ip}</span>`;
+                }
+            }
+
             tooltip.style('opacity', 1)
-                .html(`<strong>${data.nodes[d.index]}</strong>`)
+                .html(tooltipHtml)
                 .style('left', `${event.pageX + 10}px`)
                 .style('top', `${event.pageY - 28}px`);
         })
@@ -4446,6 +4549,9 @@ function renderChordDiagram(svgId, data, type) {
     // Add labels with full IP addresses - adjusted sizing and positioning
     const labelFontSize = Math.max(9, Math.min(11, width / 40)); // Adjusted for better fit
     const labelDistance = Math.min(10, width * 0.02); // Dynamic label distance based on container
+
+    // v1.0.12: Check if DNS labels should be used (for internet and tagged traffic)
+    const useDnsLabels = (type === 'internet' || type === 'tag_filter') && window.panfmSettings?.reverse_dns_enabled;
 
     groups.append('text')
         .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
@@ -4462,8 +4568,12 @@ function renderChordDiagram(svgId, data, type) {
         .style('font-family', 'var(--font-secondary)')
         .style('letter-spacing', '0.3px')
         .text(d => {
-            // Show full IP address for clarity
-            return data.nodes[d.index];
+            const ip = data.nodes[d.index];
+            // v1.0.12: Use hostname for public IPs if DNS is enabled
+            if (useDnsLabels) {
+                return getChordNodeLabel(ip);
+            }
+            return ip;
         });
 
     // Create tooltip (global, shared between diagrams)
@@ -4744,6 +4854,11 @@ async function loadTagFilteredChordDiagram() {
                     loadingElement.style.color = 'rgba(255,200,100,0.8)';
                 }
             } else {
+                // v1.0.12: Perform DNS lookup for public IPs if enabled
+                if (window.panfmSettings?.reverse_dns_enabled && data.tag_filter.nodes?.length > 0) {
+                    await performChordDnsLookup(data.tag_filter.nodes);
+                }
+
                 // Render chord diagram
                 console.log(`[CHORD-TAG] Rendering chord diagram with ${data.tag_filter.nodes.length} nodes and ${data.tag_filter.flows.length} flows`);
                 renderChordDiagram('chordTagSvg', data.tag_filter, 'tag_filter');

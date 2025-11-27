@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 0
-VERSION_PATCH = 10
+VERSION_PATCH = 11
 
 # Build metadata (optional)
 VERSION_BUILD = "20251127"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251127"  # YYYYMMDD format
 VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Fast Collection"
+VERSION_CODENAME = "Fast Collection Phase 2"
 
 
 def get_version():
