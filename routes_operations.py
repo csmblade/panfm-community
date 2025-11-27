@@ -705,51 +705,39 @@ def register_operations_routes(app, csrf, limiter):
                 debug(f"=== POST /api/settings called ===")
                 debug(f"Received settings: {new_settings}")
 
-                # Validate settings
-                refresh_interval = int(new_settings.get('refresh_interval', 60))
-                match_count = int(new_settings.get('match_count', 5))
-                top_apps_count = int(new_settings.get('top_apps_count', 5))
+                # v1.0.8 FIX: Load existing settings first, then merge
+                # This preserves fields not included in the request (e.g., notification channels,
+                # chord_tag_filter, internet_traffic_filters, etc.)
+                current_settings = load_settings()
 
-                # Ensure values are within valid ranges (30s min, 300s max = 5 minutes)
-                refresh_interval = max(30, min(300, refresh_interval))
-                match_count = max(1, min(20, match_count))
-                top_apps_count = max(1, min(10, top_apps_count))
+                # Update only the provided fields with validation
+                if 'refresh_interval' in new_settings:
+                    current_settings['refresh_interval'] = max(30, min(300, int(new_settings['refresh_interval'])))
+                if 'match_count' in new_settings:
+                    current_settings['match_count'] = max(1, min(20, int(new_settings['match_count'])))
+                if 'top_apps_count' in new_settings:
+                    current_settings['top_apps_count'] = max(1, min(10, int(new_settings['top_apps_count'])))
+                if 'debug_logging' in new_settings:
+                    current_settings['debug_logging'] = new_settings['debug_logging']
+                if 'selected_device_id' in new_settings:
+                    current_settings['selected_device_id'] = new_settings['selected_device_id']
+                    debug(f"selected_device_id to save: {current_settings['selected_device_id']}")
+                if 'monitored_interface' in new_settings:
+                    current_settings['monitored_interface'] = new_settings['monitored_interface']
+                    debug(f"monitored_interface to save: {current_settings['monitored_interface']}")
+                if 'tony_mode' in new_settings:
+                    current_settings['tony_mode'] = new_settings['tony_mode']
+                    debug(f"tony_mode to save: {current_settings['tony_mode']}")
+                if 'timezone' in new_settings:
+                    current_settings['timezone'] = new_settings['timezone']
+                    debug(f"timezone to save: {current_settings['timezone']}")
 
-                # Get debug logging setting
-                debug_logging = new_settings.get('debug_logging', False)
-
-                # Get selected device ID (for multi-device support)
-                selected_device_id = new_settings.get('selected_device_id', '')
-                debug(f"selected_device_id to save: {selected_device_id}")
-
-                # Get monitored interface
-                monitored_interface = new_settings.get('monitored_interface', 'ethernet1/12')
-                debug(f"monitored_interface to save: {monitored_interface}")
-
-                # Get Tony Mode setting (disable session timeout)
-                tony_mode = new_settings.get('tony_mode', False)
-                debug(f"tony_mode to save: {tony_mode}")
-
-                # Get timezone setting
-                timezone = new_settings.get('timezone', 'UTC')
-                debug(f"timezone to save: {timezone}")
-
-                settings_data = {
-                    'refresh_interval': refresh_interval,
-                    'match_count': match_count,
-                    'top_apps_count': top_apps_count,
-                    'debug_logging': debug_logging,
-                    'selected_device_id': selected_device_id,
-                    'monitored_interface': monitored_interface,
-                    'tony_mode': tony_mode,
-                    'timezone': timezone
-                }
-
-                if save_settings(settings_data):
+                # Save merged settings (preserves all other keys like chord_tag_filter, etc.)
+                if save_settings(current_settings):
                     return jsonify({
                         'status': 'success',
                         'message': 'Settings saved successfully',
-                        'settings': settings_data
+                        'settings': current_settings
                     })
                 else:
                     return jsonify({

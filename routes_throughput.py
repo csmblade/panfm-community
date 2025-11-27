@@ -87,8 +87,11 @@ def register_throughput_routes(app, csrf, limiter):
             # Throughput endpoint is ONLY for network throughput metrics
             # This keeps concerns separated and prevents time range confusion
 
-            # Get latest sample from database (use 2x refresh_interval as max age)
-            max_age_seconds = refresh_interval * 2
+            # Get latest sample from database
+            # v1.0.10: Increased from 2x to 3x refresh_interval (180s instead of 120s)
+            # This provides a safety net when throughput collection occasionally takes longer
+            # than the 60-second interval (e.g., during high load or network latency)
+            max_age_seconds = refresh_interval * 3
             latest_sample = storage.get_latest_sample(device_id, max_age_seconds=max_age_seconds)
 
             if latest_sample is None:

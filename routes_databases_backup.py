@@ -309,13 +309,25 @@ def register_databases_backup_routes(app, csrf, limiter):
     @limiter.limit("20 per hour")
     @login_required
     def export_backup():
-        """Export backup to downloadable JSON file"""
+        """Export backup to downloadable JSON file
+
+        Optional JSON body:
+            include_database (bool): Whether to include TimescaleDB dump (default: True)
+        """
+        print("=== BACKUP EXPORT CALLED ===", flush=True)
         debug("=== Export Backup API endpoint called ===")
         try:
-            # Create backup first
-            backup_data = create_full_backup()
+            # Get optional parameters (silent=True to handle empty body)
+            data = request.get_json(silent=True) or {}
+            include_database = data.get('include_database', True)
+
+            # Create backup
+            debug(f"Creating backup with include_database={include_database}")
+            backup_data = create_full_backup(include_database=include_database)
+            debug(f"Backup result: {'success' if backup_data else 'None'}")
 
             if backup_data is None:
+                error("create_full_backup returned None - check backup_restore.py logs")
                 return jsonify({
                     'status': 'error',
                     'message': 'Failed to create backup'
@@ -334,7 +346,11 @@ def register_databases_backup_routes(app, csrf, limiter):
             })
 
         except Exception as e:
+            import traceback
+            print(f"=== BACKUP EXPORT ERROR: {str(e)} ===", flush=True)
+            print(f"=== TRACEBACK: {traceback.format_exc()} ===", flush=True)
             error(f"Error exporting backup: {str(e)}")
+            exception(f"Full traceback: {traceback.format_exc()}")
             return jsonify({
                 'status': 'error',
                 'message': str(e)
@@ -344,7 +360,16 @@ def register_databases_backup_routes(app, csrf, limiter):
     @limiter.limit("10 per hour")
     @login_required
     def restore_backup():
-        """Restore site configuration from backup"""
+        """Restore site configuration from backup
+
+        JSON body:
+            backup (dict): The backup data object
+            restore_settings (bool): Restore settings.json (default: True)
+            restore_devices (bool): Restore devices.json (default: True)
+            restore_metadata (bool): Restore device_metadata.json (default: True)
+            restore_auth (bool): Restore auth.json (default: True) - NEW in v2.1.0
+            restore_database (bool): Restore TimescaleDB (default: True) - NEW in v2.1.0
+        """
         debug("=== Restore Backup API endpoint called ===")
         try:
             data = request.get_json()
@@ -357,16 +382,20 @@ def register_databases_backup_routes(app, csrf, limiter):
 
             backup_data = data['backup']
 
-            # Optional: selective restore
+            # Selective restore options
             restore_settings = data.get('restore_settings', True)
             restore_devices = data.get('restore_devices', True)
             restore_metadata = data.get('restore_metadata', True)
+            restore_auth = data.get('restore_auth', True)  # NEW in v2.1.0
+            restore_database = data.get('restore_database', True)  # NEW in v2.1.0
 
             result = restore_from_backup(
                 backup_data,
                 restore_settings=restore_settings,
                 restore_devices=restore_devices,
-                restore_metadata=restore_metadata
+                restore_metadata=restore_metadata,
+                restore_auth=restore_auth,
+                restore_database=restore_database
             )
 
             if result['success']:

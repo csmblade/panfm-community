@@ -1,43 +1,45 @@
 """
 Backup & Restore Manager for PANfm
-Handles comprehensive site-wide backup and restore of Settings, Devices, Metadata, Throughput History, and Notification Channels.
-All backups are encrypted and timestamped.
+Handles comprehensive site-wide backup and restore of Settings, Devices, Metadata, Auth, and Database.
+All backups include encryption key and are timestamped.
+
+v2.1.0: Added auth.json backup and automated pg_dump for TimescaleDB
 """
 import os
 import json
 import shutil
 import base64
 from datetime import datetime
-from config import load_settings, save_settings, SETTINGS_FILE
+from config import load_settings, save_settings, SETTINGS_FILE, AUTH_FILE
 from device_manager import device_manager
-from device_metadata import load_metadata, save_metadata, check_migration_needed, migrate_global_to_per_device
+from device_metadata import load_metadata, save_metadata
 from logger import debug, info, warning, error, exception
 
 
-def create_full_backup():
+def create_full_backup(include_database=True):
     """
-    Create comprehensive backup of Settings, Devices, Metadata, Throughput History, Notification Channels, and Encryption Key.
+    Create comprehensive backup of Settings, Devices, Metadata, Auth, and optionally TimescaleDB.
 
     SECURITY WARNING: The backup includes the encryption key, which allows decryption
     of all sensitive data. Backup files must be stored securely (encrypted drive,
     password manager, etc.) and never shared via email or unencrypted cloud storage.
 
+    Args:
+        include_database (bool): Whether to include TimescaleDB pg_dump (default: True)
+
     Returns:
         dict: Backup dictionary with structure:
               {
-                  'version': '1.6.0',
+                  'version': '2.1.0',
                   'timestamp': 'ISO-8601 timestamp',
                   'encryption_key': 'base64-encoded key',  # SENSITIVE
-                  'settings': {...},  # Includes alert_notification_channels
+                  'settings': {...},
                   'devices': {...},
                   'metadata': {...},
-                  'throughput_db': 'base64-encoded SQLite database'  # NEW in v1.6.0
+                  'auth': {...},  # NEW in v2.1.0
+                  'database_dump': 'base64-encoded pg_dump'  # NEW in v2.1.0 (optional)
               }
         None: On error
-
-    Note: Notification channel configurations (email, Slack, webhook) are stored
-    within settings under 'alert_notification_channels' and are automatically
-    backed up with settings.
     """
     debug("Creating full site backup")
     try:
@@ -63,25 +65,45 @@ def create_full_backup():
         metadata = load_metadata(use_cache=False)
         debug(f"Loaded metadata")
 
+        # Load auth.json (NEW in v2.1.0)
+        auth_data = None
+        if os.path.exists(AUTH_FILE):
+            try:
+                with open(AUTH_FILE, 'r') as f:
+                    auth_data = json.load(f)
+                debug("Loaded auth.json for backup")
+            except Exception as e:
+                warning(f"Failed to load auth.json: {str(e)}")
+
         # Load encryption key (CRITICAL for restore to work)
         from encryption import load_key
         encryption_key = load_key()
         encryption_key_b64 = base64.b64encode(encryption_key).decode('utf-8')
         debug("Included encryption key in backup for restore compatibility")
 
-        # NOTE: throughput_db removed in v2.0.0 (TimescaleDB replaces SQLite)
-        # TimescaleDB data is backed up via pg_dump or Docker volume backups
-
         # Create backup structure
         backup = {
-            'version': '2.0.0',
+            'version': '2.1.0',
             'timestamp': datetime.utcnow().isoformat() + 'Z',
             'encryption_key': encryption_key_b64,  # CRITICAL: Required for restore
             'settings': settings,
             'devices': devices_data,
             'metadata': metadata
-            # throughput_db removed - use TimescaleDB backups (pg_dump)
         }
+
+        # Add auth if loaded successfully
+        if auth_data is not None:
+            backup['auth'] = auth_data
+            debug("Included auth.json in backup")
+
+        # Add database dump if requested (NEW in v2.1.0)
+        if include_database:
+            db_dump = export_database_backup()
+            if db_dump:
+                backup['database_dump'] = db_dump
+                debug("Included TimescaleDB dump in backup")
+            else:
+                warning("TimescaleDB dump not included - database may not be available")
 
         info("Successfully created full backup")
         return backup
@@ -90,7 +112,205 @@ def create_full_backup():
         return None
 
 
-def restore_from_backup(backup_data, restore_settings=True, restore_devices=True, restore_metadata=True, restore_throughput_db=False):
+def export_database_backup():
+    """
+    Export TimescaleDB data using psycopg2 COPY commands.
+    Exports all tables to a JSON structure that can be restored.
+
+    Returns:
+        str: Base64-encoded JSON dump of all tables, or None on failure
+    """
+    debug("Exporting TimescaleDB database backup")
+    try:
+        import psycopg2
+        import psycopg2.extras
+        from io import StringIO
+
+        # Get database connection string from config
+        from config import TIMESCALE_DSN
+
+        conn = psycopg2.connect(TIMESCALE_DSN)
+        conn.autocommit = True
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Tables to backup - configuration tables (not large hypertables)
+        # We backup alert configs, notification channels, etc. but NOT massive
+        # time-series data like throughput_samples or connected_devices which
+        # could be hundreds of thousands of rows.
+        tables_to_backup = [
+            # Configuration tables (small, important for restore)
+            'alert_configs',
+            'notification_channels',
+            'maintenance_windows',
+            'scheduled_scans',
+            # History tables (only if small)
+            'alert_history',
+            'alert_cooldowns',
+        ]
+
+        db_dump = {
+            'format': 'panfm_db_dump_v1',
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'tables': {}
+        }
+
+        for table in tables_to_backup:
+            try:
+                # Check if table exists
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables
+                        WHERE table_schema = 'public' AND table_name = %s
+                    )
+                """, (table,))
+                if not cur.fetchone()['exists']:
+                    debug(f"Table {table} does not exist, skipping")
+                    continue
+
+                # Get all rows from table
+                cur.execute(f"SELECT * FROM {table}")
+                rows = cur.fetchall()
+
+                # Convert rows to list of dicts (handle special types)
+                table_data = []
+                for row in rows:
+                    row_dict = {}
+                    for key, value in row.items():
+                        # Convert datetime objects to ISO strings
+                        if hasattr(value, 'isoformat'):
+                            row_dict[key] = value.isoformat()
+                        # Convert Decimal to float
+                        elif hasattr(value, 'is_finite'):
+                            row_dict[key] = float(value)
+                        else:
+                            row_dict[key] = value
+                    table_data.append(row_dict)
+
+                db_dump['tables'][table] = table_data
+                debug(f"Exported {len(table_data)} rows from {table}")
+            except Exception as e:
+                warning(f"Failed to export table {table}: {str(e)}")
+                continue
+
+        cur.close()
+        conn.close()
+
+        # Convert to JSON and base64 encode
+        dump_json = json.dumps(db_dump)
+        dump_b64 = base64.b64encode(dump_json.encode('utf-8')).decode('utf-8')
+        dump_size_mb = len(dump_json) / (1024 * 1024)
+        info(f"Database dump created successfully ({dump_size_mb:.2f} MB, {len(db_dump['tables'])} tables)")
+        return dump_b64
+
+    except ImportError:
+        warning("psycopg2 not available - skipping database backup")
+        return None
+    except Exception as e:
+        exception(f"Failed to export database: {str(e)}")
+        return None
+
+
+def import_database_backup(dump_b64):
+    """
+    Restore TimescaleDB data from JSON dump via psycopg2.
+
+    Args:
+        dump_b64 (str): Base64-encoded JSON dump from export_database_backup()
+
+    Returns:
+        bool: True on success, False on failure
+    """
+    debug("Importing TimescaleDB database backup")
+    try:
+        import psycopg2
+        import psycopg2.extras
+
+        # Decode base64 and parse JSON
+        dump_json = base64.b64decode(dump_b64).decode('utf-8')
+        db_dump = json.loads(dump_json)
+
+        # Validate format
+        if db_dump.get('format') != 'panfm_db_dump_v1':
+            error(f"Unknown database dump format: {db_dump.get('format')}")
+            return False
+
+        dump_size_mb = len(dump_json) / (1024 * 1024)
+        debug(f"Restoring database dump ({dump_size_mb:.2f} MB)")
+
+        # Get database connection string from config
+        from config import TIMESCALE_DSN
+
+        conn = psycopg2.connect(TIMESCALE_DSN)
+        cur = conn.cursor()
+
+        tables_restored = 0
+        rows_restored = 0
+
+        for table_name, table_data in db_dump.get('tables', {}).items():
+            if not table_data:
+                debug(f"Table {table_name} is empty, skipping")
+                continue
+
+            try:
+                # Check if table exists
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables
+                        WHERE table_schema = 'public' AND table_name = %s
+                    )
+                """, (table_name,))
+                if not cur.fetchone()[0]:
+                    warning(f"Table {table_name} does not exist in database, skipping")
+                    continue
+
+                # Get column names from first row
+                columns = list(table_data[0].keys())
+
+                # Clear existing data (for full restore)
+                cur.execute(f"DELETE FROM {table_name}")
+
+                # Insert rows
+                for row in table_data:
+                    values = []
+                    for col in columns:
+                        val = row.get(col)
+                        # Convert ISO date strings back to datetime for timestamp columns
+                        # psycopg2 handles ISO format strings automatically for timestamp columns
+                        values.append(val)
+
+                    placeholders = ', '.join(['%s'] * len(columns))
+                    col_names = ', '.join(columns)
+                    cur.execute(f"INSERT INTO {table_name} ({col_names}) VALUES ({placeholders})", values)
+
+                conn.commit()
+                tables_restored += 1
+                rows_restored += len(table_data)
+                debug(f"Restored {len(table_data)} rows to {table_name}")
+
+            except Exception as e:
+                conn.rollback()
+                warning(f"Failed to restore table {table_name}: {str(e)}")
+                continue
+
+        cur.close()
+        conn.close()
+
+        info(f"Database restored successfully ({tables_restored} tables, {rows_restored} rows)")
+        return True
+
+    except ImportError as e:
+        error(f"Required module not available: {str(e)}")
+        return False
+    except json.JSONDecodeError as e:
+        error(f"Invalid JSON in database dump: {str(e)}")
+        return False
+    except Exception as e:
+        exception(f"Failed to import database: {str(e)}")
+        return False
+
+
+def restore_from_backup(backup_data, restore_settings=True, restore_devices=True,
+                        restore_metadata=True, restore_auth=True, restore_database=True):
     """
     Restore site configuration from backup.
 
@@ -99,19 +319,18 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
         restore_settings (bool): Whether to restore settings
         restore_devices (bool): Whether to restore devices
         restore_metadata (bool): Whether to restore metadata
-        restore_throughput_db (bool): DEPRECATED (v2.0.0) - TimescaleDB not restored via this function
+        restore_auth (bool): Whether to restore auth.json (login credentials) - NEW in v2.1.0
+        restore_database (bool): Whether to restore TimescaleDB from pg_dump - NEW in v2.1.0
 
     Returns:
         dict: Result with structure:
               {
                   'success': bool,
-                  'restored': ['settings', 'devices', 'metadata'],
+                  'restored': ['settings', 'devices', 'metadata', 'auth', 'database'],
                   'errors': ['error messages if any']
               }
-
-    NOTE: In v2.0.0, throughput data is stored in TimescaleDB and must be backed up via pg_dump
     """
-    debug(f"Starting restore (settings={restore_settings}, devices={restore_devices}, metadata={restore_metadata})")
+    debug(f"Starting restore (settings={restore_settings}, devices={restore_devices}, metadata={restore_metadata}, auth={restore_auth}, database={restore_database})")
 
     result = {
         'success': True,
@@ -163,6 +382,19 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
             # Backwards compatibility: Old backups without encryption_key field
             warning("Backup does not contain encryption_key field (old format)")
             warning("Restore may fail if current encryption.key differs from backup's original key")
+
+        # Restore auth.json (NEW in v2.1.0) - restore AFTER encryption key but BEFORE other data
+        if restore_auth and 'auth' in backup_data:
+            try:
+                auth_data = backup_data['auth']
+                with open(AUTH_FILE, 'w') as f:
+                    json.dump(auth_data, f, indent=2)
+                os.chmod(AUTH_FILE, 0o600)
+                result['restored'].append('auth')
+                info("Successfully restored auth.json (login credentials)")
+            except Exception as e:
+                result['errors'].append(f"Auth restore error: {str(e)}")
+                exception(f"Failed to restore auth.json: {str(e)}")
 
         # Restore settings
         if restore_settings and 'settings' in backup_data:
@@ -257,10 +489,17 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
                 result['errors'].append(f"Metadata restore error: {str(e)}")
                 exception(f"Failed to restore metadata: {str(e)}")
 
-        # NOTE: Throughput database restore removed in v2.0.0 (TimescaleDB replacement)
-        # Use pg_dump to backup/restore TimescaleDB data
-        if restore_throughput_db:
-            warning("throughput_db restore is deprecated in v2.0.0 - use pg_dump for TimescaleDB backups")
+        # Restore TimescaleDB database (NEW in v2.1.0)
+        if restore_database and 'database_dump' in backup_data:
+            try:
+                if import_database_backup(backup_data['database_dump']):
+                    result['restored'].append('database')
+                    info("Successfully restored TimescaleDB database")
+                else:
+                    result['errors'].append("Failed to restore database")
+            except Exception as e:
+                result['errors'].append(f"Database restore error: {str(e)}")
+                exception(f"Failed to restore database: {str(e)}")
 
         # Overall success if no errors
         if result['errors']:
@@ -365,27 +604,36 @@ def get_backup_info(backup_data):
                   'has_settings': bool,
                   'has_devices': bool,
                   'has_metadata': bool,
-                  'has_throughput_db': bool,  # NEW in v1.6.0
+                  'has_auth': bool,  # NEW in v2.1.0
+                  'has_database_dump': bool,  # NEW in v2.1.0
                   'device_count': int,
                   'metadata_count': int,
-                  'throughput_db_size_mb': float  # NEW in v1.6.0
+                  'database_dump_size_mb': float  # NEW in v2.1.0
               }
     """
     debug("Getting backup information")
     try:
+        # Calculate database dump size if present
+        db_dump_size_mb = 0.0
+        if 'database_dump' in backup_data:
+            try:
+                db_dump_bytes = len(base64.b64decode(backup_data['database_dump']))
+                db_dump_size_mb = db_dump_bytes / (1024 * 1024)
+            except Exception:
+                pass
+
         info_dict = {
             'version': backup_data.get('version', 'unknown'),
             'timestamp': backup_data.get('timestamp', 'unknown'),
             'has_settings': 'settings' in backup_data,
             'has_devices': 'devices' in backup_data,
             'has_metadata': 'metadata' in backup_data,
-            'has_throughput_db': False,  # v2.0.0: TimescaleDB not backed up here
+            'has_auth': 'auth' in backup_data,  # NEW in v2.1.0
+            'has_database_dump': 'database_dump' in backup_data,  # NEW in v2.1.0
             'device_count': 0,
             'metadata_count': 0,
-            'throughput_db_size_mb': 0.0  # v2.0.0: TimescaleDB not backed up here
+            'database_dump_size_mb': round(db_dump_size_mb, 2)  # NEW in v2.1.0
         }
-
-        # NOTE: throughput_db calculations removed in v2.0.0 (TimescaleDB)
 
         # Count devices
         if 'devices' in backup_data and isinstance(backup_data['devices'], dict):

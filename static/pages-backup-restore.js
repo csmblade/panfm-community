@@ -1,6 +1,6 @@
 /**
  * Backup & Restore Page JavaScript for PANfm
- * Handles comprehensive backup/restore and metadata migration
+ * Handles comprehensive backup/restore functionality
  */
 
 // Global variable to store loaded backup data
@@ -30,22 +30,6 @@ function initBackupRestore() {
     if (restoreBackupBtn) {
         restoreBackupBtn.addEventListener('click', restoreFromBackup);
     }
-
-    // Migration check button
-    const checkMigrationBtn = document.getElementById('checkMigrationBtn');
-    if (checkMigrationBtn) {
-        checkMigrationBtn.addEventListener('click', checkMigrationStatus);
-    }
-
-    // Migration execute button
-    const migrateBtnSettings = document.getElementById('migrateBtnSettings');
-    if (migrateBtnSettings) {
-        migrateBtnSettings.addEventListener('click', executeMigration);
-    }
-
-    // Auto-check migration status on load
-    // DISABLED: Migration endpoints removed after PostgreSQL migration (v2.0.0)
-    // checkMigrationStatus();
 }
 
 /**
@@ -164,6 +148,8 @@ async function handleBackupFileSelected(event) {
                 <li><strong>Settings:</strong> ${info.has_settings ? '✅ Included' : '❌ Not included'}</li>
                 <li><strong>Devices:</strong> ${info.has_devices ? `✅ ${info.device_count} devices` : '❌ Not included'}</li>
                 <li><strong>Metadata:</strong> ${info.has_metadata ? `✅ ${info.metadata_count} entries` : '❌ Not included'}</li>
+                <li><strong>Login Credentials:</strong> ${info.has_auth ? '✅ Included' : '❌ Not included'}</li>
+                <li><strong>Database:</strong> ${info.has_database_dump ? `✅ ${info.database_dump_size_mb} MB` : '❌ Not included'}</li>
             `;
 
             backupInfoDiv.style.display = 'block';
@@ -216,13 +202,17 @@ async function restoreFromBackup() {
         const restoreSettings = document.getElementById('restoreSettings').checked;
         const restoreDevices = document.getElementById('restoreDevices').checked;
         const restoreMetadata = document.getElementById('restoreMetadata').checked;
+        const restoreAuth = document.getElementById('restoreAuth').checked;
+        const restoreDatabase = document.getElementById('restoreDatabase').checked;
 
         // Call API
         const response = await window.apiClient.post('/api/backup/restore', {
             backup: loadedBackupData,
             restore_settings: restoreSettings,
             restore_devices: restoreDevices,
-            restore_metadata: restoreMetadata
+            restore_metadata: restoreMetadata,
+            restore_auth: restoreAuth,
+            restore_database: restoreDatabase
         });
         if (!response.ok) {
             throw new Error('Failed to restore backup');
@@ -273,115 +263,6 @@ async function restoreFromBackup() {
         // Re-enable button
         btn.disabled = false;
         btn.textContent = '🔄 Restore from Backup';
-    }
-}
-
-/**
- * Check metadata migration status
- */
-async function checkMigrationStatus() {
-    console.log('Checking migration status...');
-    const statusText = document.getElementById('migrationStatusText');
-    const migrateBtn = document.getElementById('migrateBtnSettings');
-    const messageDiv = document.getElementById('migrationMessage');
-
-    try {
-        statusText.textContent = 'Checking...';
-
-        const response = await window.apiClient.get('/api/metadata/migration/check');
-        if (!response.ok) {
-            throw new Error('Failed to check migration status');
-        }
-
-        const result = response.data;
-
-        if (response.ok && result.status === 'success') {
-            const needsMigration = result.needs_migration;
-
-            if (needsMigration) {
-                statusText.textContent = '⚠️ Migration needed (using legacy global format)';
-                statusText.style.color = '#856404';
-                statusText.style.fontWeight = '600';
-
-                // Enable migrate button
-                migrateBtn.disabled = false;
-                migrateBtn.style.opacity = '1';
-            } else {
-                statusText.textContent = '✅ Already using per-device format (v1.6.0+)';
-                statusText.style.color = '#155724';
-                statusText.style.fontWeight = '600';
-
-                // Disable migrate button
-                migrateBtn.disabled = true;
-                migrateBtn.style.opacity = '0.5';
-            }
-
-            console.log('Migration status:', needsMigration ? 'needed' : 'not needed');
-        } else {
-            throw new Error(result.message || 'Failed to check migration status');
-        }
-    } catch (error) {
-        console.error('Error checking migration:', error);
-        statusText.textContent = `❌ Error: ${error.message}`;
-        statusText.style.color = '#721c24';
-    }
-}
-
-/**
- * Execute metadata migration
- */
-async function executeMigration() {
-    // Confirm
-    if (!confirm('⚠️ This will migrate metadata from global format to per-device format. This cannot be undone. Continue?')) {
-        return;
-    }
-
-    console.log('Executing migration...');
-    const btn = document.getElementById('migrateBtnSettings');
-    const messageDiv = document.getElementById('migrationMessage');
-
-    try {
-        // Disable button
-        btn.disabled = true;
-        btn.textContent = '⏳ Migrating...';
-
-        // Call API
-        const response = await window.apiClient.post('/api/metadata/migration/migrate', {});
-        if (!response.ok) {
-            throw new Error('Failed to execute migration');
-        }
-
-        const result = response.data;
-
-        if (response.ok && result.status === 'success') {
-            // Success
-            messageDiv.style.display = 'block';
-            messageDiv.style.background = '#d4edda';
-            messageDiv.style.border = '1px solid #c3e6cb';
-            messageDiv.style.color = '#155724';
-            messageDiv.textContent = '✅ Migration completed successfully!';
-
-            console.log('Migration successful');
-
-            // Refresh status
-            setTimeout(() => {
-                checkMigrationStatus();
-                messageDiv.style.display = 'none';
-            }, 3000);
-        } else {
-            throw new Error(result.message || 'Migration failed');
-        }
-    } catch (error) {
-        console.error('Error during migration:', error);
-        messageDiv.style.display = 'block';
-        messageDiv.style.background = '#f8d7da';
-        messageDiv.style.border = '1px solid #f5c6cb';
-        messageDiv.style.color = '#721c24';
-        messageDiv.textContent = `❌ Error: ${error.message}`;
-
-        // Re-enable button
-        btn.disabled = false;
-        btn.textContent = '⚡ Migrate Now';
     }
 }
 

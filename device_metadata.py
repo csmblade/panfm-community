@@ -1,28 +1,14 @@
 """
 Device Metadata Manager for PANfm
 
-DEPRECATED: This module is deprecated as of v2.2.0. Device metadata is now stored in
-PostgreSQL/TimescaleDB with per-device separation (composite key: device_id + mac).
-
-Use throughput_storage_timescale.TimescaleStorage methods instead:
-  - get_device_metadata(device_id, mac)
-  - get_all_device_metadata(device_id)
-  - upsert_device_metadata(device_id, mac, ...)
-  - delete_device_metadata(device_id, mac)
-  - get_device_tags(device_id)
-  - get_device_locations(device_id)
+Manages custom names, comments, and tags for connected devices keyed by MAC address.
+Uses per-device format with device_id as top-level key: {device_id: {mac: metadata}}
+Metadata is stored encrypted at rest in device_metadata.json.
 
 This file is kept for backward compatibility with:
-  - backup_restore.py (legacy backup format)
-  - firewall_api_devices.py (metadata enrichment - should migrate)
-  - throughput_collector.py (metadata enrichment - should migrate)
-
-Migration: See init_timescaledb_complete.sql for new schema.
-
-Legacy behavior (pre-v2.2.0):
-Manages custom names, comments, and tags for connected devices keyed by MAC address.
-Supports both per-device format (v1.6.0+) and global format (legacy).
-Metadata is stored encrypted at rest in device_metadata.json.
+  - backup_restore.py (backup/restore)
+  - firewall_api_devices.py (metadata enrichment)
+  - throughput_collector.py (metadata enrichment)
 """
 import os
 import json
@@ -484,102 +470,6 @@ def reload_metadata_cache():
     _cache_loaded = False  # Force reload
     return load_metadata(use_cache=False)
 
-
-def check_migration_needed():
-    """
-    Check if metadata needs migration from global to per-device format.
-
-    New format (v1.6.0+): {device_id: {mac: metadata}}
-    Old format (legacy): {mac: metadata}
-
-    Returns:
-        bool: True if migration needed, False if already migrated or empty
-    """
-    debug("Checking if metadata migration is needed")
-    try:
-        if not os.path.exists(METADATA_FILE):
-            debug("Metadata file doesn't exist, no migration needed")
-            return False
-
-        if os.path.getsize(METADATA_FILE) == 0:
-            debug("Metadata file is empty, no migration needed")
-            return False
-
-        # Load raw data
-        with open(METADATA_FILE, 'r') as f:
-            encrypted_data = json.load(f)
-
-        decrypted_data = decrypt_dict(encrypted_data)
-
-        if not decrypted_data:
-            debug("Metadata is empty, no migration needed")
-            return False
-
-        # Check structure: UUID pattern at top level = new format
-        first_key = list(decrypted_data.keys())[0]
-        uuid_pattern = r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
-
-        if re.match(uuid_pattern, first_key, re.IGNORECASE):
-            debug("Metadata already in per-device format")
-            return False
-        else:
-            debug("Metadata needs migration from global to per-device format")
-            return True
-    except Exception as e:
-        exception(f"Error checking migration status: {str(e)}")
-        return False
-
-
-def migrate_global_to_per_device(target_device_id=None):
-    """
-    One-time migration: Convert old global structure to per-device structure.
-    Assigns all existing metadata to target_device_id.
-
-    Old format (legacy): {mac: metadata}
-    New format (v1.6.0+): {device_id: {mac: metadata}}
-
-    Args:
-        target_device_id: Device ID to assign metadata to. If None, uses selected_device_id from settings.
-
-    Returns:
-        bool: True on success, False on error
-    """
-    debug("Starting metadata migration from global to per-device format")
-    try:
-        # Determine target device
-        if target_device_id is None:
-            settings = load_settings()
-            target_device_id = settings.get('selected_device_id')
-            if not target_device_id:
-                error("No target device specified and no selected device in settings")
-                return False
-
-        debug(f"Migrating metadata to device: {target_device_id}")
-
-        # Load old format data
-        with open(METADATA_FILE, 'r') as f:
-            encrypted_data = json.load(f)
-
-        old_data = decrypt_dict(encrypted_data)
-        debug(f"Loaded {len(old_data)} metadata entries in old format")
-
-        # Create new format: {device_id: {mac: metadata}}
-        new_data = {
-            target_device_id: old_data
-        }
-
-        # Save in new format
-        success = save_metadata(new_data)
-
-        if success:
-            info(f"Successfully migrated {len(old_data)} metadata entries to device {target_device_id}")
-        else:
-            error("Failed to save migrated metadata")
-
-        return success
-    except Exception as e:
-        exception(f"Metadata migration failed: {str(e)}")
-        return False
 
 def import_metadata(metadata_dict):
     """

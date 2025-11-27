@@ -2715,10 +2715,22 @@
                                         <span style="color: #bbb; font-size: 0.85em; margin-left: 5px;">(firewall configurations and credentials)</span>
                                     </label>
 
-                                    <label style="display: block; cursor: pointer;">
+                                    <label style="display: block; margin-bottom: 10px; cursor: pointer;">
                                         <input type="checkbox" id="restoreMetadata" checked style="margin-right: 8px; accent-color: #FA582D;">
                                         <span style="color: #F2F0EF; font-weight: 500;">Device Metadata</span>
                                         <span style="color: #bbb; font-size: 0.85em; margin-left: 5px;">(custom names, tags, locations)</span>
+                                    </label>
+
+                                    <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="restoreAuth" checked style="margin-right: 8px; accent-color: #FA582D;">
+                                        <span style="color: #F2F0EF; font-weight: 500;">Login Credentials</span>
+                                        <span style="color: #bbb; font-size: 0.85em; margin-left: 5px;">(admin password for this installation)</span>
+                                    </label>
+
+                                    <label style="display: block; cursor: pointer;">
+                                        <input type="checkbox" id="restoreDatabase" checked style="margin-right: 8px; accent-color: #FA582D;">
+                                        <span style="color: #F2F0EF; font-weight: 500;">Database</span>
+                                        <span style="color: #bbb; font-size: 0.85em; margin-left: 5px;">(alert configs, throughput history, scan results)</span>
                                     </label>
                                 </div>
 
@@ -2733,39 +2745,6 @@
                                 <div id="restoreMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
                             </div>
 
-                            <!-- Migration Section -->
-                            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border: 1px solid #404040; border-radius: 8px; padding: 25px; margin-bottom: 20px; border-top: 4px solid #F2F0EF;">
-                                <h3 style="color: #F2F0EF; margin: 0 0 15px 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px;">
-                                    <span style="font-size: 1.3em;">🔄</span>
-                                    Metadata Migration
-                                </h3>
-
-                                <p style="color: #bbb; margin: 0 0 15px 0; font-size: 0.95em;">
-                                    Migrate device metadata from global format (v1.5.x) to per-device format (v1.6.0+).
-                                </p>
-
-                                <div id="migrationStatus" style="margin-bottom: 15px;">
-                                    <strong style="color: #F2F0EF;">Status: </strong><span id="migrationStatusText" style="color: #bbb;">Checking...</span>
-                                </div>
-
-                                <button id="checkMigrationBtn"
-                                        style="width: 48%; padding: 12px; margin-right: 4%; background: #6c757d; color: #F2F0EF; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.2s;"
-                                        onmouseover="this.style.transform='scale(1.02)'"
-                                        onmouseout="this.style.transform='scale(1)'">
-                                    Check Status
-                                </button>
-
-                                <button id="migrateBtnSettings"
-                                        style="width: 48%; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: #F2F0EF; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.2s; opacity: 0.5;"
-                                        onmouseover="if(!this.disabled) this.style.transform='scale(1.02)'"
-                                        onmouseout="this.style.transform='scale(1)'"
-                                        disabled>
-                                    Migrate Now
-                                </button>
-
-                                <div id="migrationMessage" style="display: none; margin-top: 15px; padding: 12px; border-radius: 6px;"></div>
-                            </div>
-
                             <!-- Warning Notice -->
                             <div style="background: #3d3520; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
                                 <strong style="color: #ffc107;">⚠️ Important Notes</strong>
@@ -2773,7 +2752,6 @@
                                     <li>Backup files contain encrypted data and are safe to download</li>
                                     <li>Restoring will <strong>overwrite</strong> your current configuration for selected components</li>
                                     <li>Create a backup before restoring from an older backup</li>
-                                    <li>Migration is a one-time operation (cannot be undone)</li>
                                 </ul>
                             </div>
                         </div>

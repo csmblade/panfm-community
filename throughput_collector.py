@@ -192,11 +192,10 @@ class ThroughputCollector:
                         error("Collection failed for device %s (%s): %s - This will create data gap in graph",
                               device_name, device.get('ip'), error_msg)
 
-                    # Phase 3: Collect detailed logs from firewall API
-                    import sys
-                    sys.stderr.write(f"\n[LOG COLLECTION] Calling _collect_logs_for_device for {device_name}\n")
-                    sys.stderr.flush()
-                    self._collect_logs_for_device(device_id, device_name)
+                    # v1.0.10: Log collection moved to separate scheduled job (collect_logs_job)
+                    # This keeps collect_all_devices() fast (<30s) to prevent job overlaps
+                    # Log collection now runs every 5 minutes via clock.py instead of every 60 seconds
+                    # See clock.py collect_logs_job() for the new log collection schedule
 
                 except Exception as e:
                     exception("Error collecting data for device %s: %s", device_name, str(e))
@@ -1662,6 +1661,66 @@ class ThroughputCollector:
 
         except Exception as e:
             exception("Error aggregating application statistics for device %s: %s", device_name, str(e))
+
+    def collect_logs_all_devices(self):
+        """
+        Collect logs from all enabled devices (separated from throughput collection).
+
+        v1.0.10: This is the slow operation that was previously bundled into collect_all_devices().
+        Now runs as a separate scheduled job every 5 minutes instead of every 60 seconds.
+
+        Collects for each device:
+        - Threat logs (critical, high, medium)
+        - System logs
+        - Traffic logs
+        - Application statistics
+        """
+        debug("Starting log collection cycle (separate from throughput)")
+
+        try:
+            # Get all devices
+            devices = device_manager.load_devices()
+
+            if not devices or len(devices) == 0:
+                debug("No devices configured, skipping log collection")
+                return
+
+            # Count enabled devices
+            enabled_devices = [d for d in devices if d.get('enabled', True)]
+            debug("Collecting logs from %d enabled devices", len(enabled_devices))
+
+            success_count = 0
+            for device in enabled_devices:
+                device_id = device.get('id')
+                device_name = device.get('name', 'Unknown')
+
+                debug("Collecting logs for device: %s (ID: %s)", device_name, device_id)
+
+                try:
+                    # Get firewall configuration
+                    firewall_config = get_firewall_config(device_id)
+                    if not firewall_config or not firewall_config[0]:
+                        warning("No firewall configuration for device %s, skipping log collection", device_name)
+                        continue
+
+                    # Collect all log types
+                    self._collect_threat_logs(device_id, device_name, firewall_config)
+                    self._collect_system_logs(device_id, device_name, firewall_config)
+                    self._collect_traffic_logs(device_id, device_name, firewall_config)
+                    self._collect_application_statistics(device_id, device_name, firewall_config)
+
+                    success_count += 1
+                    debug("Log collection complete for device: %s", device_name)
+
+                except Exception as e:
+                    exception("Error collecting logs for device %s: %s", device_name, str(e))
+                    continue
+
+            info("Log collection cycle complete: %d/%d devices successful",
+                 success_count, len(enabled_devices))
+
+        except Exception as e:
+            exception("Error in log collection cycle: %s", str(e))
 
     def force_cleanup(self) -> int:
         """

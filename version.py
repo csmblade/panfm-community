@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 0
-VERSION_PATCH = 7
+VERSION_PATCH = 10
 
 # Build metadata (optional)
 VERSION_BUILD = "20251127"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251127"  # YYYYMMDD format
 VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Smart Tag Memory"
+VERSION_CODENAME = "Fast Collection"
 
 
 def get_version():
@@ -75,6 +75,63 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.0.9',
+        'codename': 'Complete Backup',
+        'date': '2025-11-27',
+        'type': 'minor',
+        'changes': [
+            'COMPREHENSIVE BACKUP & RESTORE:',
+            '',
+            'Backup now includes ALL data needed to restore to a fresh installation:',
+            '',
+            '1. AUTH.JSON BACKUP (NEW):',
+            '   - Login credentials (admin password) now included in backup',
+            '   - Restoring to new installation preserves original login',
+            '   - No more "stuck with admin/admin" after restore',
+            '',
+            '2. TIMESCALEDB BACKUP (NEW):',
+            '   - Automated pg_dump of PostgreSQL/TimescaleDB database',
+            '   - Includes alert configurations, throughput history, scan results',
+            '   - Base64-encoded and embedded in backup file',
+            '',
+            '3. SELECTIVE RESTORE:',
+            '   - New checkboxes for Login Credentials and Database',
+            '   - Choose exactly what to restore from backup',
+            '',
+            'BACKUP FORMAT v2.1.0:',
+            '- encryption_key (existing)',
+            '- settings.json (existing)',
+            '- devices.json (existing)',
+            '- device_metadata.json (existing)',
+            '- auth.json (NEW)',
+            '- database_dump (NEW - pg_dump output)',
+            '',
+            'Removed legacy metadata migration feature (no longer needed)',
+        ]
+    },
+    {
+        'version': '1.0.8',
+        'codename': 'Settings Persistence Fix',
+        'date': '2025-11-27',
+        'type': 'patch',
+        'changes': [
+            'SETTINGS PERSISTENCE BUG FIX:',
+            '',
+            'Fixed critical bug where saving settings (timezone, tony_mode, refresh_interval)',
+            'would overwrite settings.json and lose other fields like notification channels,',
+            'chord_tag_filter, internet_traffic_filters, etc.',
+            '',
+            'ROOT CAUSE:',
+            '- POST /api/settings was constructing a new dict with only 8 fields',
+            '- This overwrote settings.json, losing all other fields',
+            '',
+            'FIX:',
+            '- Now loads existing settings first, then merges changes',
+            '- Only updates fields included in the request',
+            '- Preserves all other settings (notification channels, filters, etc.)',
+        ]
+    },
     {
         'version': '1.0.7',
         'codename': 'Smart Tag Memory',
