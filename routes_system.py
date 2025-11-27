@@ -539,11 +539,34 @@ def register_system_routes(app, csrf, limiter):
     @limiter.limit("600 per hour")
     @login_required
     def get_tag_filter_settings():
-        """Get saved tag filter selections (persistent across restarts)"""
+        """Get saved tag filter selections (persistent across restarts)
+
+        v1.0.7: Now supports per-device tag filter memory.
+        If device_id is provided, returns device-specific tags from device_metadata.
+        Otherwise falls back to global settings for backward compatibility.
+        """
         try:
-            from config import load_settings
-            settings = load_settings()
-            selected_tags = settings.get('chord_tag_filter', [])
+            # v1.0.7: Check for device_id parameter for per-device tag filters
+            device_id = request.args.get('device_id')
+
+            if device_id and device_id.strip():
+                # Per-device tag filter from device_metadata (device-level settings)
+                from device_metadata import load_metadata, save_metadata
+                all_metadata = load_metadata(use_cache=False)
+
+                # Device-level settings stored under "_device_settings" key within device
+                if device_id in all_metadata:
+                    device_settings = all_metadata[device_id].get('_device_settings', {})
+                    selected_tags = device_settings.get('chord_tag_filter', [])
+                else:
+                    selected_tags = []
+                debug(f"Loaded per-device tag filter for {device_id}: {selected_tags}")
+            else:
+                # Fallback to global settings for backward compatibility
+                from config import load_settings
+                settings = load_settings()
+                selected_tags = settings.get('chord_tag_filter', [])
+                debug(f"Loaded global tag filter: {selected_tags}")
 
             return jsonify({
                 'status': 'success',
@@ -561,13 +584,18 @@ def register_system_routes(app, csrf, limiter):
     @limiter.limit("100 per hour")
     @login_required
     def save_tag_filter_settings():
-        """Save tag filter selections to settings (persistent across restarts)"""
+        """Save tag filter selections to settings (persistent across restarts)
+
+        v1.0.7: Now supports per-device tag filter memory.
+        If device_id is provided in body, saves to device_metadata.
+        Otherwise saves to global settings for backward compatibility.
+        """
         try:
-            from config import load_settings, save_settings
             from flask import request
 
             data = request.get_json()
             selected_tags = data.get('selected_tags', [])
+            device_id = data.get('device_id')  # v1.0.7: Per-device support
 
             # Validate input
             if not isinstance(selected_tags, list):
@@ -576,16 +604,29 @@ def register_system_routes(app, csrf, limiter):
                     'message': 'selected_tags must be an array'
                 }), 400
 
-            # Load current settings
-            settings = load_settings()
+            if device_id and device_id.strip():
+                # v1.0.7: Save per-device in device_metadata (device-level settings)
+                from device_metadata import load_metadata, save_metadata
+                all_metadata = load_metadata(use_cache=False)
 
-            # Update tag filter
-            settings['chord_tag_filter'] = selected_tags
+                # Ensure device exists in metadata
+                if device_id not in all_metadata:
+                    all_metadata[device_id] = {}
 
-            # Save settings
-            save_settings(settings)
+                # Store under "_device_settings" key (separate from MAC-keyed entries)
+                if '_device_settings' not in all_metadata[device_id]:
+                    all_metadata[device_id]['_device_settings'] = {}
 
-            debug(f"Saved tag filter selection: {selected_tags}")
+                all_metadata[device_id]['_device_settings']['chord_tag_filter'] = selected_tags
+                save_metadata(all_metadata)
+                debug(f"Saved per-device tag filter for {device_id}: {selected_tags}")
+            else:
+                # Fallback to global settings for backward compatibility
+                from config import load_settings, save_settings
+                settings = load_settings()
+                settings['chord_tag_filter'] = selected_tags
+                save_settings(settings)
+                debug(f"Saved global tag filter: {selected_tags}")
 
             return jsonify({
                 'status': 'success',

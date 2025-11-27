@@ -1287,6 +1287,12 @@ function updateStatus(isOnline, message = '', deviceName = '') {
     const statusDot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
 
+    // Guard against null elements (can happen during early page load)
+    if (!statusDot || !statusText) {
+        console.warn('[STATUS] Status elements not found, skipping update');
+        return;
+    }
+
     if (isOnline) {
         statusDot.classList.remove('offline');
         statusDot.classList.add('online');
@@ -4515,7 +4521,9 @@ function showChordMessage(svg, width, height, message) {
  */
 async function saveTagFilterSelection(selectedTags) {
     try {
-        console.log(`[CHORD-TAG] Saving tag filter selection: ${selectedTags.join(', ')}`);
+        // v1.0.7: Save per-device tag filter using device_id
+        const deviceId = window.currentDeviceId;
+        console.log(`[CHORD-TAG] Saving tag filter selection for device ${deviceId || 'global'}: ${selectedTags.join(', ')}`);
 
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
@@ -4525,7 +4533,10 @@ async function saveTagFilterSelection(selectedTags) {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken
             },
-            body: JSON.stringify({ selected_tags: selectedTags })
+            body: JSON.stringify({
+                selected_tags: selectedTags,
+                device_id: deviceId  // v1.0.7: Include device_id for per-device storage
+            })
         });
 
         if (!response.ok) {
@@ -4543,7 +4554,13 @@ async function saveTagFilterSelection(selectedTags) {
  */
 async function loadTagFilterSelection() {
     try {
-        const response = await fetch('/api/settings/tag-filter');
+        // v1.0.7: Load per-device tag filter using device_id
+        const deviceId = window.currentDeviceId;
+        const url = deviceId
+            ? `/api/settings/tag-filter?device_id=${encodeURIComponent(deviceId)}`
+            : '/api/settings/tag-filter';
+
+        const response = await fetch(url);
 
         if (!response.ok) {
             return [];
@@ -4551,7 +4568,7 @@ async function loadTagFilterSelection() {
 
         const data = await response.json();
         if (data.status === 'success' && data.selected_tags) {
-            console.log(`[CHORD-TAG] Loaded saved tag selection: ${data.selected_tags.join(', ')}`);
+            console.log(`[CHORD-TAG] Loaded saved tag selection for device ${deviceId || 'global'}: ${data.selected_tags.join(', ')}`);
             return data.selected_tags;
         }
 

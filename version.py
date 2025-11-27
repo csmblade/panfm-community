@@ -10,7 +10,7 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 0
-VERSION_PATCH = 6
+VERSION_PATCH = 7
 
 # Build metadata (optional)
 VERSION_BUILD = "20251127"  # YYYYMMDD format
@@ -19,7 +19,7 @@ VERSION_BUILD = "20251127"  # YYYYMMDD format
 VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "Bulletproof Device Switch"
+VERSION_CODENAME = "Smart Tag Memory"
 
 
 def get_version():
@@ -75,6 +75,43 @@ def get_short_version():
 
 # Version history and changelog
 VERSION_HISTORY = [
+    {
+        'version': '1.0.7',
+        'codename': 'Smart Tag Memory',
+        'date': '2025-11-27',
+        'type': 'patch',
+        'changes': [
+            'PER-DEVICE TAG FILTER MEMORY:',
+            '',
+            'Tagged traffic filters now remember selections per-device instead of',
+            'globally. Each firewall can have its own tag filter configuration.',
+            '',
+            'PROBLEM SOLVED:',
+            '- Tag filters were stored globally in settings.json',
+            '- Same tags persisted incorrectly when switching between firewalls',
+            '- Each device has different connected devices with different tags',
+            '',
+            'SOLUTION:',
+            '- Store tag filters in device_metadata.json per-device',
+            '- Backend endpoints now accept device_id parameter',
+            '- Frontend passes window.currentDeviceId to API calls',
+            '',
+            'BACKEND CHANGES (routes_system.py):',
+            '- GET /api/settings/tag-filter accepts device_id query param',
+            '- POST /api/settings/tag-filter accepts device_id in body',
+            '- Per-device settings stored under _device_settings key',
+            '',
+            'FRONTEND CHANGES (app.js):',
+            '- loadTagFilterSelection() passes device_id to API',
+            '- saveTagFilterSelection() includes device_id in POST body',
+            '- updateStatus() now guards against null DOM elements',
+            '',
+            'TESTING:',
+            '- Device A: Select tags, verify saved to Device A',
+            '- Switch to Device B: Verify different/empty tags',
+            '- Switch back to Device A: Verify original tags restored',
+        ]
+    },
     {
         'version': '1.0.6',
         'codename': 'Bulletproof Device Switch',
