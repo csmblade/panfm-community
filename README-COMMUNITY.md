@@ -37,6 +37,11 @@ A free, and open-source web dashboard for monitoring Palo Alto Networks firewall
 - **Backup & Restore**: Full system backup including encryption keys and configurations
 - **Export Options**: CSV and XML export for connected devices and scan results
 
+### 📱 Mobile Support
+- **Responsive Design**: Fully optimized for iPad and iPhone
+- **Touch-Friendly**: Mobile-optimized controls and navigation
+- **On-the-Go Monitoring**: Monitor your firewalls from anywhere
+
 ### 🐳 Deployment Options
 - **Docker Compose**: Production-ready multi-container setup (web, clock, Redis, TimescaleDB)
 - **CLI Deployment**: Virtual environment installation for development
