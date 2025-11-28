@@ -190,7 +190,7 @@ if not exist "timescaledb_data" (
 
 echo.
 echo ============================================================
-echo Setup complete! PANfm v2.0.0 is ready to start
+echo Setup complete! PANfm Community v1.0.16 is ready to start
 echo ============================================================
 echo.
 echo Run: docker compose up -d
