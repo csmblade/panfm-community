@@ -121,13 +121,18 @@ else
 from schema.manager import SchemaManager
 import os
 manager = SchemaManager(os.environ['TIMESCALE_DSN'])
-success = manager.ensure_schema()
-exit(0 if success else 1)
+manager.ensure_schema()
+# Verify essential tables exist
+success, missing = manager.verify_schema()
+if not success:
+    print(f'[SCHEMA] Missing tables: {missing}')
+    exit(1)
+exit(0)
 "
     if [ $? -eq 0 ]; then
         echo "  ✓ Schema created successfully"
     else
-        echo "  ✗ ERROR: Schema creation failed"
+        echo "  ✗ ERROR: Schema creation failed - essential tables missing"
         exit 1
     fi
 fi

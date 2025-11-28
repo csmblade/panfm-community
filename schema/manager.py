@@ -177,15 +177,24 @@ class SchemaManager:
             print(f"[SCHEMA] ✗ SQL file not found: {self.tables_sql_path}")
             return
 
-        # Read and execute SQL file
+        # Read SQL file
         sql_content = self.tables_sql_path.read_text()
 
+        # Remove SQL comments to avoid parsing issues
+        lines = []
+        for line in sql_content.split('\n'):
+            # Remove inline comments but keep the rest of the line
+            if '--' in line:
+                line = line.split('--')[0]
+            lines.append(line)
+        clean_sql = '\n'.join(lines)
+
         # Split by semicolons and execute each statement
-        statements = [s.strip() for s in sql_content.split(';') if s.strip()]
+        statements = [s.strip() for s in clean_sql.split(';') if s.strip()]
 
         for stmt in statements:
-            # Skip comments-only statements
-            if not stmt or stmt.startswith('--'):
+            # Skip empty statements
+            if not stmt:
                 continue
 
             # Extract table name for logging
@@ -197,14 +206,50 @@ class SchemaManager:
                     if table_name:
                         self.created_tables.append(table_name)
                         print(f"[SCHEMA] ✓ {table_name}")
+                    elif 'CREATE INDEX' in stmt.upper():
+                        # Extract index name
+                        idx_name = self._extract_index_name(stmt)
+                        if idx_name:
+                            print(f"[SCHEMA] ✓ Index {idx_name}")
             except psycopg2.errors.DuplicateTable:
                 # Table already exists - this is fine
                 if table_name:
                     print(f"[SCHEMA] ✓ {table_name} (exists)")
+            except psycopg2.errors.DuplicateObject:
+                # Index or constraint already exists
+                if table_name:
+                    print(f"[SCHEMA] ✓ {table_name} (exists)")
+                else:
+                    print(f"[SCHEMA] ✓ Object exists")
+            except psycopg2.errors.UniqueViolation:
+                # Type already exists (pg_type_typname_nsp_index error)
+                if table_name:
+                    print(f"[SCHEMA] ✓ {table_name} (exists)")
             except Exception as e:
+                err_str = str(e)
+                # Check if it's a "already exists" type error
+                if 'already exists' in err_str.lower() or 'duplicate' in err_str.lower():
+                    if table_name:
+                        print(f"[SCHEMA] ✓ {table_name} (exists)")
+                    continue
                 error_msg = f"{table_name or 'Statement'}: {e}"
                 self.errors.append(error_msg)
                 print(f"[SCHEMA] ✗ {error_msg}")
+
+    def _extract_index_name(self, stmt):
+        """Extract index name from CREATE INDEX statement."""
+        stmt_upper = stmt.upper()
+        if 'CREATE INDEX' in stmt_upper:
+            parts = stmt.split()
+            for i, part in enumerate(parts):
+                if part.upper() == 'INDEX':
+                    idx = i + 1
+                    # Skip IF NOT EXISTS
+                    while idx < len(parts) and parts[idx].upper() in ('IF', 'NOT', 'EXISTS'):
+                        idx += 1
+                    if idx < len(parts):
+                        return parts[idx]
+        return None
 
     def _extract_table_name(self, stmt):
         """Extract table name from CREATE TABLE statement."""
