@@ -1335,13 +1335,17 @@ function showInfo(message) {
     const errorDiv = document.getElementById('errorMessage');
     errorDiv.textContent = `Info: ${message}`;
     errorDiv.style.display = 'block';
-    // Change background color to info blue instead of error red
-    errorDiv.style.background = 'linear-gradient(135deg, #5bc0de 0%, #7dd3f0 100%)';
+    // Use theme-consistent styling (dark background, blue accent for info)
+    errorDiv.style.background = '#2a2a2a';
+    errorDiv.style.borderLeftColor = '#5bc0de';
+    errorDiv.style.color = '#F2F0EF';
 
     setTimeout(() => {
         errorDiv.style.display = 'none';
-        // Reset to error red for future error messages
+        // Reset to default styling
         errorDiv.style.background = '';
+        errorDiv.style.borderLeftColor = '';
+        errorDiv.style.color = '';
     }, 5000);
 }
 
