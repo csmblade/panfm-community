@@ -352,9 +352,13 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
 
         debug(f"Restoring from backup version {backup_data.get('version')} created at {backup_data.get('timestamp')}")
 
-        # Restore encryption key FIRST (if present in backup)
-        # This MUST happen before restoring any encrypted data
-        if 'encryption_key' in backup_data:
+        # Restore encryption key ONLY if restoring devices (which have encrypted API keys)
+        # NOTE: Metadata and settings in the backup are already DECRYPTED plaintext.
+        # They will be re-encrypted with the CURRENT key when saved.
+        # This allows restoring just metadata without affecting the current encryption key.
+        needs_encryption_key = restore_devices  # Only devices have encrypted API keys
+
+        if needs_encryption_key and 'encryption_key' in backup_data:
             try:
                 import base64
                 from encryption import KEY_FILE
@@ -378,10 +382,12 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
                 exception(f"Encryption key restore failed: {str(e)}")
                 # This is critical - if key restore fails, encrypted data cannot be decrypted
                 warning("Encryption key restore failed - encrypted data may not be recoverable")
-        else:
+        elif needs_encryption_key and 'encryption_key' not in backup_data:
             # Backwards compatibility: Old backups without encryption_key field
             warning("Backup does not contain encryption_key field (old format)")
             warning("Restore may fail if current encryption.key differs from backup's original key")
+        else:
+            debug("Skipping encryption key restore - not needed for metadata/settings-only restore")
 
         # Restore auth.json (NEW in v2.1.0) - restore AFTER encryption key but BEFORE other data
         if restore_auth and 'auth' in backup_data:
@@ -480,11 +486,21 @@ def restore_from_backup(backup_data, restore_settings=True, restore_devices=True
         if restore_metadata and 'metadata' in backup_data:
             try:
                 metadata = backup_data['metadata']
+                metadata_count = len(metadata) if metadata else 0
+                debug(f"Restoring metadata: {metadata_count} top-level entries")
+
+                # Log structure for debugging
+                if metadata and metadata_count > 0:
+                    first_key = list(metadata.keys())[0]
+                    first_value = metadata[first_key]
+                    debug(f"Metadata format: first_key={first_key[:20]}..., value_type={type(first_value).__name__}")
+
                 if save_metadata(metadata):
                     result['restored'].append('metadata')
-                    info("Successfully restored metadata")
+                    info(f"Successfully restored metadata ({metadata_count} entries)")
                 else:
-                    result['errors'].append("Failed to save metadata")
+                    result['errors'].append("Failed to save metadata - save_metadata returned False")
+                    error("save_metadata returned False during restore")
             except Exception as e:
                 result['errors'].append(f"Metadata restore error: {str(e)}")
                 exception(f"Failed to restore metadata: {str(e)}")
