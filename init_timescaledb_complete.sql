@@ -1118,7 +1118,7 @@ SELECT add_compression_policy(
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS nmap_port_history (
     id SERIAL PRIMARY KEY,
-    scan_id INTEGER NOT NULL REFERENCES nmap_scan_history(id) ON DELETE CASCADE,
+    scan_id INTEGER NOT NULL,         -- References nmap_scan_history (no FK due to hypertable)
     port_number INTEGER NOT NULL,
     protocol TEXT NOT NULL,           -- 'tcp', 'udp'
     state TEXT NOT NULL,              -- 'open', 'closed', 'filtered'
@@ -1126,6 +1126,7 @@ CREATE TABLE IF NOT EXISTS nmap_port_history (
     service_product TEXT,
     service_version TEXT
 );
+-- Note: FK constraint to nmap_scan_history removed because hypertables have composite PKs
 
 -- Index for scan_id lookups
 CREATE INDEX IF NOT EXISTS idx_nmap_port_history_scan
@@ -1207,7 +1208,7 @@ CREATE TABLE IF NOT EXISTS scan_queue (
     queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
-    scan_id INTEGER REFERENCES nmap_scan_history(id) ON DELETE SET NULL,
+    scan_id INTEGER,                  -- References nmap_scan_history (no FK due to hypertable)
     error_message TEXT
 );
 
