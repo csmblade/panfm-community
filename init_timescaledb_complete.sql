@@ -1653,3 +1653,107 @@ BEGIN
       AND completed_at < NOW() - INTERVAL '1 hour';
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- Migration 012: Threat Logs Hypertable
+-- ============================================================================
+-- Purpose: Store firewall threat log entries for security monitoring
+-- Created: 2025-11-28
+-- Used by: throughput_collector.py for threat log collection
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS threat_logs (
+    time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    device_id TEXT NOT NULL,
+
+    -- Threat identification
+    severity VARCHAR(20),                 -- 'critical', 'high', 'medium', 'low', 'informational'
+    threat_name TEXT,                     -- Name of the threat/signature
+    threat_id TEXT,                       -- Threat ID from PAN-OS
+    threat_type TEXT,                     -- 'virus', 'spyware', 'vulnerability', 'url', 'wildfire', etc.
+
+    -- Network context
+    source_ip INET,
+    source_port INTEGER,
+    destination_ip INET,
+    destination_port INTEGER,
+    protocol TEXT,                        -- 'tcp', 'udp', 'icmp'
+
+    -- Application context
+    application TEXT,
+    category TEXT,                        -- URL category or threat category
+
+    -- Action taken
+    action TEXT,                          -- 'alert', 'block', 'drop', 'reset-client', etc.
+
+    -- Policy context
+    rule_name TEXT,
+    source_zone TEXT,
+    destination_zone TEXT,
+
+    -- User context
+    source_user TEXT,
+    destination_user TEXT,
+
+    -- Full log data for extended analysis
+    log_data JSONB,
+
+    -- Primary key (composite for hypertable)
+    PRIMARY KEY (device_id, time)
+);
+
+-- Convert to hypertable with 1-day chunks
+SELECT create_hypertable(
+    'threat_logs',
+    'time',
+    chunk_time_interval => INTERVAL '1 day',
+    if_not_exists => TRUE
+);
+
+-- Index for device-based time queries (most common pattern)
+CREATE INDEX IF NOT EXISTS idx_threat_logs_device_time
+    ON threat_logs (device_id, time DESC);
+
+-- Index for severity filtering (security dashboards)
+CREATE INDEX IF NOT EXISTS idx_threat_logs_severity
+    ON threat_logs (device_id, severity, time DESC);
+
+-- Index for source IP investigation
+CREATE INDEX IF NOT EXISTS idx_threat_logs_source_ip
+    ON threat_logs (device_id, source_ip, time DESC)
+    WHERE source_ip IS NOT NULL;
+
+-- Index for threat type analysis
+CREATE INDEX IF NOT EXISTS idx_threat_logs_threat_type
+    ON threat_logs (device_id, threat_type, time DESC)
+    WHERE threat_type IS NOT NULL;
+
+-- Retention: 7 days (Community Edition)
+SELECT add_retention_policy(
+    'threat_logs',
+    INTERVAL '7 days',
+    if_not_exists => TRUE
+);
+
+-- Compression: After 1 day (threat logs can be large)
+ALTER TABLE threat_logs SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'device_id',
+    timescaledb.compress_orderby = 'time DESC'
+);
+
+SELECT add_compression_policy(
+    'threat_logs',
+    INTERVAL '1 day',
+    if_not_exists => TRUE
+);
+
+-- Grant permissions
+GRANT ALL PRIVILEGES ON threat_logs TO panfm;
+
+-- Add comments for documentation
+COMMENT ON TABLE threat_logs IS 'Firewall threat log entries - hypertable with 7-day retention';
+COMMENT ON COLUMN threat_logs.severity IS 'Threat severity: critical, high, medium, low, informational';
+COMMENT ON COLUMN threat_logs.threat_name IS 'Name of threat/signature from PAN-OS';
+COMMENT ON COLUMN threat_logs.action IS 'Action taken: alert, block, drop, reset-client, etc.';
+COMMENT ON COLUMN threat_logs.log_data IS 'Full log entry as JSON for extended analysis';
