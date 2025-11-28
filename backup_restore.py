@@ -143,6 +143,8 @@ def export_database_backup():
             'notification_channels',
             'maintenance_windows',
             'scheduled_scans',
+            # Device metadata (custom names, tags, locations)
+            'device_metadata',
             # History tables (only if small)
             'alert_history',
             'alert_cooldowns',
