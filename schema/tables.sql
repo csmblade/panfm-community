@@ -76,6 +76,10 @@ CREATE TABLE IF NOT EXISTS throughput_samples (
     license_expired INTEGER DEFAULT 0,
     license_active INTEGER DEFAULT 0,
 
+    -- Additional metrics
+    threats_count INTEGER DEFAULT 0,
+    interface_errors INTEGER DEFAULT 0,
+
     PRIMARY KEY (time, device_id)
 );
 
