@@ -1546,8 +1546,6 @@ COMMENT ON COLUMN throughput_samples.cpu_temp IS 'CPU Die temperature in Celsius
 COMMENT ON COLUMN throughput_samples.cpu_temp_max IS 'Maximum CPU temperature threshold in Celsius';
 COMMENT ON COLUMN throughput_samples.cpu_temp_alarm IS 'Temperature alarm status (true if threshold exceeded)';
 
--- Verify changes
-\d throughput_samples;
 -- Migration 010: Scheduler Statistics Tracking
 -- Created: 2025-11-25
 -- Purpose: Track APScheduler background process health and execution metrics
