@@ -10,16 +10,16 @@ PATCH: Bug fixes, small improvements, documentation updates
 # Current version
 VERSION_MAJOR = 1
 VERSION_MINOR = 0
-VERSION_PATCH = 15
+VERSION_PATCH = 16
 
 # Build metadata (optional)
-VERSION_BUILD = "20251127"  # YYYYMMDD format
+VERSION_BUILD = "20251128"  # YYYYMMDD format
 
 # Pre-release identifier (optional, e.g., 'alpha', 'beta', 'rc1')
 VERSION_PRERELEASE = None  # Stable release
 
 # Codename for this version (optional)
-VERSION_CODENAME = "File Size Reduction"
+VERSION_CODENAME = "Content Updates"
 
 
 def get_version():

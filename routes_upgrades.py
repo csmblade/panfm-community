@@ -13,7 +13,8 @@ from firewall_api import (
     reboot_firewall,
     check_content_updates,
     download_content_update,
-    install_content_update
+    install_content_update,
+    check_all_content_updates
 )
 from logger import debug, error
 import traceback
@@ -134,39 +135,83 @@ def register_upgrades_routes(app, csrf, limiter):
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
     # ============================================================================
-    # Content Update API Routes (App & Threat, Antivirus, WildFire)
+    # Content Update API Routes (App & Threat, Antivirus, WildFire, URL Filtering, GlobalProtect)
     # ============================================================================
 
     @app.route('/api/content-updates/check', methods=['GET'])
     @limiter.limit("100 per hour")
     @login_required
     def check_content_updates_api():
-        """Check for available content updates (App & Threat, AV, WildFire)"""
-        debug("=== Content Updates Check API endpoint called ===")
+        """
+        Check for available content updates for a specific content type
+
+        Query params:
+            content_type: Optional - content type key (default: 'content')
+                         Valid: content, anti-virus, wildfire, url-filtering, global-protect-datafile
+        """
+        content_type = request.args.get('content_type', 'content')
+        debug(f"=== Content Updates Check API endpoint called for type: {content_type} ===")
         try:
             firewall_ip, api_key, _ = get_firewall_config()
             if not firewall_ip or not api_key:
                 return jsonify({'status': 'error', 'message': 'No device configured'}), 400
 
-            result = check_content_updates(firewall_ip, api_key)
+            result = check_content_updates(firewall_ip, api_key, content_type)
             return jsonify(result)
 
         except Exception as e:
             error(f"Error in content updates check: {str(e)}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
+    @app.route('/api/content-updates/check-all', methods=['GET'])
+    @limiter.limit("100 per hour")
+    @login_required
+    def check_all_content_updates_api():
+        """
+        Check for available updates for ALL content types at once
+
+        Returns array of check results for each content type:
+        - content (App & Threat)
+        - anti-virus (Antivirus)
+        - wildfire (WildFire)
+        - url-filtering (URL Filtering)
+        - global-protect-datafile (GlobalProtect Data)
+        """
+        debug("=== Content Updates Check-All API endpoint called ===")
+        try:
+            firewall_ip, api_key, _ = get_firewall_config()
+            if not firewall_ip or not api_key:
+                return jsonify({'status': 'error', 'message': 'No device configured'}), 400
+
+            result = check_all_content_updates(firewall_ip, api_key)
+            return jsonify(result)
+
+        except Exception as e:
+            error(f"Error in content updates check-all: {str(e)}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
     @app.route('/api/content-updates/download', methods=['POST'])
     @limiter.limit("100 per hour")
     @login_required
     def download_content_api():
-        """Download latest content update"""
+        """
+        Download latest content update for a specific content type
+
+        JSON body:
+            content_type: Optional - content type key (default: 'content')
+                         Valid: content, anti-virus, wildfire, url-filtering, global-protect-datafile
+        """
         debug("=== Content Update Download API endpoint called ===")
         try:
             firewall_ip, api_key, _ = get_firewall_config()
             if not firewall_ip or not api_key:
                 return jsonify({'status': 'error', 'message': 'No device configured'}), 400
 
-            result = download_content_update(firewall_ip, api_key)
+            data = request.get_json() or {}
+            content_type = data.get('content_type', 'content')
+            debug(f"Downloading content type: {content_type}")
+
+            result = download_content_update(firewall_ip, api_key, content_type)
             return jsonify(result)
 
         except Exception as e:
@@ -177,7 +222,14 @@ def register_upgrades_routes(app, csrf, limiter):
     @limiter.limit("100 per hour")
     @login_required
     def install_content_api():
-        """Install downloaded content update"""
+        """
+        Install downloaded content update for a specific content type
+
+        JSON body:
+            content_type: Optional - content type key (default: 'content')
+                         Valid: content, anti-virus, wildfire, url-filtering, global-protect-datafile
+            version: Optional - version to install (default: 'latest')
+        """
         debug("=== Content Update Install API endpoint called ===")
         try:
             firewall_ip, api_key, _ = get_firewall_config()
@@ -185,9 +237,11 @@ def register_upgrades_routes(app, csrf, limiter):
                 return jsonify({'status': 'error', 'message': 'No device configured'}), 400
 
             data = request.get_json() or {}
+            content_type = data.get('content_type', 'content')
             version = data.get('version', 'latest')
+            debug(f"Installing content type: {content_type}, version: {version}")
 
-            result = install_content_update(firewall_ip, api_key, version)
+            result = install_content_update(firewall_ip, api_key, content_type, version)
             return jsonify(result)
 
         except Exception as e:

@@ -3152,34 +3152,71 @@ class TimescaleStorage:
 
     def cleanup_old_collection_requests(self, hours: int = 1) -> int:
         """
-        Remove completed/failed collection requests older than specified hours.
+        Clean up old and stale collection requests.
 
         Called periodically to keep the table small and fast.
+        Handles:
+        1. Completed/failed requests older than specified hours
+        2. Stale 'running' requests (running > 5 minutes indicates crash/restart)
+        3. Stale 'queued' requests (queued > 10 minutes indicates never picked up)
 
         Args:
-            hours: Delete requests completed more than this many hours ago
+            hours: Delete completed requests older than this many hours
 
         Returns:
-            Number of deleted rows
+            Total number of affected rows (deleted + marked failed)
         """
         conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
+            total_affected = 0
 
+            # 1. Mark stale 'running' requests as failed (running > 5 minutes)
+            # This handles cases where clock process crashed mid-collection
+            cursor.execute("""
+                UPDATE collection_requests
+                SET status = 'failed',
+                    completed_at = NOW(),
+                    error_message = 'Request marked as stale (running > 5 minutes)'
+                WHERE status = 'running'
+                  AND started_at < NOW() - INTERVAL '5 minutes'
+            """)
+            stale_running = cursor.rowcount
+            if stale_running > 0:
+                debug("Marked %d stale running requests as failed", stale_running)
+            total_affected += stale_running
+
+            # 2. Mark stale 'queued' requests as failed (queued > 10 minutes)
+            # This handles cases where clock process never picked them up
+            cursor.execute("""
+                UPDATE collection_requests
+                SET status = 'failed',
+                    completed_at = NOW(),
+                    error_message = 'Request marked as stale (queued > 10 minutes)'
+                WHERE status = 'queued'
+                  AND requested_at < NOW() - INTERVAL '10 minutes'
+            """)
+            stale_queued = cursor.rowcount
+            if stale_queued > 0:
+                debug("Marked %d stale queued requests as failed", stale_queued)
+            total_affected += stale_queued
+
+            # 3. Delete old completed/failed requests
             cursor.execute("""
                 DELETE FROM collection_requests
                 WHERE status IN ('completed', 'failed')
                   AND completed_at < NOW() - INTERVAL '%s hours'
             """, (hours,))
-
             deleted = cursor.rowcount
+            if deleted > 0:
+                debug("Deleted %d old completed/failed collection requests", deleted)
+            total_affected += deleted
+
             conn.commit()
             cursor.close()
 
-            if deleted > 0:
-                debug("Cleaned up %d old collection requests", deleted)
-            return deleted
+            return total_affected
 
         except Exception as e:
             if conn:

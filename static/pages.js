@@ -442,43 +442,17 @@ async function loadSoftwareUpdates() {
     // Hide loading - PAN-OS has its own upgrade UI, we only load components
     loadingDiv.style.display = 'none';
     panosTableDiv.style.display = 'none';
-    componentsTableDiv.style.display = 'none';
     errorDiv.style.display = 'none';
 
-    try {
-        const response = await window.apiClient.get('/api/software-updates');
-        if (!response.ok) {
-            throw new Error('Failed to load software updates');
-        }
-        const data = response.data;
-
-        // Show components table
-        componentsTableDiv.style.display = 'block';
-
-        if (data.status === 'success' && data.software.length > 0) {
-            errorDiv.style.display = 'none';
-
-            // Filter out PAN-OS (it has dedicated upgrade UI)
-            const componentItems = data.software.filter(item => !item.name.toLowerCase().includes('panos'));
-
-            // Render Components table
-            if (componentItems.length > 0) {
-                let componentsHtml = renderSoftwareTable(componentItems, data.timestamp);
-                componentsTableDiv.innerHTML = componentsHtml;
-            } else {
-                componentsTableDiv.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">No component information available</p>';
-            }
-        } else {
-            errorDiv.textContent = data.message || 'No software version information available';
-            errorDiv.style.display = 'block';
-            componentsTableDiv.innerHTML = '';
-        }
-    } catch (error) {
-        console.error('Error loading software updates:', error);
-        componentsTableDiv.style.display = 'none';
-        errorDiv.textContent = 'Failed to load software updates: ' + error.message;
-        errorDiv.style.display = 'block';
-    }
+    // v1.0.16: Show placeholder prompting user to click "Check for Updates"
+    // The old /api/software-updates endpoint returns N/A for Downloaded/Current/Latest
+    // which is not useful. The new check-all API provides actual update status.
+    componentsTableDiv.style.display = 'block';
+    componentsTableDiv.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #999; font-family: var(--font-secondary);">
+            <p style="margin-bottom: 10px;">Click <strong>"Check for Updates"</strong> above to see component versions and available updates.</p>
+        </div>
+    `;
 
     // Initialize content updates UI when Components tab is loaded
     if (typeof initContentUpdates === 'function') {

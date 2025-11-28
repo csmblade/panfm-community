@@ -64,7 +64,60 @@
 }
 
 /* ==========================================================================
+   IPAD PRO / LARGE TABLET (max-width: 1366px)
+   iPad Pro 12.9" landscape is 1366px
+   ========================================================================== */
+
+@media (max-width: 1366px) {
+    /* Chord diagram grid - 2 columns on large tablets */
+    .chord-diagrams-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    /* Center the 3rd chord diagram (Tagged Traffic) */
+    .chord-diagrams-grid > div:nth-child(3) {
+        grid-column: 1 / -1 !important;
+        width: 50% !important;
+        max-width: 500px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /* Health status bar - wrap items */
+    .health-status-container {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 15px !important;
+    }
+
+    /* Top Category and Top Clients - force to new row, side by side, EQUAL WIDTH */
+    .health-info-box {
+        flex: 0 0 320px !important;
+        width: 320px !important;
+        min-width: 320px !important;
+        max-width: 320px !important;
+    }
+
+    /* Create a wrapper effect - make the info boxes break to new line */
+    .health-status-container::before {
+        content: "";
+        flex-basis: 100%;
+        height: 0;
+        order: 1;
+    }
+
+    .health-info-box {
+        order: 2 !important;
+    }
+
+    .health-stat {
+        order: 0 !important;
+    }
+}
+
+/* ==========================================================================
    TABLET LANDSCAPE (max-width: 1024px)
+   iPad Air/Pro portrait, iPad landscape
    ========================================================================== */
 
 @media (max-width: 1024px) {
@@ -100,6 +153,42 @@
     .container {
         max-width: 100%;
         padding: 0 10px;
+    }
+
+    /* =====================================================================
+       CHORD DIAGRAMS - Responsive on tablet
+       ===================================================================== */
+
+    /* Chord diagram grid - 2 columns on tablet, center the 3rd item */
+    .chord-diagrams-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 15px !important;
+    }
+
+    /* Center the 3rd chord diagram (Tagged Traffic) - spans full width, centered */
+    .chord-diagrams-grid > div:nth-child(3) {
+        grid-column: 1 / -1 !important;
+        width: 50% !important;
+        max-width: 500px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /* Chord diagram SVG containers - reduce height */
+    #homepage-content .container > div[style*="grid-template-columns"] > div > div[style*="height: 400px"] {
+        height: 320px !important;
+    }
+
+    /* Chord SVGs */
+    #chordInternalSvg,
+    #chordInternetSvg,
+    #chordTagSvg {
+        height: 300px !important;
+    }
+
+    /* Threat tiles - 2 per row */
+    #homepage-content .container > div[style*="grid-template-columns: repeat(auto-fit, minmax(200px"] {
+        grid-template-columns: repeat(2, 1fr) !important;
     }
 }
 
@@ -181,6 +270,73 @@
         margin-bottom: 10px;
     }
 
+    /* =====================================================================
+       THROUGHPUT CHART HEADER - Stack controls vertically on tablet/mobile
+       ===================================================================== */
+
+    /* Target the throughput header flex container (line 162 in index.html) */
+    #homepage-content > .container > div:first-child > div:first-child {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+    }
+
+    /* Make the controls container stack vertically too */
+    #homepage-content > .container > div:first-child > div:first-child > div:last-child {
+        flex-direction: column !important;
+        width: 100% !important;
+        gap: 10px !important;
+    }
+
+    /* Make time range and interface selectors full width */
+    #timeRangeSelect,
+    #monitoredInterfaceInput {
+        width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    /* Stack the interface input group */
+    #homepage-content > .container > div:first-child > div:first-child > div:last-child > div {
+        width: 100% !important;
+        flex-wrap: wrap !important;
+    }
+
+    /* =====================================================================
+       NETWORK TRAFFIC STATS - Stack vertically on mobile
+       ===================================================================== */
+
+    /* Target stats rows by their structure - throughput stats display */
+    #homepage-content .container > div:first-child > div:nth-child(4),
+    #homepage-content .container > div:first-child > div:nth-child(5),
+    #avgStatsContainer {
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+
+    /* =====================================================================
+       FIREWALL HEALTH STATUS BAR - Responsive grid for mobile
+       ===================================================================== */
+
+    /* Target the health status bar flex container */
+    #homepage-content .container > div:nth-child(2) > div {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 15px !important;
+    }
+
+    /* CPU, Memory, PPS, Sessions - smaller on tablet */
+    #homepage-content .container > div:nth-child(2) > div > div:not([style*="min-width"]) {
+        flex: 0 0 auto !important;
+        min-width: 70px !important;
+    }
+
+    /* Top Category and Top Clients boxes - side by side on tablet */
+    #homepage-content .container > div:nth-child(2) > div > div[style*="min-width"] {
+        flex: 1 1 45% !important;
+        min-width: 200px !important;
+        max-width: 48% !important;
+    }
+
     /* Tables - horizontal scroll */
     .table-responsive {
         overflow-x: auto;
@@ -205,10 +361,55 @@
         font-size: 1.3em;
     }
 
-    /* Chord diagrams - smaller */
+    /* Chord diagrams - smaller on mobile */
     .chord-container,
     [id$="ChordSvg"] {
         height: 200px !important;
+    }
+
+    /* Chord diagram containers - reduce height */
+    #homepage-content .container > div[style*="grid-template-columns"] > div > div[style*="height: 400px"] {
+        height: 280px !important;
+    }
+
+    /* Chord SVGs - mobile size */
+    #chordInternalSvg,
+    #chordInternetSvg,
+    #chordTagSvg {
+        height: 260px !important;
+    }
+
+    /* Chord filter checkboxes - wrap on mobile */
+    #internalTrafficFilters,
+    #internetTrafficFilters {
+        flex-wrap: wrap !important;
+        gap: 10px !important;
+    }
+
+    /* Chord card headers - stack vertically */
+    #homepage-content .container > div[style*="grid-template-columns"] > div > div:first-child {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 5px !important;
+    }
+
+    /* Threat tiles - 2 per row on mobile */
+    #homepage-content .container > div[style*="grid-template-columns: repeat(auto-fit, minmax(200px"] {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+
+    /* Threat tile padding - smaller */
+    #homepage-content .container > div[style*="grid-template-columns: repeat(auto-fit, minmax(200px"] > div {
+        padding: 12px !important;
+    }
+
+    /* Threat tile values - smaller font */
+    #criticalValue,
+    #highValue,
+    #mediumValue,
+    #blockedUrlValue {
+        font-size: 1.5em !important;
     }
 
     /* Hide some elements on mobile */
@@ -290,6 +491,11 @@
         height: 200px;
     }
 
+    /* Throughput chart - reduce height on phone */
+    #throughputChart {
+        height: 180px !important;
+    }
+
     /* Modals - even more compact */
     .modal-content {
         padding: 10px !important;
@@ -329,6 +535,103 @@
 
     th, td {
         padding: 8px 6px;
+    }
+
+    /* =====================================================================
+       PHONE-SPECIFIC DASHBOARD ADJUSTMENTS
+       ===================================================================== */
+
+    /* Firewall Health - CPU/Memory/PPS/Sessions 2 per row on phone */
+    #homepage-content .container > div:nth-child(2) > div > div:not([style*="min-width"]) {
+        flex: 0 0 calc(50% - 10px) !important;
+        text-align: center;
+    }
+
+    /* Top Category and Top Clients - full width stacked on phone */
+    #homepage-content .container > div:nth-child(2) > div > div[style*="min-width"] {
+        flex: 0 0 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Health stat values - smaller on phone */
+    #cyberHealthCpu,
+    #cyberHealthMemory,
+    #cyberHealthPps,
+    #cyberHealthSessions {
+        font-size: 1.2em !important;
+    }
+
+    /* Throughput section - reduce padding */
+    #homepage-content > .container > div:first-child {
+        padding: 12px !important;
+        margin-bottom: 8px !important;
+    }
+
+    /* Network Throughput title - smaller */
+    #homepage-content > .container > div:first-child h2 {
+        font-size: 1.1em !important;
+    }
+
+    /* Update button - full width on phone */
+    #updateInterfaceBtn {
+        width: 100% !important;
+        margin-top: 5px;
+    }
+
+    /* Chord diagrams - even smaller on phone */
+    .chord-container,
+    [id$="ChordSvg"] {
+        height: 180px !important;
+    }
+
+    /* Chord diagram containers - minimum height */
+    #homepage-content .container > div[style*="grid-template-columns"] > div > div[style*="height: 400px"] {
+        height: 220px !important;
+    }
+
+    /* Chord SVGs - phone size */
+    #chordInternalSvg,
+    #chordInternetSvg,
+    #chordTagSvg {
+        height: 200px !important;
+    }
+
+    /* Threat tiles - single column on phone */
+    #homepage-content .container > div[style*="grid-template-columns: repeat(auto-fit, minmax(200px"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Threat tile values - even smaller */
+    #criticalValue,
+    #highValue,
+    #mediumValue,
+    #blockedUrlValue {
+        font-size: 1.3em !important;
+    }
+
+    /* Interface input - stack label and input */
+    #homepage-content > .container > div:first-child > div:first-child > div:last-child > div:last-child {
+        flex-direction: column !important;
+    }
+
+    /* Chord card titles - smaller on phone */
+    #homepage-content .container > div[style*="grid-template-columns"] > div h3 {
+        font-size: 1em !important;
+    }
+
+    /* Top Category/Clients boxes - stack grid */
+    #homepage-content .container > div:nth-child(2) > div > div[style*="min-width: 300px"] > div[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Remove border between LAN/Internet on phone */
+    #homepage-content .container > div:nth-child(2) > div > div[style*="min-width: 300px"] > div > div[style*="border-right"] {
+        border-right: none !important;
+        padding-right: 0 !important;
+        padding-bottom: 8px !important;
+        border-bottom: 1px solid rgba(255,255,255,0.2) !important;
+        margin-bottom: 8px !important;
     }
 }
 

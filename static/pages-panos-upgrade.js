@@ -249,7 +249,15 @@ async function checkPanosVersions() {
             `;
 
             // Filter versions that are not current and are available for download/install
-            const upgradeableVersions = data.versions.filter(v => v.version !== data.current_version);
+            // Backend already sorts by release date (newest first), but ensure it here too
+            const upgradeableVersions = data.versions
+                .filter(v => v.version !== data.current_version)
+                .sort((a, b) => {
+                    // Sort by release date (newest first)
+                    const dateA = a.released_on || '0000/00/00 00:00:00';
+                    const dateB = b.released_on || '0000/00/00 00:00:00';
+                    return dateB.localeCompare(dateA);
+                });
 
             // Check if upgrades are available
             if (upgradeableVersions.length > 0) {

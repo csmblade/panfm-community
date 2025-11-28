@@ -60,7 +60,8 @@ from firewall_api_upgrades import (
 from firewall_api_content import (
     check_content_updates,
     download_content_update,
-    install_content_update
+    install_content_update,
+    check_all_content_updates
 )
 from firewall_api_dhcp import (
     get_dhcp_servers,

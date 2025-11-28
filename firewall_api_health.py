@@ -189,14 +189,40 @@ def get_software_updates(firewall_config):
                         'latest': status['latest']
                     })
 
-            # Extract specific version fields
-            # PAN-OS version - always available from system info
-            sw_version = root.find('.//sw-version')
-            add_software_entry('PAN-OS', sw_version)
+            # Extract specific version fields from system info
+            # Note: PAN-OS is excluded from components - it has its own upgrade UI
 
-            # Application and threat signatures - NO auto update check (user clicks "Check for Updates")
+            # Application and threat signatures
             app_version = root.find('.//app-version')
             add_software_entry('Application & Threat', app_version)
+
+            # Antivirus signatures
+            av_version = root.find('.//av-version')
+            add_software_entry('Antivirus', av_version)
+
+            # WildFire version
+            wildfire_version = root.find('.//wildfire-version')
+            add_software_entry('WildFire', wildfire_version)
+
+            # URL Filtering version
+            url_filtering_version = root.find('.//url-filtering-version')
+            add_software_entry('URL Filtering', url_filtering_version)
+
+            # GlobalProtect data file version
+            gp_datafile_version = root.find('.//global-protect-datafile-version')
+            add_software_entry('GlobalProtect Data', gp_datafile_version)
+
+            # GlobalProtect client package version
+            gp_client_version = root.find('.//global-protect-client-package-version')
+            add_software_entry('GlobalProtect Client', gp_client_version)
+
+            # Threat version (may be different from app-version on some systems)
+            threat_version = root.find('.//threat-version')
+            if threat_version is not None and threat_version.text:
+                # Only add if different from app-version
+                app_ver_text = app_version.text if app_version is not None else None
+                if threat_version.text != app_ver_text:
+                    add_software_entry('Threat', threat_version)
 
             debug(f"Software versions found: {software_info}")
 

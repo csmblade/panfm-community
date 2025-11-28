@@ -81,13 +81,38 @@ def check_available_panos_versions(firewall_ip, api_key):
 
             versions.append(version_data)
 
-            # Track current and latest versions
+            # Track current version
             if version_data['current'] == 'yes':
                 current_version = version_data['version']
-            if version_data['latest'] == 'yes':
-                latest_version = version_data['version']
 
-        debug(f"Found {len(versions)} PAN-OS versions. Current: {current_version}, Latest: {latest_version}")
+        # Sort versions by release date (newest first) to properly handle hotfixes
+        # Hotfixes like 12.1.3-h1 are released AFTER 12.1.3 but API marks base as "latest"
+        def parse_release_date(v):
+            """Parse release date string to sortable format (YYYY/MM/DD HH:MM:SS)"""
+            try:
+                # Format: "2025/09/25 10:35:41"
+                return v.get('released_on', '') or '0000/00/00 00:00:00'
+            except:
+                return '0000/00/00 00:00:00'
+
+        versions.sort(key=parse_release_date, reverse=True)
+
+        # Determine actual latest version based on release date (not API 'latest' flag)
+        # The API marks the base version as latest, but hotfixes released later are actually newer
+        if versions:
+            # Find the newest version in the same major.minor series as current
+            if current_version:
+                current_major_minor = '.'.join(current_version.split('.')[:2])
+                same_series = [v for v in versions if v['version'].startswith(current_major_minor)]
+                if same_series:
+                    # Latest in current series (sorted by release date, so first is newest)
+                    latest_version = same_series[0]['version']
+                else:
+                    latest_version = versions[0]['version']
+            else:
+                latest_version = versions[0]['version']
+
+        debug(f"Found {len(versions)} PAN-OS versions. Current: {current_version}, Latest (by date): {latest_version}")
 
         return {
             'status': 'success',

@@ -3283,7 +3283,8 @@ async function refreshAllDataForDevice() {
     if (rebootButton) {
         rebootButton.disabled = false;
         rebootButton.textContent = 'Reboot Firewall';
-        rebootButton.style.background = '';
+        // Reset to red gradient for danger action
+        rebootButton.style.background = 'linear-gradient(135deg, #dc3545 0%, #ff6b6b 100%)';
     }
     const rebootSuccess = document.getElementById('rebootSuccess');
     if (rebootSuccess) {

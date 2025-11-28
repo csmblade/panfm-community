@@ -437,16 +437,10 @@ def get_throughput_data(device_id=None):
             # Get license information (from firewall_api_health module)
             license_info = get_license_info(firewall_config)
 
-            # Get software version information (from firewall_api_health module)
-            software_info = get_software_updates(firewall_config)
+            # Note: PAN-OS version is extracted from system info below (sw-version field)
+            # The get_software_updates() function intentionally excludes PAN-OS as it has
+            # its own dedicated upgrade UI. We'll get it directly from system info.
             panos_version = None
-
-            if software_info.get('status') == 'success':
-                # Find PAN-OS version from software list
-                for sw in software_info.get('software', []):
-                    if sw['name'] == 'PAN-OS':
-                        panos_version = sw['version']
-                        break
 
             # Get WAN interface IP and speed if wan_interface is configured
             wan_ip = None
@@ -458,7 +452,7 @@ def get_throughput_data(device_id=None):
                     wan_speed = wan_data.get('speed')
                     debug(f"WAN IP for interface {wan_interface}: {wan_ip}, Speed: {wan_speed}")
 
-            # Get hostname and uptime (Phase 2 fields)
+            # Get hostname, uptime, and PAN-OS version (Phase 2 fields)
             hostname = None
             uptime_seconds = None
             try:
@@ -473,8 +467,12 @@ def get_throughput_data(device_id=None):
                     root = ET.fromstring(response.text)
                     hostname_elem = root.find('.//hostname')
                     uptime_elem = root.find('.//uptime')
+                    sw_version_elem = root.find('.//sw-version')
                     if hostname_elem is not None and hostname_elem.text:
                         hostname = hostname_elem.text
+                    if sw_version_elem is not None and sw_version_elem.text:
+                        panos_version = sw_version_elem.text
+                        debug(f"Extracted PAN-OS version from system info: {panos_version}")
                     if uptime_elem is not None and uptime_elem.text:
                         # Parse uptime string (format: "X days, HH:MM:SS") into seconds
                         uptime_str = uptime_elem.text

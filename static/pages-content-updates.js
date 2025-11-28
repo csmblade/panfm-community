@@ -1,11 +1,13 @@
 /**
  * Content Update Orchestration Module
- * Handles App & Threat, Antivirus, WildFire content updates
+ * Handles App & Threat, Antivirus, WildFire, URL Filtering, GlobalProtect content updates
  *
  * User Requirements:
- * - Download and install as combined workflow
+ * - Download and install as combined workflow (v1.0.16)
  * - Same modal design as PAN-OS upgrades
  * - No reboot required
+ * - Individual component update buttons per row
+ * - Update All button for batch updates
  *
  * File created per .clinerules to keep other files under size limits
  */
@@ -16,15 +18,20 @@ let contentUpdateState = {
     downloadJobId: null,
     installJobId: null,
     pollInterval: null,
-    updateInfo: null
+    updateInfo: null,
+    allComponentsInfo: null,  // Results from check-all API
+    updatesAvailable: 0,      // Count of components with updates
+    isUpdating: false         // Prevent concurrent updates
 };
 
 /**
- * Check for content updates
+ * Check for content updates for ALL content types
  * Called when user clicks "Check for Updates" button
+ * v1.0.16: Now checks all 5 content types at once
  */
 async function checkContentUpdates() {
     const btn = document.getElementById('checkContentUpdatesBtn');
+    const updateAllBtn = document.getElementById('updateAllBtn');
     const info = document.getElementById('contentUpdateInfo');
 
     if (!btn || !info) {
@@ -33,29 +40,48 @@ async function checkContentUpdates() {
     }
 
     btn.disabled = true;
-    btn.textContent = 'Checking...';
+    btn.textContent = 'Checking all components...';
     info.style.display = 'none';
+    if (updateAllBtn) updateAllBtn.disabled = true;
 
     try {
-        console.log('Checking for content updates...');
-        const response = await window.apiClient.get('/api/content-updates/check');
+        console.log('Checking for content updates (all types)...');
+        const response = await window.apiClient.get('/api/content-updates/check-all');
         if (!response.ok) {
             throw new Error('Failed to check for content updates');
         }
         const data = response.data;
 
-        console.log('Content update check response:', data);
+        console.log('Content update check-all response:', data);
 
-        if (data.status === 'success') {
-            contentUpdateState.updateInfo = data;
-            displayContentUpdateStatus(data);
+        if (data.status === 'success' || data.status === 'partial') {
+            contentUpdateState.allComponentsInfo = data.results;
+            contentUpdateState.updatesAvailable = data.updates_available;
+
+            // Display summary status
+            displayAllContentUpdateStatus(data);
+
+            // Enable Update All button if updates available
+            if (updateAllBtn) {
+                if (data.updates_available > 0) {
+                    updateAllBtn.disabled = false;
+                    updateAllBtn.style.opacity = '1';
+                    updateAllBtn.style.cursor = 'pointer';
+                    updateAllBtn.title = `Update ${data.updates_available} component(s)`;
+                } else {
+                    updateAllBtn.disabled = true;
+                    updateAllBtn.style.opacity = '0.5';
+                    updateAllBtn.style.cursor = 'not-allowed';
+                    updateAllBtn.title = 'All components are up to date';
+                }
+            }
         } else {
-            info.innerHTML = `<p style="color: #dc3545; margin-top: 10px;">❌ Error: ${data.message}</p>`;
+            info.innerHTML = `<p style="color: #dc3545; margin-top: 10px;">Error: ${data.message}</p>`;
             info.style.display = 'block';
         }
     } catch (error) {
         console.error('Error checking content updates:', error);
-        info.innerHTML = `<p style="color: #dc3545; margin-top: 10px;">❌ Error: ${error.message}</p>`;
+        info.innerHTML = `<p style="color: #dc3545; margin-top: 10px;">Error: ${error.message}</p>`;
         info.style.display = 'block';
     } finally {
         btn.disabled = false;
@@ -64,24 +90,124 @@ async function checkContentUpdates() {
 }
 
 /**
- * Display content update status
+ * Display content update status for ALL components (v1.0.16)
+ * Shows summary and updates the components table with action buttons
+ */
+function displayAllContentUpdateStatus(data) {
+    const info = document.getElementById('contentUpdateInfo');
+
+    if (data.updates_available > 0) {
+        info.innerHTML = `
+            <div style="margin-top: 15px; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; border-left: 4px solid #FA582D;">
+                <strong style="color: #856404;">${data.updates_available} Update(s) Available</strong>
+                <p style="margin: 8px 0 0 0; color: #856404;">Click "Update All" to download and install all available updates, or use the individual Update buttons in the table below.</p>
+            </div>
+        `;
+    } else {
+        info.innerHTML = `
+            <div style="margin-top: 15px; padding: 15px; background: #d4edda; border: 1px solid #28a745; border-radius: 8px; border-left: 4px solid #28a745;">
+                <strong style="color: #155724;">Content Up to Date</strong>
+                <p style="margin: 8px 0 0 0; color: #155724;">All content components are running the latest versions.</p>
+            </div>
+        `;
+    }
+    info.style.display = 'block';
+
+    // Update components table with check results and action buttons
+    renderComponentsTableWithActions(data.results);
+}
+
+/**
+ * Render components table with Update action buttons (v1.0.16)
+ * Uses same styling as pages.js renderSoftwareTable for consistency
+ */
+function renderComponentsTableWithActions(results) {
+    const tableContainer = document.getElementById('componentsTable');
+    if (!tableContainer) return;
+
+    let html = `
+        <table style="width: 100%; border-collapse: collapse; font-family: var(--font-secondary); font-size: 0.9em;">
+            <thead>
+                <tr style="background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white;">
+                    <th style="padding: 12px; text-align: left; font-family: var(--font-primary);">Component</th>
+                    <th style="padding: 12px; text-align: left; font-family: var(--font-primary);">Version</th>
+                    <th style="padding: 12px; text-align: center; font-family: var(--font-primary);">Status</th>
+                    <th style="padding: 12px; text-align: center; font-family: var(--font-primary);">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    results.forEach((component, index) => {
+        const needsUpdate = component.needs_update === true;
+        const isDownloaded = component.downloaded && component.downloaded.toLowerCase() === 'yes';
+        const hasError = component.status === 'error';
+        const bgColor = index % 2 === 0 ? '#f9f9f9' : '#ffffff';
+
+        // Status column
+        let statusHtml;
+        if (hasError) {
+            statusHtml = `<span style="color: #dc3545;">Error</span>`;
+        } else if (needsUpdate) {
+            statusHtml = `<span style="color: #856404; font-weight: 600;">Update Available</span>`;
+        } else {
+            statusHtml = `<span style="color: #28a745; font-weight: 600;">Up to date</span>`;
+        }
+
+        // Actions column
+        let actionsHtml;
+        if (hasError) {
+            actionsHtml = `<span style="color: #dc3545; font-size: 0.85em;">${component.message || 'Check failed'}</span>`;
+        } else if (needsUpdate) {
+            const btnText = isDownloaded ? 'Install' : 'Update';
+            const btnTitle = isDownloaded ? 'Install downloaded update' : 'Download and install update';
+            actionsHtml = `
+                <button onclick="updateSingleComponent('${component.content_type}', '${component.name}')"
+                        title="${btnTitle}"
+                        class="content-update-btn"
+                        style="padding: 6px 14px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85em;">
+                    ${btnText}
+                </button>
+            `;
+        } else {
+            actionsHtml = `<span style="color: #28a745; font-weight: 600;">✓</span>`;
+        }
+
+        html += `
+            <tr style="background: ${bgColor}; border-bottom: 1px solid #e0e0e0;">
+                <td style="padding: 12px; font-weight: 600; color: #333; font-family: var(--font-primary);">${component.name || component.content_type}</td>
+                <td style="padding: 12px; color: #666; font-family: monospace;">${component.current_version || 'N/A'}</td>
+                <td style="padding: 12px; text-align: center;">${statusHtml}</td>
+                <td style="padding: 12px; text-align: center;">${actionsHtml}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+
+    tableContainer.innerHTML = html;
+}
+
+/**
+ * Legacy display function (kept for backward compatibility)
  */
 function displayContentUpdateStatus(data) {
+    // Use the new all-components display if we have results array
+    if (data.results) {
+        displayAllContentUpdateStatus(data);
+        return;
+    }
+
+    // Legacy single-component display
     const info = document.getElementById('contentUpdateInfo');
 
     if (data.needs_update) {
         const isDownloaded = data.downloaded && data.downloaded.toLowerCase() === 'yes';
         const buttonText = isDownloaded ? 'Install Update' : 'Download & Install Update';
         const buttonTitle = isDownloaded ? 'Version already downloaded - will skip download step' : 'Will download and install the update';
-
-        let statusHtml = '';
-        if (isDownloaded) {
-            statusHtml = `
-                <div style="padding: 8px; background: #d4edda; border: 1px solid #28a745; border-radius: 4px; margin-bottom: 12px; font-size: 0.9em;">
-                    <span style="color: #155724;">Version ${data.latest_version} already downloaded</span>
-                </div>
-            `;
-        }
 
         info.innerHTML = `
             <div style="margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 8px; border-left: 4px solid #FA582D;">
@@ -96,7 +222,6 @@ function displayContentUpdateStatus(data) {
                 <div style="padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px;">
                     <strong style="color: #856404;">Content Update Available</strong>
                     <p style="margin: 8px 0 0 0; color: #856404;">A new content update is available for Application & Threat signatures.</p>
-                    ${statusHtml}
                     <button onclick="startContentUpdate()" title="${buttonTitle}" style="padding: 10px 20px; background: linear-gradient(135deg, #FA582D 0%, #FF7A55 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-family: var(--font-primary); box-shadow: 0 2px 4px rgba(250, 88, 45, 0.3);">
                         ${buttonText}
                     </button>
@@ -122,12 +247,306 @@ function displayContentUpdateStatus(data) {
 }
 
 /**
- * Start content update workflow
+ * Update a single component (v1.0.16)
+ * Called from per-row Update button in components table
+ */
+async function updateSingleComponent(contentType, displayName) {
+    if (contentUpdateState.isUpdating) {
+        alert('An update is already in progress. Please wait.');
+        return;
+    }
+
+    // Find component info from cached results
+    const component = contentUpdateState.allComponentsInfo?.find(c => c.content_type === contentType);
+    if (!component) {
+        alert('Component information not found. Please click "Check for Updates" first.');
+        return;
+    }
+
+    const isDownloaded = component.downloaded && component.downloaded.toLowerCase() === 'yes';
+    const steps = [];
+    let n = 1;
+    if (!isDownloaded) steps.push(`${n++}. Download ${displayName} update`);
+    steps.push(`${n++}. Install ${displayName} update`);
+
+    const msg = `This will update ${displayName} from ${component.current_version} to ${component.latest_version}.\n\nThe process will:\n${steps.join('\n')}\n\nNo reboot is required. Continue?`;
+
+    if (!confirm(msg)) return;
+
+    contentUpdateState.isUpdating = true;
+    disableAllUpdateButtons(true);
+
+    showContentUpdateModal();
+
+    try {
+        let currentProgress = 0;
+
+        // Step 1: Download (skip if already downloaded)
+        if (!isDownloaded) {
+            updateContentProgress('Downloading', `Downloading ${displayName}...`, 0, false);
+
+            const downloadResponse = await window.apiClient.post('/api/content-updates/download', {
+                content_type: contentType
+            });
+
+            if (!downloadResponse.ok) {
+                throw new Error('Failed to start download');
+            }
+
+            const downloadData = downloadResponse.data;
+            console.log(`${displayName} download response:`, downloadData);
+
+            if (downloadData.status === 'success') {
+                contentUpdateState.downloadJobId = downloadData.jobid;
+
+                const downloadSuccess = await pollContentJob(downloadData.jobid, 'Downloading', `${displayName} Download`, 0, 50);
+
+                if (!downloadSuccess) {
+                    setTimeout(() => hideContentUpdateModal(), 3000);
+                    return;
+                }
+
+                console.log(`${displayName} download complete`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                currentProgress = 50;
+            } else {
+                updateContentProgress('Failed', `Download failed: ${downloadData.message}`, 0, true);
+                setTimeout(() => hideContentUpdateModal(), 3000);
+                return;
+            }
+        } else {
+            console.log(`${displayName} already downloaded, skipping download step`);
+            currentProgress = 50;
+        }
+
+        // Step 2: Install
+        updateContentProgress('Installing', `Installing ${displayName}...`, currentProgress, false);
+
+        const installResponse = await window.apiClient.post('/api/content-updates/install', {
+            content_type: contentType,
+            version: 'latest'
+        });
+
+        if (!installResponse.ok) {
+            throw new Error('Failed to start installation');
+        }
+
+        const installData = installResponse.data;
+        console.log(`${displayName} install response:`, installData);
+
+        if (installData.status === 'success') {
+            contentUpdateState.installJobId = installData.jobid;
+
+            const installSuccess = await pollContentJob(installData.jobid, 'Installing', `${displayName} Install`, currentProgress, 100);
+
+            if (installSuccess) {
+                updateContentProgress('Complete', `${displayName} updated successfully!`, 100, false);
+                setTimeout(() => {
+                    hideContentUpdateModal();
+                    checkContentUpdates(); // Refresh all component statuses
+                }, 2000);
+            } else {
+                setTimeout(() => hideContentUpdateModal(), 3000);
+            }
+        } else {
+            updateContentProgress('Failed', `Install failed: ${installData.message}`, currentProgress, true);
+            setTimeout(() => hideContentUpdateModal(), 3000);
+        }
+
+    } catch (error) {
+        console.error(`${displayName} update error:`, error);
+        updateContentProgress('Failed', `Error: ${error.message}`, 0, true);
+        setTimeout(() => hideContentUpdateModal(), 3000);
+    } finally {
+        contentUpdateState.isUpdating = false;
+        disableAllUpdateButtons(false);
+    }
+}
+
+/**
+ * Update ALL components with available updates (v1.0.16)
+ * Called from "Update All" button
+ */
+async function updateAllComponents() {
+    if (contentUpdateState.isUpdating) {
+        alert('An update is already in progress. Please wait.');
+        return;
+    }
+
+    const componentsToUpdate = contentUpdateState.allComponentsInfo?.filter(c =>
+        c.status === 'success' && c.needs_update === true
+    ) || [];
+
+    if (componentsToUpdate.length === 0) {
+        alert('No updates available. Click "Check for Updates" first.');
+        return;
+    }
+
+    const componentNames = componentsToUpdate.map(c => c.name).join('\n- ');
+    const msg = `This will update ${componentsToUpdate.length} component(s):\n- ${componentNames}\n\nEach component will be downloaded and installed sequentially.\n\nNo reboot is required. Continue?`;
+
+    if (!confirm(msg)) return;
+
+    contentUpdateState.isUpdating = true;
+    disableAllUpdateButtons(true);
+
+    showContentUpdateModal();
+
+    const results = { success: [], failed: [] };
+    const totalComponents = componentsToUpdate.length;
+
+    try {
+        for (let i = 0; i < totalComponents; i++) {
+            const component = componentsToUpdate[i];
+            const displayName = component.name;
+            const contentType = component.content_type;
+            const isDownloaded = component.downloaded && component.downloaded.toLowerCase() === 'yes';
+
+            // Calculate progress range for this component
+            const progressPerComponent = 100 / totalComponents;
+            const progressStart = i * progressPerComponent;
+            const progressMid = progressStart + (progressPerComponent / 2);
+            const progressEnd = (i + 1) * progressPerComponent;
+
+            updateContentProgress(
+                `Updating ${i + 1}/${totalComponents}`,
+                `Processing ${displayName}...`,
+                progressStart,
+                false
+            );
+
+            try {
+                // Download (if needed)
+                if (!isDownloaded) {
+                    updateContentProgress(`Updating ${i + 1}/${totalComponents}`, `Downloading ${displayName}...`, progressStart, false);
+
+                    const downloadResponse = await window.apiClient.post('/api/content-updates/download', {
+                        content_type: contentType
+                    });
+
+                    if (!downloadResponse.ok || downloadResponse.data.status !== 'success') {
+                        throw new Error(downloadResponse.data?.message || 'Download failed');
+                    }
+
+                    const downloadSuccess = await pollContentJob(
+                        downloadResponse.data.jobid,
+                        `Updating ${i + 1}/${totalComponents}`,
+                        `${displayName} Download`,
+                        progressStart,
+                        progressMid
+                    );
+
+                    if (!downloadSuccess) {
+                        throw new Error('Download job failed');
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                // Install
+                updateContentProgress(`Updating ${i + 1}/${totalComponents}`, `Installing ${displayName}...`, progressMid, false);
+
+                const installResponse = await window.apiClient.post('/api/content-updates/install', {
+                    content_type: contentType,
+                    version: 'latest'
+                });
+
+                if (!installResponse.ok || installResponse.data.status !== 'success') {
+                    throw new Error(installResponse.data?.message || 'Install failed');
+                }
+
+                const installSuccess = await pollContentJob(
+                    installResponse.data.jobid,
+                    `Updating ${i + 1}/${totalComponents}`,
+                    `${displayName} Install`,
+                    progressMid,
+                    progressEnd
+                );
+
+                if (!installSuccess) {
+                    throw new Error('Install job failed');
+                }
+
+                results.success.push(displayName);
+                console.log(`✓ ${displayName} updated successfully`);
+
+            } catch (componentError) {
+                console.error(`✗ ${displayName} update failed:`, componentError);
+                results.failed.push({ name: displayName, error: componentError.message });
+                // Continue with next component
+            }
+        }
+
+        // Show final summary
+        if (results.failed.length === 0) {
+            updateContentProgress('Complete', `All ${totalComponents} component(s) updated successfully!`, 100, false);
+        } else if (results.success.length > 0) {
+            updateContentProgress(
+                'Partial Success',
+                `Updated ${results.success.length}/${totalComponents}. Failed: ${results.failed.map(f => f.name).join(', ')}`,
+                100,
+                true
+            );
+        } else {
+            updateContentProgress('Failed', 'All updates failed', 100, true);
+        }
+
+        setTimeout(() => {
+            hideContentUpdateModal();
+            checkContentUpdates(); // Refresh all component statuses
+
+            // Show summary alert
+            let summary = `Update Summary:\n\n`;
+            if (results.success.length > 0) {
+                summary += `✓ Successfully updated:\n  - ${results.success.join('\n  - ')}\n\n`;
+            }
+            if (results.failed.length > 0) {
+                summary += `✗ Failed:\n  - ${results.failed.map(f => `${f.name}: ${f.error}`).join('\n  - ')}`;
+            }
+            alert(summary);
+        }, 2000);
+
+    } catch (error) {
+        console.error('Update all error:', error);
+        updateContentProgress('Failed', `Error: ${error.message}`, 0, true);
+        setTimeout(() => hideContentUpdateModal(), 3000);
+    } finally {
+        contentUpdateState.isUpdating = false;
+        disableAllUpdateButtons(false);
+    }
+}
+
+/**
+ * Disable/enable all update buttons during update process
+ */
+function disableAllUpdateButtons(disabled) {
+    const updateAllBtn = document.getElementById('updateAllBtn');
+    if (updateAllBtn) updateAllBtn.disabled = disabled;
+
+    document.querySelectorAll('.content-update-btn').forEach(btn => {
+        btn.disabled = disabled;
+        btn.style.opacity = disabled ? '0.5' : '1';
+        btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    });
+}
+
+/**
+ * Legacy start content update workflow (kept for backward compatibility)
  * Combined download + install process
  * Skips download if already downloaded
  */
 async function startContentUpdate() {
-    console.log('Starting content update workflow...');
+    // If we have allComponentsInfo, use the new single component update for 'content' type
+    if (contentUpdateState.allComponentsInfo) {
+        const contentComponent = contentUpdateState.allComponentsInfo.find(c => c.content_type === 'content');
+        if (contentComponent && contentComponent.needs_update) {
+            await updateSingleComponent('content', 'Application & Threat');
+            return;
+        }
+    }
+
+    // Legacy flow for backward compatibility
+    console.log('Starting content update workflow (legacy)...');
 
     // Check if already downloaded
     const isDownloaded = contentUpdateState.updateInfo?.downloaded &&
@@ -147,8 +566,6 @@ async function startContentUpdate() {
     showContentUpdateModal();
 
     try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
         let currentProgress = 0;
 
         // Step 1: Download (skip if already downloaded)
@@ -217,25 +634,33 @@ async function pollContentJob(jobId, stepName, stepDisplayName, progressStart, p
                 const data = await response.json();
 
                 if (data.status === 'success') {
-                    const job = data.job;
-                    console.log(`Job ${jobId} status:`, job);
+                    // Job data is at top level of response, not nested under 'job'
+                    console.log(`Job ${jobId} status:`, data);
 
                     // Calculate progress within the range
-                    const jobProgress = parseInt(job.progress) || 0;
+                    const jobProgress = parseInt(data.progress) || 0;
                     const currentProgress = progressStart + (jobProgress * (progressEnd - progressStart) / 100);
 
-                    // Update progress display
-                    updateContentProgress(stepName, `${stepDisplayName}: ${job.status}`, currentProgress, false);
+                    // Convert PAN-OS job status to user-friendly text
+                    const statusMap = {
+                        'PEND': 'Pending',
+                        'ACT': 'Active',
+                        'FIN': 'Finished'
+                    };
+                    const friendlyStatus = statusMap[data.job_status] || data.job_status;
 
-                    if (job.status === 'FIN') {
+                    // Update progress display
+                    updateContentProgress(stepName, `${stepDisplayName}: ${friendlyStatus}`, currentProgress, false);
+
+                    if (data.job_status === 'FIN') {
                         clearInterval(pollInterval);
 
                         // Check for failures
-                        const isFailed = job.result === 'FAIL' ||
-                                       (job.details && job.details.toLowerCase().includes('fail'));
+                        const isFailed = data.result === 'FAIL' ||
+                                       (data.details && data.details.toLowerCase().includes('fail'));
 
                         if (isFailed) {
-                            updateContentProgress('Failed', `${stepDisplayName} failed: ${job.details || job.result}`, currentProgress, true);
+                            updateContentProgress('Failed', `${stepDisplayName} failed: ${data.details || data.result}`, currentProgress, true);
                             resolve(false);
                         } else {
                             updateContentProgress(stepName, `${stepDisplayName} complete!`, progressEnd, false);
@@ -421,4 +846,7 @@ if (typeof window !== 'undefined') {
     window.checkContentUpdates = checkContentUpdates;
     window.startContentUpdate = startContentUpdate;
     window.cancelContentUpdate = cancelContentUpdate;
+    // v1.0.16: New functions for individual and batch updates
+    window.updateSingleComponent = updateSingleComponent;
+    window.updateAllComponents = updateAllComponents;
 }
