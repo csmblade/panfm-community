@@ -24,8 +24,17 @@ from config import TIMESCALE_DSN, USE_TIMESCALE
 from throughput_storage_timescale import TimescaleStorage as ThroughputStorage
 info("PANfm v2.0.0: Using TimescaleDB for throughput storage")
 
-from alert_manager import alert_manager, format_alert_message
-from notification_manager import notification_manager
+# Enterprise Edition: Alert system (optional - not in Community Edition)
+try:
+    from alert_manager import alert_manager, format_alert_message
+    from notification_manager import notification_manager
+    ALERTS_ENABLED = True
+except ImportError:
+    alert_manager = None
+    notification_manager = None
+    format_alert_message = None
+    ALERTS_ENABLED = False
+    info("Alert system not available (Community Edition)")
 
 # Severity-based cooldown period constants (in seconds)
 # Each severity level can have its own cooldown duration to provide granular control
@@ -235,6 +244,10 @@ class ThroughputCollector:
             device_name: Device name for logging
             throughput_data: Collected throughput data dictionary
         """
+        # Skip alert checking if alert system is not available (Community Edition)
+        if not ALERTS_ENABLED:
+            return
+
         print(f"[ALERT CHECK] ► Starting alert threshold check for device: {device_name} (ID: {device_id})")
         sys.stdout.flush()
         debug("Checking alert thresholds for device: %s", device_name)
