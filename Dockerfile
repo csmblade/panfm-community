@@ -16,7 +16,7 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
+# Copy application files (includes schema/ directory for database init)
 COPY . .
 
 # Make entrypoint script executable

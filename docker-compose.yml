@@ -39,7 +39,7 @@ services:
       - "5432:5432"  # PostgreSQL port (can disable in production)
     volumes:
       - ./timescaledb_data:/var/lib/postgresql/data
-      - ./init_timescaledb_complete.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init_timescaledb.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U panfm"]

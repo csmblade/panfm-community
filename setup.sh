@@ -1,26 +1,111 @@
 #!/bin/bash
-# Setup script for PANfm - Ensures required files exist before Docker starts
+# =========================================
+# PANfm Setup Script
+# =========================================
+# Creates required files before Docker starts.
+# Handles both fresh installs and recovery from
+# failed previous attempts.
+# =========================================
 
-echo "PANfm Setup - Initializing required files..."
+# Version info (update these when version changes)
+VERSION="1.0.16"
+EDITION="Community"
+
+# Colors for output (if terminal supports it)
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if colors are supported
+if [ -t 1 ] && command -v tput &> /dev/null && [ "$(tput colors)" -ge 8 ]; then
+    USE_COLOR=true
+else
+    USE_COLOR=false
+    RED=''
+    GREEN=''
+    YELLOW=''
+    NC=''
+fi
+
+echo ""
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║      PANfm $EDITION v$VERSION - Setup                        ║"
+echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-# Helper function: Remove directory if exists, then create file
-# This handles the case where Docker created a directory instead of mounting a file
+# Track errors
+ERRORS=0
+CREATED=0
+EXISTED=0
+
+# =========================================
+# Helper Functions
+# =========================================
+
+# Remove directory if exists (Docker creates dirs if files don't exist)
 ensure_file_not_directory() {
     local filename=$1
     if [ -d "$filename" ]; then
-        echo "  ⚠ Removing directory '$filename' (should be a file)"
+        echo -e "  ${YELLOW}⚠${NC} Removing directory '$filename' (should be a file)"
         rm -rf "$filename"
     fi
 }
 
-# Create settings.json if it doesn't exist
+# Create file with content if doesn't exist
+create_file() {
+    local filename=$1
+    local content=$2
+    local description=$3
+
+    ensure_file_not_directory "$filename"
+
+    if [ ! -f "$filename" ]; then
+        echo "$content" > "$filename"
+        if [ $? -eq 0 ]; then
+            echo -e "  ${GREEN}✓${NC} Created $filename"
+            CREATED=$((CREATED + 1))
+        else
+            echo -e "  ${RED}✗${NC} Failed to create $filename"
+            ERRORS=$((ERRORS + 1))
+        fi
+    else
+        echo -e "  ${GREEN}✓${NC} $filename (exists)"
+        EXISTED=$((EXISTED + 1))
+    fi
+}
+
+# Create directory if doesn't exist
+create_directory() {
+    local dirname=$1
+    local description=$2
+
+    if [ ! -d "$dirname" ]; then
+        mkdir -p "$dirname"
+        if [ $? -eq 0 ]; then
+            echo -e "  ${GREEN}✓${NC} Created $dirname/"
+            CREATED=$((CREATED + 1))
+        else
+            echo -e "  ${RED}✗${NC} Failed to create $dirname/"
+            ERRORS=$((ERRORS + 1))
+        fi
+    else
+        echo -e "  ${GREEN}✓${NC} $dirname/ (exists)"
+        EXISTED=$((EXISTED + 1))
+    fi
+}
+
+# =========================================
+# Step 1: Create Configuration Files
+# =========================================
+echo "[1/3] Creating configuration files..."
+
+# settings.json
 ensure_file_not_directory "settings.json"
 if [ ! -f "settings.json" ]; then
-    echo "Creating settings.json..."
     cat > settings.json << 'EOF'
 {
-  "refresh_interval": 15,
+  "refresh_interval": 30,
   "debug_logging": false,
   "selected_device_id": "",
   "monitored_interface": "ethernet1/12",
@@ -28,15 +113,16 @@ if [ ! -f "settings.json" ]; then
   "timezone": "UTC"
 }
 EOF
-    echo "✓ settings.json created"
+    echo -e "  ${GREEN}✓${NC} Created settings.json"
+    CREATED=$((CREATED + 1))
 else
-    echo "✓ settings.json already exists"
+    echo -e "  ${GREEN}✓${NC} settings.json (exists)"
+    EXISTED=$((EXISTED + 1))
 fi
 
-# Create devices.json if it doesn't exist
+# devices.json
 ensure_file_not_directory "devices.json"
 if [ ! -f "devices.json" ]; then
-    echo "Creating devices.json..."
     cat > devices.json << 'EOF'
 {
   "devices": [],
@@ -48,194 +134,143 @@ if [ ! -f "devices.json" ]; then
   ]
 }
 EOF
-    echo "✓ devices.json created"
+    echo -e "  ${GREEN}✓${NC} Created devices.json"
+    CREATED=$((CREATED + 1))
 else
-    echo "✓ devices.json already exists"
+    echo -e "  ${GREEN}✓${NC} devices.json (exists)"
+    EXISTED=$((EXISTED + 1))
 fi
 
-# Create encryption.key if it doesn't exist
+# encryption.key
 ensure_file_not_directory "encryption.key"
 if [ ! -f "encryption.key" ]; then
-    echo "Creating encryption.key..."
-    # Generate a random 32-byte key encoded in base64
-    python3 -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())" > encryption.key
-    chmod 600 encryption.key 2>/dev/null || true
-    echo "✓ encryption.key created (permissions: 600)"
+    python3 -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())" > encryption.key 2>/dev/null
+    if [ $? -eq 0 ]; then
+        chmod 600 encryption.key 2>/dev/null || true
+        echo -e "  ${GREEN}✓${NC} Created encryption.key"
+        CREATED=$((CREATED + 1))
+    else
+        echo -e "  ${RED}✗${NC} Failed to create encryption.key (Python required)"
+        ERRORS=$((ERRORS + 1))
+    fi
 else
-    echo "✓ encryption.key already exists"
-    # Ensure correct permissions even if file exists
     chmod 600 encryption.key 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} encryption.key (exists)"
+    EXISTED=$((EXISTED + 1))
 fi
 
-# Create auth.json if it doesn't exist with default admin/admin credentials
+# auth.json
 ensure_file_not_directory "auth.json"
 if [ ! -f "auth.json" ]; then
-    echo "Creating auth.json with default credentials (admin/admin)..."
-
-    # Generate bcrypt hash for 'admin' password and create auth.json
-    # The Python script will generate the same structure as auth.py's init_auth_file()
     python3 -c "
 import json
-import bcrypt
-import os
-import sys
-
-# Check if bcrypt is available
 try:
     import bcrypt
+    hashed = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    auth_data = {'users': {'admin': {'password_hash': hashed, 'must_change_password': True}}}
+    json.dump(auth_data, open('auth.json', 'w'), indent=2)
 except ImportError:
-    print('Warning: bcrypt not installed, creating empty auth.json (app will initialize)')
-    with open('auth.json', 'w') as f:
-        f.write('')
-    sys.exit(0)
-
-# Generate bcrypt hash for 'admin'
-hashed_password = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-# Create auth data structure (unencrypted - app will encrypt on first load)
-auth_data = {
-    'users': {
-        'admin': {
-            'password_hash': hashed_password,
-            'must_change_password': True
-        }
-    }
-}
-
-# Save to file (unencrypted - encryption happens when app loads it)
-with open('auth.json', 'w') as f:
-    json.dump(auth_data, f, indent=2)
-
-print('Generated default admin credentials')
+    # bcrypt not available, create empty file (app will initialize)
+    open('auth.json', 'w').write('')
 " 2>/dev/null || touch auth.json
-
-    echo "✓ auth.json created with default admin/admin credentials"
-    echo "  (Password must be changed on first login)"
+    echo -e "  ${GREEN}✓${NC} Created auth.json (admin/admin)"
+    CREATED=$((CREATED + 1))
 else
-    echo "✓ auth.json already exists"
+    echo -e "  ${GREEN}✓${NC} auth.json (exists)"
+    EXISTED=$((EXISTED + 1))
 fi
 
-# Create device_metadata.json if it doesn't exist
+# device_metadata.json
 ensure_file_not_directory "device_metadata.json"
 if [ ! -f "device_metadata.json" ]; then
-    echo "Creating device_metadata.json..."
-    
-    # Create encrypted empty metadata file using Python
-    python3 -c "
-import json
-import os
-import sys
-
-# Try to import encryption module
-try:
-    from encryption import encrypt_dict
-    
-    # Create empty metadata structure
-    empty_data = {}
-    
-    # Encrypt it
-    encrypted_data = encrypt_dict(empty_data)
-    
-    # Save to file
-    with open('device_metadata.json', 'w') as f:
-        json.dump(encrypted_data, f, indent=2)
-    
-    # Set permissions to 600
-    os.chmod('device_metadata.json', 0o600)
-    
-    print('Created encrypted device_metadata.json')
-except ImportError:
-    # If encryption module not available, create empty encrypted structure manually
-    # This mimics what encrypt_dict would produce with an empty dict
-    empty_encrypted = {}
-    with open('device_metadata.json', 'w') as f:
-        json.dump(empty_encrypted, f, indent=2)
-    os.chmod('device_metadata.json', 0o600)
-    print('Created device_metadata.json (will be encrypted on first app load)')
-except Exception as e:
-    # Fallback: create empty file, app will initialize it
-    with open('device_metadata.json', 'w') as f:
-        f.write('')
-    print(f'Created empty device_metadata.json (app will initialize: {e})')
-" 2>/dev/null || touch device_metadata.json
-    
-    # Ensure file permissions are correct
+    echo "{}" > device_metadata.json
     chmod 600 device_metadata.json 2>/dev/null || true
-    
-    echo "✓ device_metadata.json created"
+    echo -e "  ${GREEN}✓${NC} Created device_metadata.json"
+    CREATED=$((CREATED + 1))
 else
-    echo "✓ device_metadata.json already exists"
+    echo -e "  ${GREEN}✓${NC} device_metadata.json (exists)"
+    EXISTED=$((EXISTED + 1))
 fi
 
-# Create mac_vendor_db.json if it doesn't exist (empty array)
-ensure_file_not_directory "mac_vendor_db.json"
-if [ ! -f "mac_vendor_db.json" ]; then
-    echo "Creating mac_vendor_db.json (empty)..."
-    echo "[]" > mac_vendor_db.json
-    echo "✓ mac_vendor_db.json created (upload database via Settings > Databases)"
-else
-    echo "✓ mac_vendor_db.json already exists"
-fi
+# mac_vendor_db.json
+create_file "mac_vendor_db.json" "[]" "MAC vendor database"
 
-# Create service_port_db.json if it doesn't exist (empty object)
-ensure_file_not_directory "service_port_db.json"
-if [ ! -f "service_port_db.json" ]; then
-    echo "Creating service_port_db.json (empty)..."
-    echo "{}" > service_port_db.json
-    echo "✓ service_port_db.json created (upload database via Settings > Databases)"
-else
-    echo "✓ service_port_db.json already exists"
-fi
+# service_port_db.json
+create_file "service_port_db.json" "{}" "Service port database"
 
-# ============================================================
-# v2.0.0: SQLite databases removed - migrated to TimescaleDB
-# ============================================================
-# throughput_history.db → TimescaleDB (throughput_history hypertable)
-# alerts.db → TimescaleDB (alert_history, alert_configs tables)
-# nmap_scans.db → TimescaleDB (nmap_scan_history hypertable)
-# Database schema automatically initialized by init_timescaledb.sql
+echo ""
 
-# Create data directory if it doesn't exist
-if [ ! -d "data" ]; then
-    echo "Creating data directory..."
-    mkdir -p data
-    echo "✓ data directory created"
-else
-    echo "✓ data directory already exists"
-fi
+# =========================================
+# Step 2: Create Data Directories
+# =========================================
+echo "[2/3] Creating data directories..."
 
-# Create redis_data directory if it doesn't exist (v2.0.0)
-if [ ! -d "redis_data" ]; then
-    echo "Creating redis_data directory (Redis AOF persistence)..."
-    mkdir -p redis_data
-    echo "✓ redis_data directory created"
-else
-    echo "✓ redis_data directory already exists"
-fi
+create_directory "data" "Application data"
+create_directory "redis_data" "Redis AOF persistence"
+create_directory "timescaledb_data" "PostgreSQL data files"
 
-# Create timescaledb_data directory if it doesn't exist (v2.0.0)
-if [ ! -d "timescaledb_data" ]; then
-    echo "Creating timescaledb_data directory (PostgreSQL data files)..."
-    mkdir -p timescaledb_data
-    echo "✓ timescaledb_data directory created"
-else
-    echo "✓ timescaledb_data directory already exists"
+echo ""
+
+# =========================================
+# Step 3: Validate Installation
+# =========================================
+echo "[3/3] Validating installation..."
+
+VALIDATION_ERRORS=0
+REQUIRED_FILES=("settings.json" "devices.json" "encryption.key" "auth.json" "device_metadata.json" "mac_vendor_db.json" "service_port_db.json")
+
+for file in "${REQUIRED_FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        echo -e "  ${RED}✗${NC} Missing: $file"
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+    elif [ -d "$file" ]; then
+        echo -e "  ${RED}✗${NC} Is directory: $file"
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+    fi
+done
+
+REQUIRED_DIRS=("data" "redis_data" "timescaledb_data")
+for dir in "${REQUIRED_DIRS[@]}"; do
+    if [ ! -d "$dir" ]; then
+        echo -e "  ${RED}✗${NC} Missing directory: $dir"
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+    fi
+done
+
+if [ $VALIDATION_ERRORS -eq 0 ]; then
+    echo -e "  ${GREEN}✓${NC} All files and directories validated"
 fi
 
 echo ""
-echo "============================================================"
-echo "Setup complete! PANfm Community v1.0.16 is ready to start"
-echo "============================================================"
+
+# =========================================
+# Results
+# =========================================
+
+if [ $ERRORS -gt 0 ] || [ $VALIDATION_ERRORS -gt 0 ]; then
+    echo "════════════════════════════════════════════════════════════"
+    echo -e "  ${RED}ERROR: Setup failed with $((ERRORS + VALIDATION_ERRORS)) error(s)${NC}"
+    echo "════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Please check:"
+    echo "  - Python 3 is installed"
+    echo "  - You have write permissions in this directory"
+    echo "  - No conflicting directories exist"
+    echo ""
+    exit 1
+fi
+
+echo "════════════════════════════════════════════════════════════"
+echo "  ✓ PANfm $EDITION v$VERSION is ready!"
+echo "════════════════════════════════════════════════════════════"
 echo ""
-echo "Run: docker compose up -d"
+echo "  Files created: $CREATED"
+echo "  Files existed: $EXISTED"
 echo ""
-echo "First startup notes:"
-echo "  - Redis will initialize session store automatically"
-echo "  - TimescaleDB will create schema from init_timescaledb.sql"
-echo "  - Web UI will be available at http://localhost:3000"
-echo "  - First startup may take 60-90 seconds for database initialization"
+echo "Next steps:"
+echo "  1. docker compose up -d"
+echo "  2. Open http://localhost:3000"
+echo "  3. Login with admin / admin (change password on first login)"
 echo ""
-echo "Post-setup:"
-echo "  - Default login: admin / admin (change on first login)"
-echo "  - Upload MAC vendor and service port databases via Settings > Databases"
+echo "First startup takes ~60 seconds for database initialization."
 echo ""

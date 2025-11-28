@@ -1,26 +1,46 @@
 @echo off
-REM Setup script for PANfm - Ensures required files exist before Docker starts
-REM Windows batch version of setup.sh
+REM =========================================
+REM PANfm Setup Script (Windows)
+REM =========================================
+REM Creates required files before Docker starts.
+REM Handles both fresh installs and recovery from
+REM failed previous attempts.
+REM =========================================
 
-echo PANfm Setup - Initializing required files...
+setlocal enabledelayedexpansion
+
+REM Version info (update these when version changes)
+set VERSION=1.0.16
+set EDITION=Community
+
+REM Track counters
+set ERRORS=0
+set CREATED=0
+set EXISTED=0
+
+echo.
+echo ======================================================================
+echo        PANfm %EDITION% v%VERSION% - Setup
+echo ======================================================================
 echo.
 
-REM Helper function simulation - Check and remove directories that should be files
-REM Windows doesn't have functions, so we use labels and goto
+REM =========================================
+REM Step 1: Create Configuration Files
+REM =========================================
+echo [1/3] Creating configuration files...
 
 REM ============================================================
 REM Create settings.json if it doesn't exist
 REM ============================================================
 if exist "settings.json\" (
-    echo   Warning: Removing directory 'settings.json' ^(should be a file^)
+    echo   [!] Removing directory 'settings.json' ^(should be a file^)
     rmdir /s /q "settings.json"
 )
 
 if not exist "settings.json" (
-    echo Creating settings.json...
     (
         echo {
-        echo   "refresh_interval": 15,
+        echo   "refresh_interval": 30,
         echo   "debug_logging": false,
         echo   "selected_device_id": "",
         echo   "monitored_interface": "ethernet1/12",
@@ -28,21 +48,27 @@ if not exist "settings.json" (
         echo   "timezone": "UTC"
         echo }
     ) > settings.json
-    echo [OK] settings.json created
+    if !errorlevel! equ 0 (
+        echo   [+] Created settings.json
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create settings.json
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] settings.json already exists
+    echo   [+] settings.json ^(exists^)
+    set /a EXISTED+=1
 )
 
 REM ============================================================
 REM Create devices.json if it doesn't exist
 REM ============================================================
 if exist "devices.json\" (
-    echo   Warning: Removing directory 'devices.json' ^(should be a file^)
+    echo   [!] Removing directory 'devices.json' ^(should be a file^)
     rmdir /s /q "devices.json"
 )
 
 if not exist "devices.json" (
-    echo Creating devices.json...
     (
         echo {
         echo   "devices": [],
@@ -54,154 +80,245 @@ if not exist "devices.json" (
         echo   ]
         echo }
     ) > devices.json
-    echo [OK] devices.json created
+    if !errorlevel! equ 0 (
+        echo   [+] Created devices.json
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create devices.json
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] devices.json already exists
+    echo   [+] devices.json ^(exists^)
+    set /a EXISTED+=1
 )
 
 REM ============================================================
 REM Create encryption.key if it doesn't exist
 REM ============================================================
 if exist "encryption.key\" (
-    echo   Warning: Removing directory 'encryption.key' ^(should be a file^)
+    echo   [!] Removing directory 'encryption.key' ^(should be a file^)
     rmdir /s /q "encryption.key"
 )
 
 if not exist "encryption.key" (
-    echo Creating encryption.key...
-    python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())" > encryption.key
-    icacls encryption.key /inheritance:r /grant:r "%USERNAME%:(R,W)" 2>nul
-    echo [OK] encryption.key created ^(permissions: read/write for current user only^)
+    python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())" > encryption.key 2>nul
+    if !errorlevel! equ 0 (
+        icacls encryption.key /inheritance:r /grant:r "%USERNAME%:(R,W)" >nul 2>&1
+        echo   [+] Created encryption.key
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create encryption.key ^(Python required^)
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] encryption.key already exists
-    REM Ensure correct permissions even if file exists
-    icacls encryption.key /inheritance:r /grant:r "%USERNAME%:(R,W)" 2>nul
+    icacls encryption.key /inheritance:r /grant:r "%USERNAME%:(R,W)" >nul 2>&1
+    echo   [+] encryption.key ^(exists^)
+    set /a EXISTED+=1
 )
 
 REM ============================================================
 REM Create auth.json if it doesn't exist
 REM ============================================================
 if exist "auth.json\" (
-    echo   Warning: Removing directory 'auth.json' ^(should be a file^)
+    echo   [!] Removing directory 'auth.json' ^(should be a file^)
     rmdir /s /q "auth.json"
 )
 
 if not exist "auth.json" (
-    echo Creating auth.json with default credentials ^(admin/admin^)...
-
-    python -c "import json; import sys; try: import bcrypt; hashed = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'); auth_data = {'users': {'admin': {'password_hash': hashed, 'must_change_password': True}}}; json.dump(auth_data, open('auth.json', 'w'), indent=2); print('Generated default admin credentials'); except ImportError: open('auth.json', 'w').write(''); print('Warning: bcrypt not installed, creating empty auth.json (app will initialize)');" 2>nul || type nul > auth.json
-
-    echo [OK] auth.json created with default admin/admin credentials
-    echo   ^(Password must be changed on first login^)
+    python -c "import json; import bcrypt; hashed = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'); auth_data = {'users': {'admin': {'password_hash': hashed, 'must_change_password': True}}}; json.dump(auth_data, open('auth.json', 'w'), indent=2)" 2>nul
+    if !errorlevel! neq 0 (
+        REM bcrypt not available, create empty file
+        type nul > auth.json
+    )
+    echo   [+] Created auth.json ^(admin/admin^)
+    set /a CREATED+=1
 ) else (
-    echo [OK] auth.json already exists
+    echo   [+] auth.json ^(exists^)
+    set /a EXISTED+=1
 )
 
 REM ============================================================
 REM Create device_metadata.json if it doesn't exist
 REM ============================================================
 if exist "device_metadata.json\" (
-    echo   Warning: Removing directory 'device_metadata.json' ^(should be a file^)
+    echo   [!] Removing directory 'device_metadata.json' ^(should be a file^)
     rmdir /s /q "device_metadata.json"
 )
 
 if not exist "device_metadata.json" (
-    echo Creating device_metadata.json...
-
-    python -c "import json; import os; try: from encryption import encrypt_dict; encrypted_data = encrypt_dict({}); json.dump(encrypted_data, open('device_metadata.json', 'w'), indent=2); os.chmod('device_metadata.json', 0o600); print('Created encrypted device_metadata.json'); except ImportError: json.dump({}, open('device_metadata.json', 'w'), indent=2); os.chmod('device_metadata.json', 0o600); print('Created device_metadata.json (will be encrypted on first app load)'); except Exception as e: open('device_metadata.json', 'w').write(''); print(f'Created empty device_metadata.json (app will initialize: {e}');" 2>nul || type nul > device_metadata.json
-
-    echo [OK] device_metadata.json created
+    echo {} > device_metadata.json
+    if !errorlevel! equ 0 (
+        icacls device_metadata.json /inheritance:r /grant:r "%USERNAME%:(R,W)" >nul 2>&1
+        echo   [+] Created device_metadata.json
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create device_metadata.json
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] device_metadata.json already exists
+    echo   [+] device_metadata.json ^(exists^)
+    set /a EXISTED+=1
 )
 
 REM ============================================================
 REM Create mac_vendor_db.json if it doesn't exist
 REM ============================================================
 if exist "mac_vendor_db.json\" (
-    echo   Warning: Removing directory 'mac_vendor_db.json' ^(should be a file^)
+    echo   [!] Removing directory 'mac_vendor_db.json' ^(should be a file^)
     rmdir /s /q "mac_vendor_db.json"
 )
 
 if not exist "mac_vendor_db.json" (
-    echo Creating mac_vendor_db.json ^(empty^)...
     echo [] > mac_vendor_db.json
-    echo [OK] mac_vendor_db.json created ^(upload database via Settings ^> Databases^)
+    if !errorlevel! equ 0 (
+        echo   [+] Created mac_vendor_db.json
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create mac_vendor_db.json
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] mac_vendor_db.json already exists
+    echo   [+] mac_vendor_db.json ^(exists^)
+    set /a EXISTED+=1
 )
 
 REM ============================================================
 REM Create service_port_db.json if it doesn't exist
 REM ============================================================
 if exist "service_port_db.json\" (
-    echo   Warning: Removing directory 'service_port_db.json' ^(should be a file^)
+    echo   [!] Removing directory 'service_port_db.json' ^(should be a file^)
     rmdir /s /q "service_port_db.json"
 )
 
 if not exist "service_port_db.json" (
-    echo Creating service_port_db.json ^(empty^)...
     echo {} > service_port_db.json
-    echo [OK] service_port_db.json created ^(upload database via Settings ^> Databases^)
+    if !errorlevel! equ 0 (
+        echo   [+] Created service_port_db.json
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create service_port_db.json
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] service_port_db.json already exists
+    echo   [+] service_port_db.json ^(exists^)
+    set /a EXISTED+=1
 )
 
-REM ============================================================
-REM v2.0.0: SQLite databases removed - migrated to TimescaleDB
-REM ============================================================
-REM throughput_history.db → TimescaleDB (throughput_history hypertable)
-REM alerts.db → TimescaleDB (alert_history, alert_configs tables)
-REM nmap_scans.db → TimescaleDB (nmap_scan_history hypertable)
-REM Database schema automatically initialized by init_timescaledb.sql
+echo.
 
-REM ============================================================
-REM Create data directory if it doesn't exist
-REM ============================================================
+REM =========================================
+REM Step 2: Create Data Directories
+REM =========================================
+echo [2/3] Creating data directories...
+
 if not exist "data" (
-    echo Creating data directory...
     mkdir data
-    echo [OK] data directory created
+    if !errorlevel! equ 0 (
+        echo   [+] Created data/
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create data/
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] data directory already exists
+    echo   [+] data/ ^(exists^)
+    set /a EXISTED+=1
 )
 
-REM ============================================================
-REM Create redis_data directory if it doesn't exist (v2.0.0)
-REM ============================================================
 if not exist "redis_data" (
-    echo Creating redis_data directory ^(Redis AOF persistence^)...
     mkdir redis_data
-    echo [OK] redis_data directory created
+    if !errorlevel! equ 0 (
+        echo   [+] Created redis_data/
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create redis_data/
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] redis_data directory already exists
+    echo   [+] redis_data/ ^(exists^)
+    set /a EXISTED+=1
 )
 
-REM ============================================================
-REM Create timescaledb_data directory if it doesn't exist (v2.0.0)
-REM ============================================================
 if not exist "timescaledb_data" (
-    echo Creating timescaledb_data directory ^(PostgreSQL data files^)...
     mkdir timescaledb_data
-    echo [OK] timescaledb_data directory created
+    if !errorlevel! equ 0 (
+        echo   [+] Created timescaledb_data/
+        set /a CREATED+=1
+    ) else (
+        echo   [X] Failed to create timescaledb_data/
+        set /a ERRORS+=1
+    )
 ) else (
-    echo [OK] timescaledb_data directory already exists
+    echo   [+] timescaledb_data/ ^(exists^)
+    set /a EXISTED+=1
 )
 
 echo.
-echo ============================================================
-echo Setup complete! PANfm Community v1.0.16 is ready to start
-echo ============================================================
+
+REM =========================================
+REM Step 3: Validate Installation
+REM =========================================
+echo [3/3] Validating installation...
+
+set VALIDATION_ERRORS=0
+
+REM Check required files
+for %%f in (settings.json devices.json encryption.key auth.json device_metadata.json mac_vendor_db.json service_port_db.json) do (
+    if not exist "%%f" (
+        echo   [X] Missing: %%f
+        set /a VALIDATION_ERRORS+=1
+    ) else if exist "%%f\" (
+        echo   [X] Is directory: %%f
+        set /a VALIDATION_ERRORS+=1
+    )
+)
+
+REM Check required directories
+for %%d in (data redis_data timescaledb_data) do (
+    if not exist "%%d\" (
+        echo   [X] Missing directory: %%d
+        set /a VALIDATION_ERRORS+=1
+    )
+)
+
+if %VALIDATION_ERRORS% equ 0 (
+    echo   [+] All files and directories validated
+)
+
 echo.
-echo Run: docker compose up -d
+
+REM =========================================
+REM Results
+REM =========================================
+
+set /a TOTAL_ERRORS=%ERRORS%+%VALIDATION_ERRORS%
+
+if %TOTAL_ERRORS% gtr 0 (
+    echo ======================================================================
+    echo   [X] ERROR: Setup failed with %TOTAL_ERRORS% error^(s^)
+    echo ======================================================================
+    echo.
+    echo Please check:
+    echo   - Python 3 is installed and in PATH
+    echo   - You have write permissions in this directory
+    echo   - No conflicting directories exist
+    echo.
+    exit /b 1
+)
+
+echo ======================================================================
+echo   [+] PANfm %EDITION% v%VERSION% is ready!
+echo ======================================================================
 echo.
-echo First startup notes:
-echo   - Redis will initialize session store automatically
-echo   - TimescaleDB will create schema from init_timescaledb.sql
-echo   - Web UI will be available at http://localhost:3000
-echo   - First startup may take 60-90 seconds for database initialization
+echo   Files created: %CREATED%
+echo   Files existed: %EXISTED%
 echo.
-echo Post-setup:
-echo   - Default login: admin / admin ^(change on first login^)
-echo   - Upload MAC vendor and service port databases via Settings ^> Databases
+echo Next steps:
+echo   1. docker compose up -d
+echo   2. Open http://localhost:3000
+echo   3. Login with admin / admin ^(change password on first login^)
 echo.
+echo First startup takes ~60 seconds for database initialization.
+echo.
+
+endlocal
