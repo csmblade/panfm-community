@@ -1253,22 +1253,45 @@ class TimescaleStorage:
             conn = self._get_connection()
             cursor = conn.cursor(cursor_factory=RealDictCursor)
 
+            # Use subquery to first find top client by bytes, then get most recent hostname/custom_name
+            # This avoids GROUP BY splitting records with different hostname values
             cursor.execute('''
+                WITH top_client AS (
+                    SELECT
+                        client_ip,
+                        SUM(bytes_sent) AS bytes_sent,
+                        SUM(bytes_received) AS bytes_received,
+                        SUM(bytes_total) AS bytes_total
+                    FROM client_bandwidth
+                    WHERE device_id = %s
+                      AND traffic_type = %s
+                      AND time > NOW() - INTERVAL '%s minutes'
+                    GROUP BY client_ip
+                    ORDER BY bytes_total DESC
+                    LIMIT 1
+                ),
+                latest_metadata AS (
+                    SELECT DISTINCT ON (client_ip)
+                        client_ip,
+                        hostname,
+                        custom_name
+                    FROM client_bandwidth
+                    WHERE device_id = %s
+                      AND traffic_type = %s
+                      AND time > NOW() - INTERVAL '%s minutes'
+                      AND (hostname IS NOT NULL OR custom_name IS NOT NULL)
+                    ORDER BY client_ip, time DESC
+                )
                 SELECT
-                    client_ip::text AS ip,
-                    hostname,
-                    custom_name,
-                    SUM(bytes_sent) AS bytes_sent,
-                    SUM(bytes_received) AS bytes_received,
-                    SUM(bytes_total) AS bytes_total
-                FROM client_bandwidth
-                WHERE device_id = %s
-                  AND traffic_type = %s
-                  AND time > NOW() - INTERVAL '%s minutes'
-                GROUP BY client_ip, hostname, custom_name
-                ORDER BY bytes_total DESC
-                LIMIT 1
-            ''', (device_id, traffic_type, minutes))
+                    tc.client_ip::text AS ip,
+                    COALESCE(lm.hostname, '') AS hostname,
+                    COALESCE(lm.custom_name, '') AS custom_name,
+                    tc.bytes_sent,
+                    tc.bytes_received,
+                    tc.bytes_total
+                FROM top_client tc
+                LEFT JOIN latest_metadata lm ON tc.client_ip = lm.client_ip
+            ''', (device_id, traffic_type, minutes, device_id, traffic_type, minutes))
 
             row = cursor.fetchone()
             return dict(row) if row else None
