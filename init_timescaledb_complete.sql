@@ -905,10 +905,8 @@ SELECT create_hypertable(
     if_not_exists => TRUE
 );
 
--- Add foreign key constraint after hypertable creation
-ALTER TABLE alert_history
-    ADD CONSTRAINT fk_alert_history_config
-    FOREIGN KEY (alert_config_id) REFERENCES alert_configs(id) ON DELETE CASCADE;
+-- Note: FK constraint to alert_configs removed - hypertables don't support FK constraints well
+-- Application code handles referential integrity
 
 -- Index for device and time-based queries
 CREATE INDEX IF NOT EXISTS idx_alert_history_device_time
