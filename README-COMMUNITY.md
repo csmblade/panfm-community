@@ -74,9 +74,9 @@ cd panfm-community
 ```bash
 # Linux/Mac
 chmod +x setup.sh
-./setup.sh
+sudo ./setup.sh
 
-# Windows
+# Windows (Run as Administrator)
 setup.bat
 ```
 
@@ -89,6 +89,10 @@ This creates required configuration files and directories:
 
 ### 3. Start Application
 ```bash
+# Linux/Mac
+sudo docker compose up -d
+
+# Windows (Run as Administrator)
 docker compose up -d
 ```
 
@@ -109,11 +113,11 @@ Open browser to: **http://localhost:3000**
 ### Verify Installation
 ```bash
 # Check all containers are running
-docker compose ps
+sudo docker compose ps
 
 # Check for any startup errors
-docker logs panfm
-docker logs panfm-clock
+sudo docker logs panfm
+sudo docker logs panfm-clock
 ```
 
 ## 🔧 Configuration

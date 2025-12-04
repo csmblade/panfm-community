@@ -1189,6 +1189,211 @@ class TimescaleStorage:
             if conn:
                 self._return_connection(conn)
 
+    def get_threat_dashboard(self, device_id: str, hours: int = 6, bucket_minutes: int = 10) -> Dict:
+        """
+        Get comprehensive threat dashboard data for analytics.
+
+        v1.0.17: New multi-panel threat dashboard with:
+        - Rate-based timeline (threats per time bucket by severity)
+        - Top threat sources (source IPs)
+        - Action breakdown (blocked vs allowed vs alert)
+        - Threat type categories
+
+        Args:
+            device_id: Device identifier
+            hours: Number of hours to look back
+            bucket_minutes: Size of each time bucket in minutes
+
+        Returns:
+            Dict with comprehensive threat analytics data
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            # 1. Severity breakdown timeline (stacked area chart data)
+            # Match main dashboard categories: Critical, High, Medium, URL Blocked
+            severity_query = """
+                SELECT
+                    time_bucket(INTERVAL '%s minutes', time) AS bucket,
+                    severity,
+                    COUNT(*) as count
+                FROM threat_logs
+                WHERE device_id = %s
+                  AND time >= NOW() - INTERVAL '%s hours'
+                GROUP BY bucket, severity
+                ORDER BY bucket
+            """
+            cursor.execute(severity_query % (bucket_minutes, '%s', hours), (device_id,))
+            severity_rows = cursor.fetchall()
+
+            # Build severity timeline (organize by bucket with severity breakdown)
+            # Categories: critical, high, medium, url (matches main dashboard)
+            severity_timeline = {}
+            for row in severity_rows:
+                bucket_key = row['bucket'].isoformat() if row['bucket'] else None
+                if bucket_key:
+                    if bucket_key not in severity_timeline:
+                        severity_timeline[bucket_key] = {
+                            'bucket': bucket_key,
+                            'critical': 0, 'high': 0, 'medium': 0, 'url': 0
+                        }
+                    sev = row['severity']
+                    if sev == 'url-filter':
+                        severity_timeline[bucket_key]['url'] += int(row['count'])
+                    elif sev in ('critical', 'high', 'medium'):
+                        severity_timeline[bucket_key][sev] = int(row['count'])
+
+            # Convert to sorted list
+            severity_data = sorted(severity_timeline.values(), key=lambda x: x['bucket'])
+
+            # 2. Top threat sources (horizontal bar chart)
+            sources_query = """
+                SELECT
+                    source_ip,
+                    COUNT(*) as count,
+                    COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical_count,
+                    COUNT(CASE WHEN severity = 'high' THEN 1 END) as high_count
+                FROM threat_logs
+                WHERE device_id = %s
+                  AND time >= NOW() - INTERVAL '%s hours'
+                  AND source_ip IS NOT NULL
+                  AND source_ip != ''
+                GROUP BY source_ip
+                ORDER BY count DESC
+                LIMIT 10
+            """
+            cursor.execute(sources_query % ('%s', hours), (device_id,))
+            top_sources = [
+                {
+                    'ip': row['source_ip'],
+                    'count': int(row['count']),
+                    'critical': int(row['critical_count']),
+                    'high': int(row['high_count'])
+                }
+                for row in cursor.fetchall()
+            ]
+
+            # 3. Action breakdown (donut chart)
+            action_query = """
+                SELECT
+                    COALESCE(action, 'unknown') as action,
+                    COUNT(*) as count
+                FROM threat_logs
+                WHERE device_id = %s
+                  AND time >= NOW() - INTERVAL '%s hours'
+                GROUP BY action
+                ORDER BY count DESC
+            """
+            cursor.execute(action_query % ('%s', hours), (device_id,))
+            action_breakdown = [
+                {'action': row['action'], 'count': int(row['count'])}
+                for row in cursor.fetchall()
+            ]
+
+            # Categorize actions for simpler display
+            blocked = 0
+            allowed = 0
+            alerted = 0
+            other = 0
+            for a in action_breakdown:
+                action_lower = a['action'].lower() if a['action'] else ''
+                if 'block' in action_lower or 'drop' in action_lower or 'deny' in action_lower:
+                    blocked += a['count']
+                elif 'allow' in action_lower or 'pass' in action_lower:
+                    allowed += a['count']
+                elif 'alert' in action_lower:
+                    alerted += a['count']
+                else:
+                    other += a['count']
+
+            action_summary = {
+                'blocked': blocked,
+                'allowed': allowed,
+                'alerted': alerted,
+                'other': other
+            }
+
+            # 4. Threat categories (from threat field patterns)
+            category_query = """
+                SELECT
+                    CASE
+                        WHEN threat ILIKE '%spyware%' THEN 'Spyware'
+                        WHEN threat ILIKE '%virus%' OR threat ILIKE '%malware%' THEN 'Malware'
+                        WHEN threat ILIKE '%exploit%' THEN 'Exploit'
+                        WHEN threat ILIKE '%vulnerability%' OR threat ILIKE '%cve-%' THEN 'Vulnerability'
+                        WHEN threat ILIKE '%phishing%' THEN 'Phishing'
+                        WHEN threat ILIKE '%brute%' OR threat ILIKE '%scan%' THEN 'Reconnaissance'
+                        WHEN threat ILIKE '%flood%' OR threat ILIKE '%dos%' THEN 'DoS'
+                        WHEN threat ILIKE '%command%' OR threat ILIKE '%injection%' THEN 'Injection'
+                        ELSE 'Other'
+                    END as category,
+                    COUNT(*) as count
+                FROM threat_logs
+                WHERE device_id = %s
+                  AND time >= NOW() - INTERVAL '%s hours'
+                  AND threat IS NOT NULL
+                GROUP BY category
+                ORDER BY count DESC
+            """
+            cursor.execute(category_query % ('%s', hours), (device_id,))
+            threat_categories = [
+                {'category': row['category'], 'count': int(row['count'])}
+                for row in cursor.fetchall()
+            ]
+
+            # 5. Severity totals (matches main dashboard: critical, high, medium, url)
+            totals_query = """
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical,
+                    COUNT(CASE WHEN severity = 'high' THEN 1 END) as high,
+                    COUNT(CASE WHEN severity = 'medium' THEN 1 END) as medium,
+                    COUNT(CASE WHEN severity = 'url-filter' THEN 1 END) as url
+                FROM threat_logs
+                WHERE device_id = %s
+                  AND time >= NOW() - INTERVAL '%s hours'
+            """
+            cursor.execute(totals_query % ('%s', hours), (device_id,))
+            totals_row = cursor.fetchone()
+
+            cursor.close()
+
+            result = {
+                'total_threats': int(totals_row['total']) if totals_row else 0,
+                'severity_totals': {
+                    'critical': int(totals_row['critical']) if totals_row else 0,
+                    'high': int(totals_row['high']) if totals_row else 0,
+                    'medium': int(totals_row['medium']) if totals_row else 0,
+                    'url': int(totals_row['url']) if totals_row else 0
+                },
+                'severity_timeline': severity_data,
+                'top_sources': top_sources,
+                'action_summary': action_summary,
+                'threat_categories': threat_categories
+            }
+
+            debug("Threat dashboard: %d total, %d timeline buckets, %d sources, %d categories",
+                  result['total_threats'], len(severity_data), len(top_sources), len(threat_categories))
+
+            return result
+
+        except Exception as e:
+            exception("Failed to get threat dashboard: %s", str(e))
+            return {
+                'total_threats': 0,
+                'severity_totals': {'critical': 0, 'high': 0, 'medium': 0, 'url': 0},
+                'severity_timeline': [],
+                'top_sources': [],
+                'action_summary': {'blocked': 0, 'allowed': 0, 'alerted': 0, 'other': 0},
+                'threat_categories': []
+            }
+
+        finally:
+            if conn:
+                self._return_connection(conn)
+
     # ============================================================================
     # Analytics Query Methods (for Top Category/Clients Dashboard Tiles)
     # ============================================================================

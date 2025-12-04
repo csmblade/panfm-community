@@ -1494,15 +1494,87 @@
                     </div>
                 </div>
 
-                <!-- Threat Count Timeline Chart -->
-                <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #F2F0EF; margin-bottom: 25px;">
-                    <h2 style="color: #F2F0EF; margin: 0 0 20px 0; font-size: 1.4em; font-family: var(--font-primary);">Threat Detection Timeline</h2>
-                    <div style="position: relative; height: 300px;">
-                        <canvas id="analyticsThreatsChart"></canvas>
+                <!-- Threat Detection Dashboard (v1.0.17: Multi-panel tabbed view) -->
+                <div style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; padding: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-top: 4px solid #D32F2F; margin-bottom: 25px;">
+                    <!-- Header with title and tabs -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+                        <h2 style="color: #F2F0EF; margin: 0; font-size: 1.4em; font-family: var(--font-primary);">
+                            Threat Detection Dashboard
+                            <span id="threatTotalBadge" style="background: #D32F2F; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.65em; margin-left: 10px; vertical-align: middle;">0 threats</span>
+                        </h2>
+                        <!-- Tab navigation -->
+                        <div style="display: flex; gap: 5px; background: #1a1a1a; padding: 4px; border-radius: 8px;">
+                            <button onclick="switchThreatTab('timeline')" id="threatTabTimeline" class="threat-tab active" style="padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-secondary); font-size: 0.85em; transition: all 0.2s; background: #D32F2F; color: white;">Timeline</button>
+                            <button onclick="switchThreatTab('sources')" id="threatTabSources" class="threat-tab" style="padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-secondary); font-size: 0.85em; transition: all 0.2s; background: transparent; color: #999;">Top Sources</button>
+                            <button onclick="switchThreatTab('actions')" id="threatTabActions" class="threat-tab" style="padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-secondary); font-size: 0.85em; transition: all 0.2s; background: transparent; color: #999;">Actions</button>
+                            <button onclick="switchThreatTab('categories')" id="threatTabCategories" class="threat-tab" style="padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-family: var(--font-secondary); font-size: 0.85em; transition: all 0.2s; background: transparent; color: #999;">Categories</button>
+                        </div>
                     </div>
 
-                    <!-- v1.0.14: Removed threat stats grid - stats were based on broken throughput_history data -->
-                    <!-- The chart above now uses dedicated /api/threats/timeline endpoint for accurate counts -->
+                    <!-- Severity summary bar (matches main dashboard: Critical, High, Medium, URL) -->
+                    <div id="threatSeveritySummary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                        <div style="background: linear-gradient(135deg, #b71c1c 0%, #c62828 100%); padding: 12px 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: rgba(255,255,255,0.8); font-size: 0.75em; font-family: var(--font-primary); text-transform: uppercase;">Critical</div>
+                            <div id="threatCriticalCount" style="font-size: 1.8em; font-weight: 700; color: white; font-family: var(--font-primary);">0</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #e65100 0%, #ef6c00 100%); padding: 12px 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: rgba(255,255,255,0.8); font-size: 0.75em; font-family: var(--font-primary); text-transform: uppercase;">High</div>
+                            <div id="threatHighCount" style="font-size: 1.8em; font-weight: 700; color: white; font-family: var(--font-primary);">0</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #f9a825 0%, #fbc02d 100%); padding: 12px 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: rgba(0,0,0,0.7); font-size: 0.75em; font-family: var(--font-primary); text-transform: uppercase;">Medium</div>
+                            <div id="threatMediumCount" style="font-size: 1.8em; font-weight: 700; color: rgba(0,0,0,0.8); font-family: var(--font-primary);">0</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #1565C0 0%, #1976D2 100%); padding: 12px 15px; border-radius: 8px; text-align: center;">
+                            <div style="color: rgba(255,255,255,0.8); font-size: 0.75em; font-family: var(--font-primary); text-transform: uppercase;">URL Blocked</div>
+                            <div id="threatUrlCount" style="font-size: 1.8em; font-weight: 700; color: white; font-family: var(--font-primary);">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Tab content panels -->
+                    <!-- Timeline Tab (default) -->
+                    <div id="threatPanelTimeline" class="threat-panel" style="display: block;">
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="analyticsThreatsChart"></canvas>
+                        </div>
+                        <p style="color: #666; font-size: 0.85em; margin: 15px 0 0 0; text-align: center; font-family: var(--font-secondary);">
+                            Stacked area chart showing threat severity distribution over time
+                        </p>
+                    </div>
+
+                    <!-- Top Sources Tab -->
+                    <div id="threatPanelSources" class="threat-panel" style="display: none;">
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="threatSourcesChart"></canvas>
+                        </div>
+                        <p style="color: #666; font-size: 0.85em; margin: 15px 0 0 0; text-align: center; font-family: var(--font-secondary);">
+                            Top 10 source IPs generating threats in the selected time range
+                        </p>
+                    </div>
+
+                    <!-- Actions Tab -->
+                    <div id="threatPanelActions" class="threat-panel" style="display: none;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: center;">
+                            <div style="position: relative; height: 280px;">
+                                <canvas id="threatActionsChart"></canvas>
+                            </div>
+                            <div id="threatActionsLegend" style="padding: 20px;">
+                                <!-- Legend populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categories Tab -->
+                    <div id="threatPanelCategories" class="threat-panel" style="display: none;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: center;">
+                            <div style="position: relative; height: 280px;">
+                                <canvas id="threatCategoriesChart"></canvas>
+                            </div>
+                            <div id="threatCategoriesLegend" style="padding: 20px;">
+                                <!-- Legend populated by JS -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Multi-Metric Comparison Dashboard (5 Mini-Charts) - v1.0.14: Reduced from 6 -->

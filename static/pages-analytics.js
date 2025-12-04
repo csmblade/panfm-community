@@ -1,7 +1,7 @@
 /**
  * PANfm Insights Dashboard Module
  * Provides historical data analysis, trend visualization, and log search capabilities
- * @version 1.12.0
+ * @version 1.17.0
  */
 
 // Analytics state
@@ -10,6 +10,11 @@ let analyticsCpuChart = null;
 let analyticsMemoryChart = null;
 let analyticsSessionsChart = null;
 let analyticsThreatsChart = null;
+// v1.0.17: New threat dashboard charts
+let threatSourcesChart = null;
+let threatActionsChart = null;
+let threatCategoriesChart = null;
+let threatDashboardData = null;  // Cache for threat dashboard data
 let comparisonChart1 = null; // Throughput vs Sessions
 let comparisonChart2 = null; // CPU vs Memory
 let comparisonChart3 = null; // TCP vs UDP
@@ -45,6 +50,9 @@ window.initAnalyticsPage = function() {
     if (!analyticsThreatsChart) {
         initAnalyticsThreatsChart();
     }
+
+    // v1.0.17: Initialize threat dashboard charts
+    initThreatDashboardCharts();
 
     // Initialize comparison charts
     if (!comparisonChart1) {
@@ -582,7 +590,7 @@ function initAnalyticsSessionsChart() {
 }
 
 /**
- * Initialize the threat count timeline chart
+ * Initialize the threat count timeline chart (v1.0.17: Stacked area by severity)
  */
 function initAnalyticsThreatsChart() {
     const ctx = document.getElementById('analyticsThreatsChart');
@@ -595,21 +603,52 @@ function initAnalyticsThreatsChart() {
         type: 'line',
         data: {
             labels: [],
-            datasets: [{
-                label: 'New Threats',
-                data: [],
-                backgroundColor: 'rgba(211, 47, 47, 0.2)',  // Semi-transparent red fill
-                borderColor: '#D32F2F',  // Solid red line
-                borderWidth: 2,
-                fill: true,  // Enable area fill
-                tension: 0.4,  // Smooth curve
-                pointRadius: 0,  // Hide points for cleaner look
-                pointHitRadius: 10,  // But make them clickable
-                pointHoverRadius: 4,  // Show on hover
-                pointHoverBackgroundColor: '#D32F2F',
-                pointHoverBorderColor: '#fff',
-                pointHoverBorderWidth: 2
-            }]
+            datasets: [
+                {
+                    label: 'Critical',
+                    data: [],
+                    backgroundColor: 'rgba(183, 28, 28, 0.7)',
+                    borderColor: '#b71c1c',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                },
+                {
+                    label: 'High',
+                    data: [],
+                    backgroundColor: 'rgba(230, 81, 0, 0.7)',
+                    borderColor: '#e65100',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                },
+                {
+                    label: 'Medium',
+                    data: [],
+                    backgroundColor: 'rgba(249, 168, 37, 0.7)',
+                    borderColor: '#f9a825',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                },
+                {
+                    label: 'URL Blocked',
+                    data: [],
+                    backgroundColor: 'rgba(21, 101, 192, 0.7)',
+                    borderColor: '#1565C0',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                }
+            ]
         },
         options: {
             responsive: true,
@@ -623,32 +662,26 @@ function initAnalyticsThreatsChart() {
                     display: false
                 },
                 legend: {
-                    display: false
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#F2F0EF',
+                        font: { family: "'Roboto', sans-serif", size: 11 },
+                        usePointStyle: true,
+                        padding: 15
+                    }
                 },
                 tooltip: {
                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    titleFont: {
-                        family: "'Roboto', sans-serif",
-                        size: 13,
-                        weight: 'bold'
-                    },
-                    bodyFont: {
-                        family: "'Open Sans', sans-serif",
-                        size: 12
-                    },
+                    titleFont: { family: "'Roboto', sans-serif", size: 13, weight: 'bold' },
+                    bodyFont: { family: "'Open Sans', sans-serif", size: 12 },
                     padding: 12,
                     cornerRadius: 6,
-                    displayColors: false,
+                    displayColors: true,
                     callbacks: {
-                        label: function(context) {
-                            const count = context.parsed.y;
-                            if (count === 0) {
-                                return 'No new threats';
-                            } else if (count === 1) {
-                                return '1 new threat detected';
-                            } else {
-                                return count.toLocaleString() + ' new threats detected';
-                            }
+                        footer: function(tooltipItems) {
+                            const total = tooltipItems.reduce((sum, item) => sum + item.parsed.y, 0);
+                            return 'Total: ' + total.toLocaleString() + ' threats';
                         }
                     }
                 }
@@ -656,31 +689,23 @@ function initAnalyticsThreatsChart() {
             scales: {
                 x: {
                     display: true,
-                    grid: {
-                        display: false
-                    },
+                    stacked: true,
+                    grid: { display: false },
                     ticks: {
                         color: '#F2F0EF',
-                        font: {
-                            family: "'Open Sans', sans-serif",
-                            size: 10
-                        },
+                        font: { family: "'Open Sans', sans-serif", size: 10 },
                         maxRotation: 45,
                         minRotation: 0
                     }
                 },
                 y: {
                     display: true,
+                    stacked: true,
                     beginAtZero: true,
-                    grid: {
-                        color: 'rgba(242, 240, 239, 0.1)'
-                    },
+                    grid: { color: 'rgba(242, 240, 239, 0.1)' },
                     ticks: {
                         color: '#F2F0EF',
-                        font: {
-                            family: "'Open Sans', sans-serif",
-                            size: 10
-                        },
+                        font: { family: "'Open Sans', sans-serif", size: 10 },
                         callback: function(value) {
                             return value.toLocaleString();
                         }
@@ -1191,68 +1216,94 @@ function updateSessionsChart(samples) {
 }
 
 /**
- * Load threat timeline data from dedicated API endpoint
- * v1.0.13: Fixed bug where overlapping 5-min sliding windows caused
- * inflated counts (17,000+ shown instead of actual ~50). Now queries
- * threat_logs directly with TimescaleDB time_bucket() for accurate counts.
+ * Load threat dashboard data from comprehensive API endpoint
+ * v1.0.17: New multi-panel threat dashboard with severity breakdown,
+ * top sources, action summary, and threat categories.
  *
  * @param {string} range - Time range (1h, 6h, 24h, 7d, 30d)
  */
 async function loadThreatTimeline(range) {
-    if (!analyticsThreatsChart) return;
-
     // Use same device ID source as other analytics charts
     const deviceId = window.currentDeviceId || '';
     if (!deviceId) {
-        console.warn('No device selected for threat timeline');
+        console.warn('No device selected for threat dashboard');
         return;
     }
 
     try {
-        const response = await fetch(`/api/threats/timeline?device_id=${encodeURIComponent(deviceId)}&range=${range}`);
+        // v1.0.17: Use new dashboard endpoint for comprehensive data
+        const response = await fetch(`/api/threats/dashboard?device_id=${encodeURIComponent(deviceId)}&range=${range}`);
 
         if (!response.ok) {
-            console.error(`Failed to fetch threat timeline: ${response.status}`);
+            console.error(`Failed to fetch threat dashboard: ${response.status}`);
             return;
         }
 
         const data = await response.json();
 
-        if (data.status === 'success' && data.timeline) {
-            updateThreatsChart(data.timeline, data.total_threats);
+        if (data.status === 'success') {
+            // Cache the data for tab switching
+            threatDashboardData = data;
+
+            // Update all dashboard components
+            updateThreatSummary(data);
+            updateThreatsChart(data.severity_timeline);
+            updateThreatSourcesChart(data.top_sources);
+            updateThreatActionsChart(data.action_summary);
+            updateThreatCategoriesChart(data.threat_categories);
+
+            console.log(`Threat dashboard loaded: ${data.total_threats} threats`);
         } else {
-            console.warn('No threat timeline data:', data.message || 'Unknown error');
-            // Clear the chart if no data
-            analyticsThreatsChart.data.labels = [];
-            analyticsThreatsChart.data.datasets[0].data = [];
-            analyticsThreatsChart.update();
+            console.warn('No threat dashboard data:', data.message || 'Unknown error');
+            clearThreatDashboard();
         }
     } catch (error) {
-        console.error('Error loading threat timeline:', error);
+        console.error('Error loading threat dashboard:', error);
+        clearThreatDashboard();
     }
 }
 
 /**
- * Update threats timeline chart with threat count data
- * v1.0.13: Now receives actual threat counts per time bucket from dedicated endpoint
- *
- * @param {Array} timeline - Array of {bucket, count} objects from /api/threats/timeline
- * @param {number} totalThreats - Pre-calculated total from backend
+ * Update threat summary counts and badge
  */
-function updateThreatsChart(timeline, totalThreats) {
-    if (!timeline || timeline.length === 0 || !analyticsThreatsChart) {
-        // Clear chart if no data
-        if (analyticsThreatsChart) {
-            analyticsThreatsChart.data.labels = [];
-            analyticsThreatsChart.data.datasets[0].data = [];
-            analyticsThreatsChart.update();
-        }
+function updateThreatSummary(data) {
+    // Update total badge
+    const badge = document.getElementById('threatTotalBadge');
+    if (badge) {
+        const total = data.total_threats || 0;
+        badge.textContent = total === 1 ? '1 threat' : `${total.toLocaleString()} threats`;
+    }
+
+    // Update severity counts (matches main dashboard: Critical, High, Medium, URL)
+    const totals = data.severity_totals || {};
+    document.getElementById('threatCriticalCount').textContent = (totals.critical || 0).toLocaleString();
+    document.getElementById('threatHighCount').textContent = (totals.high || 0).toLocaleString();
+    document.getElementById('threatMediumCount').textContent = (totals.medium || 0).toLocaleString();
+    document.getElementById('threatUrlCount').textContent = (totals.url || 0).toLocaleString();
+}
+
+/**
+ * Update threats timeline chart with severity breakdown (stacked area)
+ * v1.0.17: Now shows Critical/High/Medium/URL as stacked areas (matches main dashboard)
+ *
+ * @param {Array} timeline - Array of {bucket, critical, high, medium, url} objects
+ */
+function updateThreatsChart(timeline) {
+    if (!analyticsThreatsChart) return;
+
+    if (!timeline || timeline.length === 0) {
+        analyticsThreatsChart.data.labels = [];
+        analyticsThreatsChart.data.datasets.forEach(ds => ds.data = []);
+        analyticsThreatsChart.update();
         console.log('Threats chart: No data to display');
         return;
     }
 
     const labels = [];
-    const threatsData = [];
+    const criticalData = [];
+    const highData = [];
+    const mediumData = [];
+    const urlData = [];
 
     timeline.forEach(item => {
         const date = new Date(item.bucket);
@@ -1270,16 +1321,61 @@ function updateThreatsChart(timeline, totalThreats) {
         }
 
         labels.push(label);
-        threatsData.push(item.count || 0);
+        criticalData.push(item.critical || 0);
+        highData.push(item.high || 0);
+        mediumData.push(item.medium || 0);
+        urlData.push(item.url || 0);
     });
 
     analyticsThreatsChart.data.labels = labels;
-    analyticsThreatsChart.data.datasets[0].data = threatsData;
+    analyticsThreatsChart.data.datasets[0].data = criticalData;
+    analyticsThreatsChart.data.datasets[1].data = highData;
+    analyticsThreatsChart.data.datasets[2].data = mediumData;
+    analyticsThreatsChart.data.datasets[3].data = urlData;
     analyticsThreatsChart.update();
 
-    // Use pre-calculated total from backend, or calculate from data
-    const total = totalThreats !== undefined ? totalThreats : threatsData.reduce((a, b) => a + b, 0);
-    console.log(`Threats chart updated with ${timeline.length} data points (${total} total threats in range)`);
+    const total = criticalData.reduce((a, b) => a + b, 0) +
+                  highData.reduce((a, b) => a + b, 0) +
+                  mediumData.reduce((a, b) => a + b, 0) +
+                  urlData.reduce((a, b) => a + b, 0);
+    console.log(`Threats chart updated with ${timeline.length} data points (${total} total threats)`);
+}
+
+/**
+ * Clear all threat dashboard displays
+ */
+function clearThreatDashboard() {
+    // Clear badge
+    const badge = document.getElementById('threatTotalBadge');
+    if (badge) badge.textContent = '0 threats';
+
+    // Clear severity counts (matches main dashboard: Critical, High, Medium, URL)
+    document.getElementById('threatCriticalCount').textContent = '0';
+    document.getElementById('threatHighCount').textContent = '0';
+    document.getElementById('threatMediumCount').textContent = '0';
+    document.getElementById('threatUrlCount').textContent = '0';
+
+    // Clear charts
+    if (analyticsThreatsChart) {
+        analyticsThreatsChart.data.labels = [];
+        analyticsThreatsChart.data.datasets.forEach(ds => ds.data = []);
+        analyticsThreatsChart.update();
+    }
+    if (threatSourcesChart) {
+        threatSourcesChart.data.labels = [];
+        threatSourcesChart.data.datasets[0].data = [];
+        threatSourcesChart.update();
+    }
+    if (threatActionsChart) {
+        threatActionsChart.data.labels = [];
+        threatActionsChart.data.datasets[0].data = [];
+        threatActionsChart.update();
+    }
+    if (threatCategoriesChart) {
+        threatCategoriesChart.data.labels = [];
+        threatCategoriesChart.data.datasets[0].data = [];
+        threatCategoriesChart.update();
+    }
 }
 
 /**
@@ -2015,5 +2111,287 @@ function restoreAnalyticsTimeRange() {
     }
 }
 
+// ============================================================================
+// Threat Dashboard Functions (v1.0.17)
+// ============================================================================
+
+/**
+ * Initialize all threat dashboard charts
+ */
+function initThreatDashboardCharts() {
+    // Sources Chart (horizontal bar)
+    const sourcesCtx = document.getElementById('threatSourcesChart');
+    if (sourcesCtx && !threatSourcesChart) {
+        threatSourcesChart = new Chart(sourcesCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Threats',
+                    data: [],
+                    backgroundColor: '#D32F2F',
+                    borderColor: '#b71c1c',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: { family: "'Roboto', sans-serif", size: 12 },
+                        bodyFont: { family: "'Open Sans', sans-serif", size: 11 },
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.x.toLocaleString() + ' threats';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(242, 240, 239, 0.1)' },
+                        ticks: { color: '#F2F0EF', font: { size: 10 } }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { color: '#F2F0EF', font: { family: 'monospace', size: 10 } }
+                    }
+                }
+            }
+        });
+    }
+
+    // Actions Chart (doughnut)
+    const actionsCtx = document.getElementById('threatActionsChart');
+    if (actionsCtx && !threatActionsChart) {
+        threatActionsChart = new Chart(actionsCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Blocked', 'Allowed', 'Alerted', 'Other'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#4CAF50', '#F44336', '#FF9800', '#9E9E9E'],
+                    borderColor: '#1a1a1a',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const pct = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                                return `${context.label}: ${context.parsed.toLocaleString()} (${pct}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Categories Chart (doughnut)
+    const categoriesCtx = document.getElementById('threatCategoriesChart');
+    if (categoriesCtx && !threatCategoriesChart) {
+        threatCategoriesChart = new Chart(categoriesCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: [
+                        '#D32F2F', '#E64A19', '#F57C00', '#FBC02D',
+                        '#689F38', '#00796B', '#0288D1', '#512DA8', '#616161'
+                    ],
+                    borderColor: '#1a1a1a',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const pct = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                                return `${context.label}: ${context.parsed.toLocaleString()} (${pct}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    console.log('Threat dashboard charts initialized');
+}
+
+/**
+ * Update threat sources horizontal bar chart
+ */
+function updateThreatSourcesChart(sources) {
+    if (!threatSourcesChart) return;
+
+    if (!sources || sources.length === 0) {
+        threatSourcesChart.data.labels = ['No data'];
+        threatSourcesChart.data.datasets[0].data = [0];
+        threatSourcesChart.update();
+        return;
+    }
+
+    const labels = sources.map(s => s.ip);
+    const data = sources.map(s => s.count);
+
+    // Color by severity (more critical = more red)
+    const colors = sources.map(s => {
+        if (s.critical > 0) return '#b71c1c';
+        if (s.high > 0) return '#e65100';
+        return '#D32F2F';
+    });
+
+    threatSourcesChart.data.labels = labels;
+    threatSourcesChart.data.datasets[0].data = data;
+    threatSourcesChart.data.datasets[0].backgroundColor = colors;
+    threatSourcesChart.update();
+}
+
+/**
+ * Update threat actions doughnut chart
+ */
+function updateThreatActionsChart(actionSummary) {
+    if (!threatActionsChart) return;
+
+    const data = [
+        actionSummary.blocked || 0,
+        actionSummary.allowed || 0,
+        actionSummary.alerted || 0,
+        actionSummary.other || 0
+    ];
+
+    threatActionsChart.data.datasets[0].data = data;
+    threatActionsChart.update();
+
+    // Update legend
+    const legendDiv = document.getElementById('threatActionsLegend');
+    if (legendDiv) {
+        const total = data.reduce((a, b) => a + b, 0);
+        const labels = ['Blocked', 'Allowed', 'Alerted', 'Other'];
+        const colors = ['#4CAF50', '#F44336', '#FF9800', '#9E9E9E'];
+
+        let html = '<div style="font-family: var(--font-secondary);">';
+        labels.forEach((label, i) => {
+            const pct = total > 0 ? ((data[i] / total) * 100).toFixed(1) : 0;
+            html += `
+                <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                    <div style="width: 16px; height: 16px; border-radius: 4px; background: ${colors[i]}; margin-right: 12px;"></div>
+                    <div style="flex: 1;">
+                        <div style="color: #F2F0EF; font-weight: 600;">${label}</div>
+                        <div style="color: #999; font-size: 0.9em;">${data[i].toLocaleString()} (${pct}%)</div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        legendDiv.innerHTML = html;
+    }
+}
+
+/**
+ * Update threat categories doughnut chart
+ */
+function updateThreatCategoriesChart(categories) {
+    if (!threatCategoriesChart) return;
+
+    if (!categories || categories.length === 0) {
+        threatCategoriesChart.data.labels = ['No data'];
+        threatCategoriesChart.data.datasets[0].data = [1];
+        threatCategoriesChart.update();
+        return;
+    }
+
+    const labels = categories.map(c => c.category);
+    const data = categories.map(c => c.count);
+
+    threatCategoriesChart.data.labels = labels;
+    threatCategoriesChart.data.datasets[0].data = data;
+    threatCategoriesChart.update();
+
+    // Update legend
+    const legendDiv = document.getElementById('threatCategoriesLegend');
+    if (legendDiv) {
+        const total = data.reduce((a, b) => a + b, 0);
+        const colors = [
+            '#D32F2F', '#E64A19', '#F57C00', '#FBC02D',
+            '#689F38', '#00796B', '#0288D1', '#512DA8', '#616161'
+        ];
+
+        let html = '<div style="font-family: var(--font-secondary);">';
+        categories.slice(0, 8).forEach((cat, i) => {
+            const pct = total > 0 ? ((cat.count / total) * 100).toFixed(1) : 0;
+            html += `
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <div style="width: 14px; height: 14px; border-radius: 3px; background: ${colors[i % colors.length]}; margin-right: 10px;"></div>
+                    <div style="flex: 1;">
+                        <div style="color: #F2F0EF; font-weight: 500; font-size: 0.95em;">${cat.category}</div>
+                        <div style="color: #999; font-size: 0.85em;">${cat.count.toLocaleString()} (${pct}%)</div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        legendDiv.innerHTML = html;
+    }
+}
+
+/**
+ * Switch between threat dashboard tabs
+ */
+window.switchThreatTab = function(tabName) {
+    console.log(`Switching threat tab to: ${tabName}`);
+
+    // Hide all panels
+    document.querySelectorAll('.threat-panel').forEach(panel => {
+        panel.style.display = 'none';
+    });
+
+    // Deactivate all tabs
+    document.querySelectorAll('.threat-tab').forEach(tab => {
+        tab.style.background = 'transparent';
+        tab.style.color = '#999';
+    });
+
+    // Show selected panel
+    const panelId = `threatPanel${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
+    const panel = document.getElementById(panelId);
+    if (panel) {
+        panel.style.display = 'block';
+    }
+
+    // Activate selected tab
+    const tabId = `threatTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
+    const tab = document.getElementById(tabId);
+    if (tab) {
+        tab.style.background = '#D32F2F';
+        tab.style.color = 'white';
+    }
+};
+
 // Module loaded
-console.log('Insights Dashboard module loaded (v1.12.0)');
+console.log('Insights Dashboard module loaded (v1.17.0)');

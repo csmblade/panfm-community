@@ -190,3 +190,79 @@ def register_threat_routes(app, csrf, limiter):
                 'status': 'error',
                 'message': f'Failed to fetch threat timeline: {str(e)}'
             }), 500
+
+    @app.route('/api/threats/dashboard')
+    @limiter.limit("600 per hour")
+    @login_required
+    def threats_dashboard():
+        """API endpoint for comprehensive threat dashboard data (Insights page)
+
+        v1.0.17: New multi-panel threat dashboard with:
+        - Rate-based timeline (threats per time bucket)
+        - Severity breakdown (critical/high/medium counts per bucket)
+        - Top threat sources (source IPs)
+        - Action effectiveness (blocked vs allowed)
+        - Threat categories
+
+        Query params:
+            device_id: Device identifier
+            range: Time range (1h, 6h, 24h, 7d, 30d) - default 6h
+
+        Returns:
+            JSON with comprehensive threat analytics data
+        """
+        debug("=== Threats Dashboard API endpoint called ===")
+
+        # Get device ID from request or settings
+        device_id = request.args.get('device_id')
+        if not device_id or device_id.strip() == '':
+            settings = load_settings()
+            device_id = settings.get('selected_device_id', '')
+
+        if not device_id or device_id.strip() == '':
+            return jsonify({
+                'status': 'error',
+                'message': 'No device selected'
+            }), 400
+
+        # Parse time range
+        time_range = request.args.get('range', '6h')
+
+        # Map range to hours and bucket size
+        range_config = {
+            '1h':  {'hours': 1,   'bucket_minutes': 5},
+            '6h':  {'hours': 6,   'bucket_minutes': 10},
+            '24h': {'hours': 24,  'bucket_minutes': 30},
+            '7d':  {'hours': 168, 'bucket_minutes': 180},
+            '30d': {'hours': 720, 'bucket_minutes': 720}
+        }
+
+        config = range_config.get(time_range, range_config['6h'])
+        hours = config['hours']
+        bucket_minutes = config['bucket_minutes']
+
+        debug(f"Fetching threat dashboard: device={device_id}, range={time_range}, hours={hours}")
+
+        try:
+            from throughput_storage_timescale import TimescaleStorage
+            from config import TIMESCALE_DSN
+
+            storage = TimescaleStorage(TIMESCALE_DSN)
+
+            # Get comprehensive threat dashboard data
+            dashboard_data = storage.get_threat_dashboard(device_id, hours, bucket_minutes)
+
+            debug(f"Threat dashboard loaded: {dashboard_data['total_threats']} total threats")
+
+            return jsonify({
+                'status': 'success',
+                'range': time_range,
+                **dashboard_data
+            })
+
+        except Exception as e:
+            exception("Failed to fetch threat dashboard: %s", str(e))
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to fetch threat dashboard: {str(e)}'
+            }), 500
