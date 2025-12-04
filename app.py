@@ -165,14 +165,27 @@ except Exception as e:
 # the collector for writing data. This dual-process architecture eliminates locking
 # issues and enables high-performance concurrent reads.
 
-# Disable caching for static files (v2.1.0 - fix browser cache issues)
+# Security: Disable caching for static files and API responses (v2.1.1)
+# Prevents sensitive API data from being cached in browsers or proxies
 @app.after_request
-def add_no_cache_headers(response):
-    """Add no-cache headers to prevent browser caching issues"""
+def add_security_headers(response):
+    """Add security headers to prevent caching and improve security"""
+    # Disable caching for static files (fix browser cache issues)
     if '/static/' in request.path:
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
+
+    # SECURITY: Disable caching for API responses (prevent sensitive data caching)
+    if request.path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+
+    # Add security headers for all responses
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+
     return response
 
 # Register all routes

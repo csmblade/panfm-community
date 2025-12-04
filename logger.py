@@ -159,3 +159,33 @@ def log_debug(message):
         message (str): The message to log
     """
     debug(message)
+
+
+def safe_error_response(error_obj, default_message="An error occurred"):
+    """
+    Create a safe error message for client responses.
+
+    SECURITY: This function logs the full error details server-side
+    but returns a generic message to the client to prevent information disclosure.
+
+    Args:
+        error_obj: The exception or error object
+        default_message (str): Generic message to return to client
+
+    Returns:
+        str: Safe error message for client response
+
+    Usage:
+        try:
+            risky_operation()
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': safe_error_response(e, "Operation failed")
+            }), 500
+    """
+    # Log full error details server-side for debugging
+    error(f"Error details (not sent to client): {str(error_obj)}")
+
+    # Return generic message to client
+    return default_message

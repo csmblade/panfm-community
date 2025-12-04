@@ -1,6 +1,11 @@
 """
 Flask route handlers for vendor/service databases and backup/restore operations
 Handles MAC vendor database, service port database, and comprehensive backup/restore
+
+Security:
+- File upload size limits to prevent DoS via memory exhaustion
+- defusedxml for XXE attack prevention
+- Rate limiting on upload endpoints
 """
 from flask import jsonify, request
 from datetime import datetime
@@ -18,10 +23,16 @@ from backup_restore import (
     restore_from_backup,
     get_backup_info
 )
-from logger import debug, info, error, exception
+from logger import debug, info, error, exception, safe_error_response
 # Use defusedxml to prevent XXE (XML External Entity) attacks
 # Standard xml.etree.ElementTree is vulnerable to XXE injection
 import defusedxml.ElementTree as ET
+
+# Security: File upload size limits (in bytes)
+# These limits prevent DoS attacks via memory exhaustion
+MAX_VENDOR_DB_SIZE = 50 * 1024 * 1024      # 50 MB for vendor database
+MAX_SERVICE_DB_SIZE = 20 * 1024 * 1024     # 20 MB for service port database
+MAX_BACKUP_SIZE = 100 * 1024 * 1024        # 100 MB for backup files
 
 
 def register_databases_backup_routes(app, csrf, limiter):
@@ -73,6 +84,17 @@ def register_databases_backup_routes(app, csrf, limiter):
                     'status': 'error',
                     'message': 'File must be a JSON file'
                 }), 400
+
+            # SECURITY: Check file size before loading into memory
+            file.seek(0, 2)  # Seek to end
+            file_size = file.tell()
+            file.seek(0)  # Reset to beginning
+            if file_size > MAX_VENDOR_DB_SIZE:
+                error(f"Vendor DB upload rejected: file size {file_size} exceeds limit {MAX_VENDOR_DB_SIZE}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'File too large. Maximum size is {MAX_VENDOR_DB_SIZE // (1024*1024)} MB'
+                }), 413
 
             # Read and parse JSON
             content = file.read().decode('utf-8')
@@ -169,7 +191,18 @@ def register_databases_backup_routes(app, csrf, limiter):
                     'message': 'File must be an XML file'
                 }), 400
 
-            # Read XML content
+            # SECURITY: Check file size before loading into memory
+            file.seek(0, 2)  # Seek to end
+            file_size = file.tell()
+            file.seek(0)  # Reset to beginning
+            if file_size > MAX_SERVICE_DB_SIZE:
+                error(f"Service port DB upload rejected: file size {file_size} exceeds limit {MAX_SERVICE_DB_SIZE}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'File too large. Maximum size is {MAX_SERVICE_DB_SIZE // (1024*1024)} MB'
+                }), 413
+
+            # Read XML content (safe: defusedxml prevents XXE attacks)
             content = file.read().decode('utf-8')
 
             # Parse XML and convert to JSON structure
@@ -372,6 +405,14 @@ def register_databases_backup_routes(app, csrf, limiter):
         """
         debug("=== Restore Backup API endpoint called ===")
         try:
+            # SECURITY: Check content length before processing
+            if request.content_length and request.content_length > MAX_BACKUP_SIZE:
+                error(f"Backup restore rejected: content length {request.content_length} exceeds limit {MAX_BACKUP_SIZE}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Request too large. Maximum size is {MAX_BACKUP_SIZE // (1024*1024)} MB'
+                }), 413
+
             data = request.get_json()
 
             if not data or 'backup' not in data:
@@ -416,7 +457,7 @@ def register_databases_backup_routes(app, csrf, limiter):
             error(f"Error restoring backup: {str(e)}")
             return jsonify({
                 'status': 'error',
-                'message': str(e)
+                'message': safe_error_response(e, "Failed to restore backup")
             }), 500
 
     @app.route('/api/backup/info', methods=['POST'])

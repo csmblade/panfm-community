@@ -551,6 +551,7 @@ def register_operations_routes(app, csrf, limiter):
     # ============================================================================
 
     @app.route('/api/tech-support/generate', methods=['POST'])
+    @limiter.limit("10 per hour")  # Tech support generation is resource-intensive
     @login_required
     def tech_support_generate():
         """API endpoint to generate tech support file"""
@@ -560,6 +561,7 @@ def register_operations_routes(app, csrf, limiter):
         return jsonify(data)
 
     @app.route('/api/tech-support/status/<job_id>')
+    @limiter.limit("300 per hour")  # Status polling can be frequent
     @login_required
     def tech_support_status(job_id):
         """API endpoint to check tech support job status"""
@@ -569,6 +571,7 @@ def register_operations_routes(app, csrf, limiter):
         return jsonify(data)
 
     @app.route('/api/tech-support/download/<job_id>')
+    @limiter.limit("30 per hour")  # Download links are typically fetched once
     @login_required
     def tech_support_download(job_id):
         """API endpoint to get tech support file download URL"""

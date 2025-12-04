@@ -17,12 +17,14 @@ def init_auth_file():
     Initialize auth.json with default admin credentials if it doesn't exist.
     Default username: admin
     Default password: admin (MUST BE CHANGED after first login)
+
+    SECURITY: Logs a warning on startup if default credentials are still in use.
     """
     debug("Checking if auth file exists")
     if not os.path.exists(AUTH_FILE):
         debug("Auth file not found, creating with default credentials")
-        # Hash the default password
-        hashed_password = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        # Hash the default password with explicit cost factor for future-proofing
+        hashed_password = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
 
         auth_data = {
             'users': {
@@ -43,13 +45,38 @@ def init_auth_file():
             os.chmod(AUTH_FILE, 0o600)
 
             info("Created default admin account - password must be changed on first login")
+            # SECURITY WARNING: Log prominent warning about default credentials
+            warning("=" * 60)
+            warning("SECURITY WARNING: Default admin credentials in use!")
+            warning("Username: admin | Password: admin")
+            warning("Change the password immediately after login.")
+            warning("=" * 60)
             return True
         except Exception as e:
             error(f"Failed to create auth file: {str(e)}")
             return False
     else:
         debug("Auth file exists")
+        # SECURITY: Check if default credentials are still in use and warn
+        _check_default_credentials_warning()
         return True
+
+
+def _check_default_credentials_warning():
+    """
+    Check if default credentials are still in use and log a warning.
+    Called on startup when auth file already exists.
+    """
+    try:
+        auth_data = load_auth_data()
+        if auth_data and 'users' in auth_data and 'admin' in auth_data['users']:
+            if auth_data['users']['admin'].get('must_change_password', False):
+                warning("=" * 60)
+                warning("SECURITY WARNING: Default admin password has not been changed!")
+                warning("Login and change the password immediately.")
+                warning("=" * 60)
+    except Exception:
+        pass  # Don't fail startup if check fails
 
 
 def load_auth_data():
@@ -253,7 +280,11 @@ def must_change_password():
 
 def login_required(f):
     """
-    Decorator to require authentication for routes
+    Decorator to require authentication for routes.
+
+    SECURITY: Also enforces password change requirement server-side.
+    If must_change_password is True, only /api/change-password and /api/logout
+    endpoints are accessible. All other endpoints return 403 until password is changed.
 
     Usage:
         @app.route('/protected')
@@ -275,6 +306,19 @@ def login_required(f):
 
             # Redirect to login for page requests
             return redirect(url_for('login_page'))
+
+        # SECURITY: Enforce password change requirement server-side (v2.1.1)
+        # This prevents users from bypassing the client-side password change requirement
+        if must_change_password():
+            # Allow only password change and logout endpoints
+            allowed_paths = ['/api/change-password', '/api/logout']
+            if request.path not in allowed_paths:
+                debug(f"Blocked access to {request.path} - password change required")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Password change required before accessing this resource',
+                    'must_change_password': True
+                }), 403
 
         return f(*args, **kwargs)
 

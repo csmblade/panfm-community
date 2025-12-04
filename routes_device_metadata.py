@@ -918,6 +918,7 @@ def register_device_metadata_routes(app, csrf, limiter):
     # ============================================================================
 
     @app.route('/api/reverse-dns', methods=['POST'])
+    @limiter.limit("100 per hour")  # DNS lookups can be resource-intensive
     @login_required
     def reverse_dns_api():
         """

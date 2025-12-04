@@ -1155,8 +1155,8 @@ def register_throughput_routes(app, csrf, limiter):
 
     @app.route('/api/throughput/collect-now', methods=['POST'])
     @limiter.limit("10 per hour")  # Rate limit: Prevent firewall API abuse
-    @csrf.exempt  # CSRF handled by apiClient
     @login_required
+    # NOTE: CSRF protection is handled globally by Flask-WTF (CSRFProtect)
     def collect_now():
         """
         Queue immediate throughput collection for a device.

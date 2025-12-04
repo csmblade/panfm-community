@@ -72,6 +72,7 @@ def register_auth_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/logout', methods=['POST'])
+    @limiter.limit("60 per hour")  # Reasonable limit for logout
     @login_required
     def logout():
         """Handle logout"""

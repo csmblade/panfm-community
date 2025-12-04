@@ -3,6 +3,11 @@ Backup & Restore Manager for PANfm
 Handles comprehensive site-wide backup and restore of Settings, Devices, Metadata, Auth, and Database.
 All backups include encryption key and are timestamped.
 
+SECURITY WARNING: Backup files contain the encryption key and all sensitive data.
+Store backups securely (encrypted drive, password manager, etc.) and never share
+via email or unencrypted cloud storage.
+
+v2.1.1: Added SQL injection protection via psycopg2.sql for safe identifier escaping
 v2.1.0: Added auth.json backup and automated pg_dump for TimescaleDB
 """
 import os
@@ -14,6 +19,18 @@ from config import load_settings, save_settings, SETTINGS_FILE, AUTH_FILE
 from device_manager import device_manager
 from device_metadata import load_metadata, save_metadata
 from logger import debug, info, warning, error, exception
+
+# Whitelist of valid table names for database backup/restore
+# This prevents SQL injection via dynamic table names
+ALLOWED_TABLES = frozenset([
+    'alert_configs',
+    'notification_channels',
+    'maintenance_windows',
+    'scheduled_scans',
+    'device_metadata',
+    'alert_history',
+    'alert_cooldowns',
+])
 
 
 def create_full_backup(include_database=True):
@@ -158,6 +175,11 @@ def export_database_backup():
 
         for table in tables_to_backup:
             try:
+                # SECURITY: Validate table name against whitelist to prevent SQL injection
+                if table not in ALLOWED_TABLES:
+                    warning(f"Table {table} not in allowed tables whitelist, skipping")
+                    continue
+
                 # Check if table exists
                 cur.execute("""
                     SELECT EXISTS (
@@ -169,8 +191,9 @@ def export_database_backup():
                     debug(f"Table {table} does not exist, skipping")
                     continue
 
-                # Get all rows from table
-                cur.execute(f"SELECT * FROM {table}")
+                # Get all rows from table using safe identifier escaping
+                from psycopg2 import sql
+                cur.execute(sql.SQL("SELECT * FROM {}").format(sql.Identifier(table)))
                 rows = cur.fetchall()
 
                 # Convert rows to list of dicts (handle special types)
@@ -253,7 +276,14 @@ def import_database_backup(dump_b64):
                 debug(f"Table {table_name} is empty, skipping")
                 continue
 
+            # SECURITY: Validate table name against whitelist to prevent SQL injection
+            if table_name not in ALLOWED_TABLES:
+                warning(f"Table {table_name} not in allowed tables whitelist, skipping restore")
+                continue
+
             try:
+                from psycopg2 import sql
+
                 # Check if table exists
                 cur.execute("""
                     SELECT EXISTS (
@@ -265,13 +295,19 @@ def import_database_backup(dump_b64):
                     warning(f"Table {table_name} does not exist in database, skipping")
                     continue
 
-                # Get column names from first row
+                # Get column names from first row and validate them
                 columns = list(table_data[0].keys())
 
-                # Clear existing data (for full restore)
-                cur.execute(f"DELETE FROM {table_name}")
+                # SECURITY: Validate column names (alphanumeric and underscores only)
+                for col in columns:
+                    if not col.replace('_', '').isalnum():
+                        warning(f"Invalid column name '{col}' in table {table_name}, skipping restore")
+                        continue
 
-                # Insert rows
+                # Clear existing data (for full restore) using safe identifier escaping
+                cur.execute(sql.SQL("DELETE FROM {}").format(sql.Identifier(table_name)))
+
+                # Insert rows using safe identifier escaping
                 for row in table_data:
                     values = []
                     for col in columns:
@@ -280,9 +316,13 @@ def import_database_backup(dump_b64):
                         # psycopg2 handles ISO format strings automatically for timestamp columns
                         values.append(val)
 
-                    placeholders = ', '.join(['%s'] * len(columns))
-                    col_names = ', '.join(columns)
-                    cur.execute(f"INSERT INTO {table_name} ({col_names}) VALUES ({placeholders})", values)
+                    # Build safe INSERT statement with psycopg2.sql
+                    insert_query = sql.SQL("INSERT INTO {} ({}) VALUES ({})").format(
+                        sql.Identifier(table_name),
+                        sql.SQL(', ').join(map(sql.Identifier, columns)),
+                        sql.SQL(', ').join(sql.Placeholder() * len(columns))
+                    )
+                    cur.execute(insert_query, values)
 
                 conn.commit()
                 tables_restored += 1

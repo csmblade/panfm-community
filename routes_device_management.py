@@ -133,6 +133,44 @@ def register_device_management_routes(app, csrf, limiter):
                     'message': 'Name, IP, and API Key are required'
                 }), 400
 
+            # SECURITY: Input validation for device fields
+            import re
+
+            # Validate device name (alphanumeric, spaces, hyphens, underscores, max 100 chars)
+            if not re.match(r'^[\w\s\-\.]{1,100}$', name):
+                debug(f"Validation failed: invalid device name format: {name}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Device name must be 1-100 characters (letters, numbers, spaces, hyphens, underscores, dots)'
+                }), 400
+
+            # Validate IP address format
+            import ipaddress
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                debug(f"Validation failed: invalid IP address: {ip}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid IP address format'
+                }), 400
+
+            # Validate group name if provided (alphanumeric, spaces, hyphens, underscores, max 50 chars)
+            if group and not re.match(r'^[\w\s\-]{1,50}$', group):
+                debug(f"Validation failed: invalid group name: {group}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Group name must be 1-50 characters (letters, numbers, spaces, hyphens, underscores)'
+                }), 400
+
+            # Validate WAN interface if provided (ethernet format)
+            if wan_interface and not re.match(r'^(ethernet\d+/\d+|vlan\.\d+|loopback\.\d+|tunnel\.\d+)?$', wan_interface):
+                debug(f"Validation failed: invalid WAN interface: {wan_interface}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid interface format (e.g., ethernet1/1, vlan.100)'
+                }), 400
+
             # Get device count before adding
             existing_devices = device_manager.load_devices(decrypt_api_keys=False)
             was_first_device = len(existing_devices) == 0
@@ -302,6 +340,7 @@ def register_device_management_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/devices/<device_id>/test', methods=['POST'])
+    @limiter.limit("60 per hour")  # Connection tests involve firewall API calls
     @login_required
     def test_device_connection(device_id):
         """Test connection to a device"""
@@ -325,6 +364,7 @@ def register_device_management_routes(app, csrf, limiter):
             }), 500
 
     @app.route('/api/devices/test-connection', methods=['POST'])
+    @limiter.limit("60 per hour")  # Connection tests involve firewall API calls
     @login_required
     def test_new_device_connection():
         """Test connection to a device (before saving)"""
