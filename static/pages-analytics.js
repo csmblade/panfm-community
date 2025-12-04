@@ -1230,7 +1230,8 @@ function updateSessionsChart(samples) {
  */
 async function loadThreatTimeline(range) {
     // Use same device ID source as other analytics charts
-    const deviceId = window.currentDeviceId || '';
+    // v1.0.17: Use getAnalyticsDeviceId() helper for fallback to settings API
+    const deviceId = await getAnalyticsDeviceId();
     if (!deviceId) {
         console.warn('No device selected for threat dashboard');
         return;
