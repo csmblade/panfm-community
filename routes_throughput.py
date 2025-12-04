@@ -311,7 +311,19 @@ def register_throughput_routes(app, csrf, limiter):
                 resolution=resolution
             )
 
-            debug(f"Retrieved {len(samples)} samples for device {device_id}")
+            debug(f"Retrieved {len(samples)} samples for device {device_id} with resolution={resolution}")
+
+            # v2.1.2: Fallback to raw data if continuous aggregates return empty
+            # This handles cases where hourly/daily aggregates don't exist or aren't materialized
+            if len(samples) == 0 and resolution in ['hourly', 'daily']:
+                debug(f"No data from {resolution} aggregate, falling back to raw data")
+                samples = storage.query_samples(
+                    device_id=device_id,
+                    start_time=start_time,
+                    end_time=now,
+                    resolution='raw'
+                )
+                debug(f"Fallback to raw: retrieved {len(samples)} samples")
 
             # Fixed v1.14.1: Return success with empty samples instead of 'no_data'
             # This prevents frontend from entering infinite retry loop when time range
