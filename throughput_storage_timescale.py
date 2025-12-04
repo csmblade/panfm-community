@@ -1316,17 +1316,19 @@ class TimescaleStorage:
             }
 
             # 4. Threat categories (from threat field patterns)
+            # Note: Use %%%% (4 percent signs) - after Python % formatting becomes %%,
+            # which psycopg2 interprets as literal % in SQL ILIKE patterns
             category_query = """
                 SELECT
                     CASE
-                        WHEN threat ILIKE '%spyware%' THEN 'Spyware'
-                        WHEN threat ILIKE '%virus%' OR threat ILIKE '%malware%' THEN 'Malware'
-                        WHEN threat ILIKE '%exploit%' THEN 'Exploit'
-                        WHEN threat ILIKE '%vulnerability%' OR threat ILIKE '%cve-%' THEN 'Vulnerability'
-                        WHEN threat ILIKE '%phishing%' THEN 'Phishing'
-                        WHEN threat ILIKE '%brute%' OR threat ILIKE '%scan%' THEN 'Reconnaissance'
-                        WHEN threat ILIKE '%flood%' OR threat ILIKE '%dos%' THEN 'DoS'
-                        WHEN threat ILIKE '%command%' OR threat ILIKE '%injection%' THEN 'Injection'
+                        WHEN threat ILIKE '%%%%spyware%%%%' THEN 'Spyware'
+                        WHEN threat ILIKE '%%%%virus%%%%' OR threat ILIKE '%%%%malware%%%%' THEN 'Malware'
+                        WHEN threat ILIKE '%%%%exploit%%%%' THEN 'Exploit'
+                        WHEN threat ILIKE '%%%%vulnerability%%%%' OR threat ILIKE '%%%%cve-%%%%' THEN 'Vulnerability'
+                        WHEN threat ILIKE '%%%%phishing%%%%' THEN 'Phishing'
+                        WHEN threat ILIKE '%%%%brute%%%%' OR threat ILIKE '%%%%scan%%%%' THEN 'Reconnaissance'
+                        WHEN threat ILIKE '%%%%flood%%%%' OR threat ILIKE '%%%%dos%%%%' THEN 'DoS'
+                        WHEN threat ILIKE '%%%%command%%%%' OR threat ILIKE '%%%%injection%%%%' THEN 'Injection'
                         ELSE 'Other'
                     END as category,
                     COUNT(*) as count

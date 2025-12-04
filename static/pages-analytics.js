@@ -62,6 +62,9 @@ window.initAnalyticsPage = function() {
     // Load data for default time range
     loadAnalyticsData();
 
+    // v1.0.17: Load threat dashboard independently (not dependent on throughput data)
+    loadThreatTimeline(currentAnalyticsRange);
+
     // Load top bandwidth clients
     loadTopClients();
 };
@@ -1002,6 +1005,9 @@ window.loadAnalyticsData = async function(retryCount = 0) {
 
             console.log('Empty result for time range:', message);
             showNoDataMessage(message);
+
+            // v1.0.17: Still load threat data even if throughput is empty
+            loadThreatTimeline(currentAnalyticsRange);
 
         } else if (historyData.status === 'no_data') {
             // Legacy 'no_data' status - only occurs during true system initialization
