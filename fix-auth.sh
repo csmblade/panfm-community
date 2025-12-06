@@ -16,7 +16,7 @@ auth_data = {
     'users': {
         'admin': {
             'password_hash': hashed_password,
-            'must_change_password': True
+            'must_change_password': False
         }
     }
 }
